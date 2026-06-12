@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1672 941" width="1672" height="941">
+  <image href="jobsite-clearing.png" width="1672" height="941" preserveAspectRatio="none" />
+  <g fill="none" stroke="#7fd957" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" opacity="0.9">
+    <path d="M 118 350 L 165 335 L 235 312 L 330 280 L 445 240 L 575 198 L 705 162 L 815 132 L 910 151 L 1002 205 L 1102 300 L 1215 414 L 1366 558 L 1505 668 L 1630 738" />
+    <path d="M 118 350 L 134 410 L 162 505 L 205 625 L 272 760 L 392 900" />
+    <path d="M 392 900 L 545 920 L 740 936 L 965 946 L 1190 940 L 1390 922 L 1610 900" />
+    <path d="M 1630 738 L 1598 842 L 1510 906 L 1390 922" />
+  </g>
+  <g fill="#7fd957" stroke="#071007" stroke-width="3" opacity="0.96">
+    <circle cx="118" cy="350" r="7" />
+    <circle cx="815" cy="132" r="7" />
+    <circle cx="1215" cy="414" r="7" />
+    <circle cx="1630" cy="738" r="7" />
+    <circle cx="1390" cy="922" r="7" />
+    <circle cx="392" cy="900" r="7" />
+  </g>
+</svg>
