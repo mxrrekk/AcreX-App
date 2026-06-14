@@ -1,0 +1,31 @@
+{
+  "name": "acrex-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@mapbox/mapbox-gl-draw": "^1.5.0",
+    "@mapbox/mapbox-gl-geocoder": "^5.0.3",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.47.10",
+    "@turf/turf": "^7.1.0",
+    "mapbox-gl": "^3.9.2",
+    "next": "^14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/mapbox__mapbox-gl-draw": "^1.4.8",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.35",
+    "typescript": "^5.7.2"
+  }
+}
