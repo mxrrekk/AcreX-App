@@ -1351,6 +1351,11 @@ export function AcrexMap({
       draw.setFeatureProperty(selectedZone.id, "zoneVisible", layerVisibilityRef.current[nextType]);
       refreshZonesRef.current();
       pushHistorySnapshot();
+      return;
+    }
+
+    if (draw && !selectedZone) {
+      setDrawMode("draw");
     }
   }
 
