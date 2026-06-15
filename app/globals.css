@@ -168,6 +168,74 @@ body {
   font-weight: 850;
 }
 
+.shared-project-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(rgba(3, 6, 5, 0.78), rgba(3, 6, 5, 0.92)),
+    url("/assets/satellite-yard.png") center / cover;
+}
+
+.shared-project-card {
+  display: grid;
+  width: min(760px, 100%);
+  gap: 18px;
+  padding: clamp(24px, 5vw, 46px);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 24px;
+  background: rgba(8, 14, 12, 0.9);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.shared-project-card h1 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(2.1rem, 5vw, 3.6rem);
+  line-height: 1;
+}
+
+.shared-project-card p {
+  margin: 0;
+  color: #c5d1ca;
+}
+
+.shared-project-card code {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--green);
+  font-weight: 850;
+}
+
+.shared-project-preview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shared-project-preview span {
+  min-height: 76px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(127, 217, 87, 0.2);
+  border-radius: 14px;
+  color: #e7f1ea;
+  background: rgba(127, 217, 87, 0.08);
+  text-align: center;
+  font-weight: 850;
+}
+
+.shared-project-card button:disabled {
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  color: #8f9c94;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: not-allowed;
+}
+
 .app-loading-shell {
   display: grid;
   min-height: 100vh;

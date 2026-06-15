@@ -411,3 +411,119 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row
   execute function public.handle_new_auth_user();
+
+alter table public.users
+  add column if not exists plan text not null default 'free',
+  add column if not exists subscription_status text not null default 'inactive',
+  add column if not exists subscription_source text not null default 'manual_admin',
+  add column if not exists stripe_customer_id text,
+  add column if not exists stripe_subscription_id text;
+
+create table if not exists public.project_share_links (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  project_id uuid not null references public.projects(id) on delete cascade,
+  token text not null unique,
+  enabled boolean not null default true,
+  expires_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.lead_requests (
+  id uuid primary key default gen_random_uuid(),
+  requester_user_id uuid references public.users(id) on delete set null,
+  address text,
+  service_type text,
+  photos jsonb not null default '[]'::jsonb,
+  notes text,
+  timeline text,
+  budget_range text,
+  parcel_size double precision,
+  work_area double precision,
+  map_snapshot_url text,
+  ai_scope text,
+  status text not null default 'draft',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.lead_matches (
+  id uuid primary key default gen_random_uuid(),
+  lead_request_id uuid not null references public.lead_requests(id) on delete cascade,
+  contractor_user_id uuid not null references public.users(id) on delete cascade,
+  status text not null default 'pending',
+  match_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists users_stripe_customer_id_idx
+  on public.users(stripe_customer_id);
+
+create index if not exists project_share_links_project_id_idx
+  on public.project_share_links(project_id);
+
+create index if not exists project_share_links_token_idx
+  on public.project_share_links(token);
+
+create index if not exists lead_requests_requester_user_id_idx
+  on public.lead_requests(requester_user_id, created_at desc);
+
+create index if not exists lead_matches_contractor_user_id_idx
+  on public.lead_matches(contractor_user_id, created_at desc);
+
+alter table public.project_share_links enable row level security;
+alter table public.lead_requests enable row level security;
+alter table public.lead_matches enable row level security;
+
+grant select, insert, update, delete on public.project_share_links to authenticated;
+grant select, insert, update, delete on public.lead_requests to authenticated;
+grant select, insert, update, delete on public.lead_matches to authenticated;
+
+drop policy if exists "Users can manage their own share links" on public.project_share_links;
+create policy "Users can manage their own share links"
+  on public.project_share_links
+  for all
+  using (auth.uid() = user_id)
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1
+      from public.projects
+      where projects.id = project_share_links.project_id
+        and projects.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Users can manage their own lead requests" on public.lead_requests;
+create policy "Users can manage their own lead requests"
+  on public.lead_requests
+  for all
+  using (auth.uid() = requester_user_id)
+  with check (auth.uid() = requester_user_id);
+
+drop policy if exists "Contractors can manage their own lead matches" on public.lead_matches;
+create policy "Contractors can manage their own lead matches"
+  on public.lead_matches
+  for all
+  using (auth.uid() = contractor_user_id)
+  with check (auth.uid() = contractor_user_id);
+
+drop trigger if exists set_project_share_links_updated_at on public.project_share_links;
+create trigger set_project_share_links_updated_at
+  before update on public.project_share_links
+  for each row
+  execute function public.set_updated_at();
+
+drop trigger if exists set_lead_requests_updated_at on public.lead_requests;
+create trigger set_lead_requests_updated_at
+  before update on public.lead_requests
+  for each row
+  execute function public.set_updated_at();
+
+drop trigger if exists set_lead_matches_updated_at on public.lead_matches;
+create trigger set_lead_matches_updated_at
+  before update on public.lead_matches
+  for each row
+  execute function public.set_updated_at();
