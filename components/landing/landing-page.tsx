@@ -1,23 +1,23 @@
 import Link from "next/link";
 
 const industries = [
-  "Land Clearing",
-  "Mowing",
-  "Brush Cutting",
-  "Fencing",
-  "Excavation",
-  "Driveways",
-  "House Pads",
-  "Sod & Irrigation"
+  { name: "Land Clearing", icon: "LC" },
+  { name: "Lawn Care", icon: "LC" },
+  { name: "Excavation", icon: "EX" },
+  { name: "Fencing", icon: "FN" },
+  { name: "Gravel Driveways", icon: "RD" },
+  { name: "House Pads", icon: "HP" },
+  { name: "Irrigation", icon: "IR" },
+  { name: "Real Estate", icon: "RE" }
 ];
 
 const features = [
-  "Search an address",
-  "Draw property boundaries",
-  "Mark grass, brush, driveway, building, and excluded zones",
-  "Calculate acreage and square footage",
-  "Save clients and projects",
-  "Generate quotes"
+  { label: "Search an address", icon: "pin" },
+  { label: "Draw property boundaries", icon: "boundary" },
+  { label: "Mark grass, brush, driveway, building, and excluded zones", icon: "layers" },
+  { label: "Calculate acreage and square footage", icon: "measure" },
+  { label: "Save clients and projects", icon: "folder" },
+  { label: "Generate quotes", icon: "quote" }
 ];
 
 const workflow = [
@@ -30,22 +30,25 @@ const workflow = [
 
 const pricing = [
   {
-    name: "Early Access",
+    name: "Free",
     price: "$0",
-    note: "For contractors testing the first version.",
-    points: ["Map takeoffs", "Acreage calculator", "Project saves"]
+    note: "For homeowners and users exploring AcreX.",
+    cta: "Get Started Free",
+    points: ["Limited property searches", "Basic acreage measurements", "Basic parcel viewing", "Up to 3 saved projects", "View-only property reports"]
   },
   {
-    name: "Pro",
-    price: "$79",
-    note: "For solo operators quoting every week.",
-    points: ["Client projects", "Quote builder", "Work zone tools"]
+    name: "AcreX Pro",
+    price: "$24.99",
+    note: "For contractors and professionals.",
+    cta: "Start 14-Day Free Trial",
+    points: ["Unlimited property searches", "Unlimited saved projects", "Advanced drawing tools", "Quote builder", "Customer & project management", "PDF exports"]
   },
   {
-    name: "Contractor Team",
-    price: "$149",
-    note: "For crews that need shared estimating.",
-    points: ["Team workspace", "Saved clients", "Proposal workflow"]
+    name: "AcreX Business",
+    price: "$49.99",
+    note: "For companies and teams.",
+    cta: "Contact Sales",
+    points: ["Everything in Pro", "Team workspaces", "Shared projects", "Company branding", "Future lead marketplace access", "Priority support"]
   }
 ];
 
@@ -67,6 +70,27 @@ const faqs = [
     answer: "The V1 includes basic quote math from acreage and price per acre, with more proposal tools planned."
   }
 ];
+
+function FeatureIcon({ icon }: { icon: string }) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    strokeWidth: 1.8
+  };
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      {icon === "pin" ? <path d="M12 21s6-5.3 6-11a6 6 0 0 0-12 0c0 5.7 6 11 6 11Z M12 12.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" {...common} /> : null}
+      {icon === "boundary" ? <path d="m5 6 6-2 7 3 1 8-8 5-7-4 1-10Z M5 6l6 5 7-4 M11 11v9" {...common} /> : null}
+      {icon === "layers" ? <path d="m12 3 8 4-8 4-8-4 8-4Z M4 12l8 4 8-4 M4 17l8 4 8-4" {...common} /> : null}
+      {icon === "measure" ? <path d="M4 17 17 4l3 3L7 20H4v-3Z M14 7l3 3 M6 15l3 3" {...common} /> : null}
+      {icon === "folder" ? <path d="M3 7.5h7l2 2H21v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-10Z" {...common} /> : null}
+      {icon === "quote" ? <path d="M6 4h8l4 4v12H6V4Z M14 4v4h4 M8.5 12h7 M8.5 15.5h7 M8.5 9h3" {...common} /> : null}
+    </svg>
+  );
+}
 
 export function LandingPage() {
   return (
@@ -90,20 +114,20 @@ export function LandingPage() {
         <section className="landing-hero">
           <div className="hero-content">
             <p className="hero-eyebrow">Contractor quoting workspace</p>
-            <h1>Measure. Quote. Win.</h1>
-            <p className="hero-subheadline">Property measurements and quoting tools for land contractors.</p>
+            <h1>From Property Search to Professional Quote in Minutes</h1>
+            <p className="hero-subheadline">AcreX helps contractors, homeowners, real estate professionals, farmers, and landowners measure properties, generate reports, and build accurate estimates from one platform.</p>
             <p className="hero-copy">
-              Acrex helps contractors measure acreage, mark work zones, and build better quotes faster.
+              Search an address, mark work zones, measure acreage, classify surfaces, and move from takeoff to quote without switching tools.
             </p>
             <div className="hero-actions">
               <Link className="green-button large-button" href="/signup">
-                Start Free Trial
+                Start Measuring
               </Link>
               <a className="ghost-button large-button" href="#how-it-works">
-                View Demo
+                View Features
               </a>
             </div>
-            <p className="hero-note">No credit card required</p>
+            <p className="hero-note">No credit card required · Desktop & Mobile · Built for real field work</p>
           </div>
 
           <div className="acrex-product-mockup" aria-label="Acrex dashboard and map preview">
@@ -207,9 +231,9 @@ export function LandingPage() {
         </div>
         <div className="industry-card-grid">
           {industries.map((industry) => (
-            <article key={industry}>
-              <span aria-hidden="true" />
-              <h3>{industry}</h3>
+            <article key={industry.name}>
+              <span aria-hidden="true">{industry.icon}</span>
+              <h3>{industry.name}</h3>
             </article>
           ))}
         </div>
@@ -222,9 +246,9 @@ export function LandingPage() {
         </div>
         <div className="landing-feature-grid">
           {features.map((feature) => (
-            <article key={feature}>
-              <div className="feature-icon" aria-hidden="true">+</div>
-              <h3>{feature}</h3>
+            <article key={feature.label}>
+              <div className="feature-icon" aria-hidden="true"><FeatureIcon icon={feature.icon} /></div>
+              <h3>{feature.label}</h3>
             </article>
           ))}
         </div>
@@ -249,7 +273,7 @@ export function LandingPage() {
         </div>
         <div className="pricing-grid">
           {pricing.map((plan) => (
-            <article key={plan.name} className={plan.name === "Pro" ? "featured-plan" : ""}>
+            <article key={plan.name} className={plan.name === "AcreX Pro" ? "featured-plan" : ""}>
               <h3>{plan.name}</h3>
               <strong>{plan.price}<span>/mo</span></strong>
               <p>{plan.note}</p>
@@ -258,10 +282,11 @@ export function LandingPage() {
                   <li key={point}>{point}</li>
                 ))}
               </ul>
-              <Link className="green-button" href="/signup">Get Started</Link>
+              <Link className="green-button" href="/signup">{plan.cta}</Link>
             </article>
           ))}
         </div>
+        <p className="pricing-note">One average project can pay for an entire year of AcreX. No contracts · Cancel anytime · Secure cloud storage.</p>
       </section>
 
       <section className="landing-section faq-section">
@@ -280,9 +305,9 @@ export function LandingPage() {
       </section>
 
       <section className="landing-section final-cta">
-        <p className="section-kicker">Acrex</p>
+        <p className="section-kicker">AcreX</p>
         <h2>Start measuring better quotes today.</h2>
-        <Link className="green-button large-button" href="/signup">Start Free Trial</Link>
+        <Link className="green-button large-button" href="/signup">Start Measuring</Link>
       </section>
 
       <footer className="landing-footer">
@@ -293,6 +318,9 @@ export function LandingPage() {
         <div>
           <Link href="/login">Login</Link>
           <Link href="/signup">Get Started</Link>
+          <Link href="/privacy">Privacy Policy</Link>
+          <Link href="/terms">Terms & Conditions</Link>
+          <a href="mailto:support@getacrex.com">Contact</a>
         </div>
       </footer>
     </main>
