@@ -1051,7 +1051,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
         <div className="dashboard-header-search-wrap">
           <div className="dashboard-header-search" id="dashboard-search-mount" />
         </div>
-        <div className="dashboard-header-actions">
+        <div className="dashboard-header-actions map-hidden-tools">
           <button className="dashboard-icon-button" type="button" aria-label="Notifications placeholder">
             <span className="dashboard-notification-dot" />
             <svg aria-hidden="true" viewBox="0 0 20 20">
@@ -1075,19 +1075,10 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
 
         <section className="dashboard-main">
           <section className="dashboard-map-panel">
-            <div className="workflow-guide-bar" aria-label="AcreX workflow">
-              {["Search", "Select Service", "Draw", "Measurements", "Quote", "Export"].map((step) => (
-                <span className={workflowState.step === step ? "active" : ""} key={step}>
-                  {step}
-                </span>
-              ))}
-              <strong>{workflowState.message}</strong>
-            </div>
-            <div className="map-command-bar" aria-label="Quick actions">
-              <button type="button" onClick={handleSaveProject} disabled={isSavingProject}>
-                {isSavingProject ? "Saving..." : "Save"}
-              </button>
-              <button type="button" onClick={handleShareProject}>Export</button>
+            <div className="map-measurement-summary" aria-label="Measurement summary">
+              <span>Measurements</span>
+              <strong>{summaryRows[8].value}</strong>
+              <small>{workZones.length} drawn area{workZones.length === 1 ? "" : "s"}</small>
             </div>
             <AcrexMap
               activeProjectId={activeProjectId}

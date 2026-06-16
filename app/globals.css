@@ -2031,6 +2031,10 @@ img {
   box-shadow: 0 26px 80px rgba(0, 0, 0, 0.34);
 }
 
+.map-hidden-tools {
+  display: none !important;
+}
+
 .workflow-guide-bar {
   position: absolute;
   top: 14px;
@@ -2048,6 +2052,45 @@ img {
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
   transform: translateX(-50%);
   backdrop-filter: blur(16px);
+}
+
+.map-measurement-summary {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  display: grid;
+  gap: 3px;
+  min-width: 172px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  color: #f5fff4;
+  background: rgba(7, 12, 12, 0.84);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+  padding: 12px 14px;
+  pointer-events: auto;
+  backdrop-filter: blur(16px);
+}
+
+.map-measurement-summary span,
+.map-measurement-summary small {
+  color: #9facaa;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.map-measurement-summary strong {
+  color: var(--green);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.map-measurement-summary small {
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .workflow-guide-bar span {

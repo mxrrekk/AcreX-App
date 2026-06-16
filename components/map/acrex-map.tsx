@@ -1830,65 +1830,17 @@ export function AcrexMap({
     <>
       {!searchMountId ? <div className="map-search-bar" ref={searchContainerRef} /> : null}
       <div className="draw-toolbar" aria-label="Drawing toolbar">
-        <div className="service-type-card-list" aria-label="Service type">
-          <span>Measure</span>
-          {serviceTypes.map((serviceType) => (
-            <button
-              className={activeServiceType.id === serviceType.id ? "active service-type-card" : "service-type-card"}
-              key={serviceType.id}
-              type="button"
-              onClick={() => handleServiceTypeSelect(serviceType)}
-            >
-              <i style={{ background: serviceType.color }} />
-              <strong>{serviceType.label}</strong>
-              <small>{serviceType.geometry === "line" ? "Line" : "Polygon"} · {serviceType.unit}</small>
-            </button>
-          ))}
-        </div>
-        <button className={activeMode === "select" ? "active" : ""} type="button" onClick={() => setDrawMode("select")}>
-          Select
-        </button>
         <button className={activeMode === "draw" ? "active" : ""} type="button" onClick={() => setDrawMode("draw")}>
           Draw
-        </button>
-        <button className={activeMode === "circle" ? "active" : ""} type="button" onClick={() => setDrawMode("circle")}>
-          Circle
-        </button>
-        <button className={activeMode === "edit" ? "active" : ""} type="button" onClick={() => setDrawMode("edit")}>
-          Edit
-        </button>
-        <button type="button" onClick={deleteBoundary} disabled={!hasPolygon}>
-          Delete
-        </button>
-        <button className={activeMode === "measure" ? "active" : ""} type="button" onClick={() => setDrawMode("measure")}>
-          Measure
-        </button>
-        <div className="draw-toolbar-split" aria-hidden="true" />
-        <button type="button" onClick={undoDrawChange} disabled={!canUndo}>
-          Undo
-        </button>
-        <button type="button" onClick={redoDrawChange} disabled={!canRedo}>
-          Redo
         </button>
       </div>
       <div className="map-layer-chips" aria-label="Layer visibility">
         <button className={parcelLinesVisible ? "active" : ""} type="button" onClick={toggleParcelLines}>
           <i style={{ background: zoneColors.Property }} />
-          Parcel
+          Layers
         </button>
-        {serviceTypes.map((serviceType) => (
-          <button
-            className={layerVisibility[serviceType.zoneType] ? "active" : ""}
-            key={serviceType.id}
-            type="button"
-            onClick={() => toggleLayer(serviceType.zoneType)}
-          >
-            <i style={{ background: serviceType.color }} />
-            {serviceType.shortLabel}
-          </button>
-        ))}
       </div>
-      <div className="map-view-controls" aria-label="Map view controls">
+      <div className="map-view-controls map-hidden-tools" aria-label="Map view controls">
         <div className="map-style-toggle" role="group" aria-label="Map style">
           <button
             className={mapStyle === "satellite" ? "active" : ""}
@@ -1909,35 +1861,16 @@ export function AcrexMap({
           Reset View
         </button>
       </div>
-      {recentSearches.length ? (
-        <div className="recent-searches-panel" aria-label="Recent searches">
-          <span>Recent Searches</span>
-          {recentSearches.slice(0, 4).map((search) => (
-            <button key={search.id} type="button" onClick={() => openRecentSearch(search)}>
-              {search.address}
-            </button>
-          ))}
-        </div>
-      ) : null}
       {savePill ? (
-        <div className="shape-save-pill" style={{ "--zone-color": savePill.color } as CSSProperties}>
+        <div className="shape-save-pill map-hidden-tools" style={{ "--zone-color": savePill.color } as CSSProperties}>
           <strong>{savePill.message}</strong>
           <button type="button" onClick={() => setDrawMode("draw")}>Draw Another</button>
           <button type="button" onClick={undoDrawChange}>Undo</button>
         </div>
       ) : null}
-      {workZones.length ? (
-        <div className="map-measurement-pills" aria-label="Map measurement labels">
-          {workZones.filter((zone) => zone.visible !== false).slice(-4).map((zone) => (
-            <span key={zone.id} style={{ "--zone-color": zone.color ?? zoneColors[zone.type] } as CSSProperties}>
-              {zone.name} • {formatShapeMeasurement(zone)}
-            </span>
-          ))}
-        </div>
-      ) : null}
       <div className="map-canvas" ref={mapContainerRef} aria-label="Mapbox property map" />
       <div className="parcel-note">Parcel lines require a parcel data provider.</div>
-      <div className="zone-editor" aria-label="Selected zone details">
+      <div className="zone-editor map-hidden-tools" aria-label="Selected zone details">
         <div className="zone-editor-heading">
           <span>{selectedZones.length > 1 ? "Selected Zones" : "Selected Zone"}</span>
           <strong style={selectedZone ? { color: selectedZone.color ?? zoneColors[selectedZone.type] } : undefined}>
