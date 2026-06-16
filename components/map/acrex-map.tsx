@@ -368,6 +368,7 @@ export function AcrexMap({
   const [mapStyle, setMapStyle] = useState<MapStyle>("satellite");
   const [layerVisibility, setLayerVisibility] = useState<LayerVisibility>(defaultLayerVisibility);
   const [parcelLinesVisible, setParcelLinesVisible] = useState(true);
+  const [isDrawMenuOpen, setIsDrawMenuOpen] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const [, setLinearMeasurement] = useState<LinearMeasurement | null>(null);
   const [, setCircleMeasurement] = useState<CircleMeasurement | null>(null);
@@ -1598,6 +1599,7 @@ export function AcrexMap({
     setSelectedZoneIds([]);
     onSelectedZonesChangeRef.current?.([]);
     setDrawMode("draw");
+    setIsDrawMenuOpen(false);
   }
 
   function toggleSelectedZoneLock() {
@@ -1830,9 +1832,31 @@ export function AcrexMap({
     <>
       {!searchMountId ? <div className="map-search-bar" ref={searchContainerRef} /> : null}
       <div className="draw-toolbar" aria-label="Drawing toolbar">
-        <button className={activeMode === "draw" ? "active" : ""} type="button" onClick={() => setDrawMode("draw")}>
+        <button
+          className={isDrawMenuOpen || activeMode === "draw" ? "active" : ""}
+          type="button"
+          onClick={() => setIsDrawMenuOpen((current) => !current)}
+          aria-expanded={isDrawMenuOpen}
+          aria-haspopup="menu"
+        >
           Draw
         </button>
+        {isDrawMenuOpen ? (
+          <div className="draw-service-menu" role="menu" aria-label="Draw service type">
+            {serviceTypes.filter((serviceType) => serviceType.id !== "property-boundary").map((serviceType) => (
+              <button
+                className={activeServiceType.id === serviceType.id ? "active" : ""}
+                key={serviceType.id}
+                type="button"
+                role="menuitem"
+                onClick={() => handleServiceTypeSelect(serviceType)}
+              >
+                <i style={{ background: serviceType.color }} />
+                <span>{serviceType.shortLabel}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
       <div className="map-layer-chips" aria-label="Layer visibility">
         <button className={parcelLinesVisible ? "active" : ""} type="button" onClick={toggleParcelLines}>

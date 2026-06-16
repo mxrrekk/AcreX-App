@@ -2266,6 +2266,36 @@ img {
   opacity: 0.42;
 }
 
+.draw-service-menu {
+  display: grid;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.draw-service-menu button {
+  min-height: 36px;
+  grid-template-columns: 10px minmax(0, 1fr);
+  justify-items: start;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.draw-service-menu i {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+
+.draw-service-menu span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .draw-toolbar-split {
   height: 1px;
   margin: 1px 0;
