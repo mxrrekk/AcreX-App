@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type MapboxDraw from "@mapbox/mapbox-gl-draw";
 import type { LngLatBoundsLike, Map as MapboxMap } from "mapbox-gl";
 import type { Feature, FeatureCollection, LineString, Point, Polygon } from "geojson";
@@ -26,6 +26,7 @@ type AcrexMapProps = {
   initialAddress?: string | null;
   searchMountId?: string;
   useParcelRequestKey?: number;
+  onToolPanelChange?: (panel: ActiveMapPanel) => void;
 };
 
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -350,7 +351,8 @@ export function AcrexMap({
   initialPolygon,
   initialAddress,
   searchMountId,
-  useParcelRequestKey = 0
+  useParcelRequestKey = 0,
+  onToolPanelChange
 }: AcrexMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
@@ -1625,8 +1627,21 @@ export function AcrexMap({
     setSelectedZoneIds([]);
     onSelectedZonesChangeRef.current?.([]);
     setDrawMode("draw");
-    setActiveMapPanel(null);
+    setMapPanel(null);
   }
+
+  const setMapPanel = useCallback((panel: ActiveMapPanel) => {
+    setActiveMapPanel(panel);
+    onToolPanelChange?.(panel);
+  }, [onToolPanelChange]);
+
+  const toggleMapPanel = useCallback((panel: Exclude<ActiveMapPanel, null>) => {
+    setActiveMapPanel((current) => {
+      const nextPanel = current === panel ? null : panel;
+      onToolPanelChange?.(nextPanel);
+      return nextPanel;
+    });
+  }, [onToolPanelChange]);
 
   function toggleSelectedZoneLock() {
     const draw = drawRef.current;
@@ -1846,12 +1861,12 @@ export function AcrexMap({
     function handlePointerDown(event: PointerEvent) {
       const target = event.target;
       if (target instanceof Node && mapControlsRef.current?.contains(target)) return;
-      setActiveMapPanel(null);
+      setMapPanel(null);
     }
 
     window.addEventListener("pointerdown", handlePointerDown);
     return () => window.removeEventListener("pointerdown", handlePointerDown);
-  }, [activeMapPanel]);
+  }, [activeMapPanel, setMapPanel]);
 
   if (!mapboxToken || mapError) {
     return (
@@ -1875,7 +1890,7 @@ export function AcrexMap({
           <button
             className={activeMapPanel === "draw" || activeMode === "draw" ? "active" : ""}
             type="button"
-            onClick={() => setActiveMapPanel((current) => (current === "draw" ? null : "draw"))}
+            onClick={() => toggleMapPanel("draw")}
             aria-expanded={activeMapPanel === "draw"}
             aria-haspopup="menu"
           >
@@ -1885,7 +1900,7 @@ export function AcrexMap({
             <div className="draw-service-menu" role="menu" aria-label="Draw service type">
               <div className="map-popover-heading">
                 <span>Draw Type</span>
-                <button type="button" onClick={() => setActiveMapPanel(null)} aria-label="Close draw tools">
+                <button type="button" onClick={() => setMapPanel(null)} aria-label="Close draw tools">
                   Close
                 </button>
               </div>
@@ -1908,7 +1923,7 @@ export function AcrexMap({
           <button
             className={activeMapPanel === "layers" || parcelLinesVisible ? "active" : ""}
             type="button"
-            onClick={() => setActiveMapPanel((current) => (current === "layers" ? null : "layers"))}
+            onClick={() => toggleMapPanel("layers")}
             aria-expanded={activeMapPanel === "layers"}
             aria-haspopup="dialog"
           >
@@ -1919,7 +1934,7 @@ export function AcrexMap({
             <div className="map-layers-popover" role="dialog" aria-label="Layer controls">
               <div className="map-popover-heading">
                 <span>Layers</span>
-                <button type="button" onClick={() => setActiveMapPanel(null)} aria-label="Close layers">
+                <button type="button" onClick={() => setMapPanel(null)} aria-label="Close layers">
                   Close
                 </button>
               </div>

@@ -366,6 +366,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const [snapshots, setSnapshots] = useState<ProjectSnapshot[]>([]);
   const [calculatorType, setCalculatorType] = useState("Fence linear feet");
   const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const dashboardDrawerRef = useRef<HTMLElement | null>(null);
   const previousZoneSnapshotRef = useRef<string>("");
   const lastDraftJsonRef = useRef<string>("");
 
@@ -799,6 +800,23 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     }
   }, [requestedPanel]);
 
+  useEffect(() => {
+    if (!isInspectorOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (dashboardDrawerRef.current?.contains(target)) return;
+      if (target.closest(".dashboard-sidebar")) return;
+      if (target.closest(".map-tool-controls")) return;
+      setSelectedZones([]);
+      setActivePanel(null);
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isInspectorOpen]);
+
   const handleAddressChange = useCallback((nextAddress: string) => {
     setAddress(nextAddress);
     setProjectForm((current) => ({
@@ -816,6 +834,12 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       if (zones.length) return "measurements";
       return current === "measurements" ? null : current;
     });
+  }, []);
+
+  const handleMapToolPanelChange = useCallback((panel: "draw" | "layers" | null) => {
+    if (!panel) return;
+    setSelectedZones([]);
+    setActivePanel(null);
   }, []);
 
   function handleNewProject() {
@@ -1092,13 +1116,14 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
               onZonesChange={setWorkZones}
               onSelectedZonesChange={handleSelectedZonesChange}
               onParcelLookupChange={setParcelLookup}
+              onToolPanelChange={handleMapToolPanelChange}
               searchMountId="dashboard-search-mount"
               useParcelRequestKey={useParcelRequestKey}
             />
           </section>
 
           {isInspectorOpen ? (
-          <aside className="dashboard-summary-panel">
+          <aside className="dashboard-summary-panel" ref={dashboardDrawerRef}>
             <div className="dashboard-summary-card">
               <div className="dashboard-summary-heading">
                 <div>
