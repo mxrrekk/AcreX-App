@@ -4860,6 +4860,101 @@ img {
   line-height: 1.45;
 }
 
+.quotes-blank-workspace {
+  min-height: 100vh;
+}
+
+.quote-blank-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 22px;
+  align-items: end;
+  overflow: hidden;
+  border: 1px solid rgba(127, 217, 87, 0.18);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 82% 10%, rgba(127, 217, 87, 0.18), transparent 28%),
+    linear-gradient(135deg, rgba(10, 18, 15, 0.98), rgba(4, 8, 7, 0.94));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.3);
+  padding: 28px;
+}
+
+.quote-blank-hero span,
+.quote-blank-card span,
+.quote-blank-status span {
+  color: var(--green);
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.quote-blank-hero h2 {
+  max-width: 760px;
+  margin: 10px 0 10px;
+  color: #f7fff7;
+  font-size: clamp(2rem, 4vw, 4.2rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.quote-blank-hero p {
+  max-width: 680px;
+  margin: 0;
+  color: #acb8b0;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.quote-blank-status {
+  display: grid;
+  gap: 6px;
+  min-width: 190px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.065);
+  padding: 18px;
+  backdrop-filter: blur(18px);
+}
+
+.quote-blank-status strong {
+  color: #f7fff7;
+  font-size: 1.2rem;
+}
+
+.quote-blank-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.quote-blank-card {
+  min-height: 220px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
+    rgba(9, 15, 14, 0.94);
+  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.22);
+  padding: 20px;
+}
+
+.quote-blank-card h2 {
+  margin: 0;
+  color: #f5fff6;
+  font-size: 1.18rem;
+}
+
+.quote-blank-card p {
+  margin: 0;
+  color: #aab6ae;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
 .quote-header-actions {
   display: flex;
   align-items: center;
@@ -5805,6 +5900,14 @@ img {
     grid-template-columns: 1fr;
   }
 
+  .quote-blank-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-blank-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .invoices-page {
     grid-template-columns: 1fr;
   }
@@ -5902,6 +6005,18 @@ img {
 }
 
 @media (max-width: 640px) {
+  .quote-blank-hero {
+    padding: 20px;
+  }
+
+  .quote-blank-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-blank-card {
+    min-height: 180px;
+  }
+
   .landing-header {
     min-height: 68px;
     padding-inline: 14px;
