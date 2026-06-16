@@ -46,7 +46,7 @@ export const serviceTypes: ActiveServiceType[] = [
     geometry: "polygon",
     color: "#f97316",
     unit: "acre",
-    quoteCategory: "Forestry Mulching",
+    quoteCategory: "Forestry Mulching / Brush Clearing",
     defaultRateType: "per_acre",
     description: "Brush, undergrowth, and small-tree clearing."
   },
@@ -70,7 +70,7 @@ export const serviceTypes: ActiveServiceType[] = [
     geometry: "line",
     color: "#8b5cf6",
     unit: "linear ft",
-    quoteCategory: "Fencing",
+    quoteCategory: "Fence Installation",
     defaultRateType: "per_linear_ft",
     description: "Fence runs and other linear work."
   },
@@ -82,7 +82,7 @@ export const serviceTypes: ActiveServiceType[] = [
     geometry: "polygon",
     color: "#9aa4ad",
     unit: "sq ft",
-    quoteCategory: "Driveway Prep",
+    quoteCategory: "Gravel Driveway",
     defaultRateType: "per_sq_ft",
     description: "Driveway prep, gravel areas, and parking pads."
   },
@@ -94,14 +94,14 @@ export const serviceTypes: ActiveServiceType[] = [
     geometry: "polygon",
     color: "#b88352",
     unit: "sq ft",
-    quoteCategory: "House Pad",
+    quoteCategory: "House Pad Prep",
     defaultRateType: "per_sq_ft",
     description: "House pads, building pads, and compacted areas."
   },
   {
     id: "exclusion",
     label: "Exclusion / Do Not Touch",
-    shortLabel: "Excluded",
+    shortLabel: "Exclusion",
     zoneType: "Excluded",
     geometry: "polygon",
     color: "#ef4444",

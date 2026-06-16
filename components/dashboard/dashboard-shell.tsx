@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import Link from "next/link";
+import { AppSidebar, type AppSidebarKey } from "@/components/ui/app-sidebar";
 import type { Feature, Polygon } from "geojson";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatAcres, formatFeet, formatSquareFeet } from "@/lib/geo/format";
@@ -97,27 +97,8 @@ const emptyProjectForm: ProjectFormState = {
   status: "Draft"
 };
 
-const navItems = [
-  { key: "dashboard", label: "Dashboard", icon: "grid", active: true },
-  { key: "projects", label: "Projects", icon: "folder", active: false, href: "/projects" },
-  { key: "clients", label: "Clients", icon: "users", active: false, href: "/clients" },
-  { key: "quotes", label: "Quotes", icon: "file", active: false, href: "/quotes" },
-  { key: "invoices", label: "Invoices", icon: "receipt", active: false, href: "/invoices" },
-  { key: "templates", label: "Templates", icon: "layers", active: false },
-  { key: "settings", label: "Settings", icon: "gear", active: false }
-] as const;
-
 const projectStatuses: ProjectStatus[] = ["Draft", "Estimating", "Quoted", "Won", "Lost", "Completed", "Archived"];
 type DashboardPanelKey = "search" | "layers" | "measurements" | "quote" | "project" | "settings";
-
-const dashboardPanelItems: Array<{ key: DashboardPanelKey; label: string }> = [
-  { key: "search", label: "Search" },
-  { key: "layers", label: "Layers" },
-  { key: "measurements", label: "Measurements" },
-  { key: "quote", label: "Quote" },
-  { key: "project", label: "Project" },
-  { key: "settings", label: "Settings" }
-];
 
 function getDraftKey(userEmail: string) {
   return `acrex-dashboard-draft:${userEmail}`;
@@ -168,6 +149,18 @@ function formatZoneMeasurement(zone: WorkZone) {
     return `${formatSquareFeet(zone.squareFeet)} sq ft`;
   }
   return `${formatAcres(zone.acres)} ac`;
+}
+
+function getMeasurementGroupLabel(zone: WorkZone) {
+  if (zone.type === "Brush") return "Brush";
+  if (zone.type === "Grass") return "Grass";
+  if (zone.type === "Fence") return "Fence";
+  if (zone.type === "Driveway") return "Driveway";
+  if (zone.type === "HousePad" || zone.type === "Building") return "House Pad";
+  if (zone.type === "Excluded") return "Exclusion";
+  if (zone.type === "Property") return "Property";
+  if (zone.type === "Woods") return "Woods";
+  return zone.serviceTypeLabel ?? zoneLabels[zone.type] ?? zone.type;
 }
 
 function formatDateTime(value: string | null | undefined) {
@@ -237,7 +230,7 @@ function isFeatureCollection(data: SavedProjectMapData | null): data is Extract<
   return data?.type === "FeatureCollection";
 }
 
-function getPanelClass(activePanel: DashboardPanelKey, panel: DashboardPanelKey, className: string) {
+function getPanelClass(activePanel: DashboardPanelKey | null, panel: DashboardPanelKey, className: string) {
   return `${className} dashboard-tab-panel${activePanel === panel ? " is-active" : ""}`;
 }
 
@@ -289,58 +282,6 @@ function createSavedProjectMapData(
   };
 }
 
-function NavIcon({ icon }: { icon: (typeof navItems)[number]["icon"] }) {
-  const commonProps = {
-    fill: "none",
-    stroke: "currentColor",
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    strokeWidth: 1.8
-  };
-
-  return (
-    <svg aria-hidden="true" viewBox="0 0 20 20">
-      {icon === "grid" ? (
-        <>
-          <rect x="3" y="3" width="5" height="5" rx="1.2" {...commonProps} />
-          <rect x="12" y="3" width="5" height="5" rx="1.2" {...commonProps} />
-          <rect x="3" y="12" width="5" height="5" rx="1.2" {...commonProps} />
-          <rect x="12" y="12" width="5" height="5" rx="1.2" {...commonProps} />
-        </>
-      ) : null}
-      {icon === "folder" ? <path d="M2.8 6.2h4.1l1.5 1.7H17v6.6A1.5 1.5 0 0 1 15.5 16H4.5A1.5 1.5 0 0 1 3 14.5V7.7c0-.8.6-1.5 1.5-1.5Z" {...commonProps} /> : null}
-      {icon === "users" ? (
-        <>
-          <path d="M7.3 9a2.3 2.3 0 1 0 0-4.6A2.3 2.3 0 0 0 7.3 9Z" {...commonProps} />
-          <path d="M12.8 8.2a2 2 0 1 0 0-4" {...commonProps} />
-          <path d="M3.8 15.7c.7-2 2.2-3 4.5-3 2.2 0 3.8 1 4.4 3" {...commonProps} />
-          <path d="M12.5 12.8c1.4.1 2.4 1 3 2.9" {...commonProps} />
-        </>
-      ) : null}
-      {icon === "file" ? <path d="M6 2.8h5.3L16 7.5v9.1a1.4 1.4 0 0 1-1.4 1.4H6A1.4 1.4 0 0 1 4.6 16.6V4.2A1.4 1.4 0 0 1 6 2.8Z M11.2 2.8v4.5H16" {...commonProps} /> : null}
-      {icon === "receipt" ? (
-        <>
-          <path d="M5.3 3.3h9.4v13.4l-1.8-1-1.5 1-1.4-1-1.4 1-1.6-1-1.7 1V3.3Z" {...commonProps} />
-          <path d="M7.3 7h5.4M7.3 10h5.4M7.3 13h3.4" {...commonProps} />
-        </>
-      ) : null}
-      {icon === "layers" ? (
-        <>
-          <path d="m10 3 6.5 3.6L10 10.2 3.5 6.6 10 3Z" {...commonProps} />
-          <path d="m3.5 10.1 6.5 3.6 6.5-3.6" {...commonProps} />
-          <path d="m3.5 13.6 6.5 3.4 6.5-3.4" {...commonProps} />
-        </>
-      ) : null}
-      {icon === "gear" ? (
-        <>
-          <circle cx="10" cy="10" r="2.5" {...commonProps} />
-          <path d="M10 2.8v2.1M10 15.1v2.1M17.2 10h-2.1M4.9 10H2.8M15.1 4.9l-1.5 1.5M6.4 13.6l-1.5 1.5M15.1 15.1l-1.5-1.5M6.4 6.4 4.9 4.9" {...commonProps} />
-        </>
-      ) : null}
-    </svg>
-  );
-}
-
 function normalizeProject(row: unknown): ProjectRecord {
   return row as ProjectRecord;
 }
@@ -368,7 +309,6 @@ async function getCurrentUserId(supabase: NonNullable<ReturnType<typeof createSu
 }
 
 export function DashboardShell({ userEmail }: DashboardShellProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const requestedProjectId = searchParams.get("project");
   const [measurements, setMeasurements] = useState<ProjectMeasurements | null>(null);
@@ -384,10 +324,8 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [isSavingProject, setIsSavingProject] = useState(false);
   const [projectMessage, setProjectMessage] = useState<string | null>(null);
-  const [isSigningOut, setIsSigningOut] = useState(false);
   const [mapResetKey, setMapResetKey] = useState(0);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [activePanel, setActivePanel] = useState<DashboardPanelKey>("measurements");
+  const [activePanel, setActivePanel] = useState<DashboardPanelKey | null>(null);
   const [workZones, setWorkZones] = useState<WorkZone[]>([]);
   const [selectedZones, setSelectedZones] = useState<WorkZone[]>([]);
   const [draftMapData, setDraftMapData] = useState<SavedProjectMapData | null>(null);
@@ -405,6 +343,18 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const [globalSearchTerm, setGlobalSearchTerm] = useState("");
   const [tagStore, setTagStore] = useState<ProjectTagStore>({});
   const [customTag, setCustomTag] = useState("");
+  const requestedPanel = searchParams.get("panel");
+  const requestedSection = searchParams.get("section");
+  const sidebarActiveKey: AppSidebarKey =
+    requestedPanel === "measurements"
+      ? "drawings"
+      : requestedPanel === "project" && requestedSection === "exports"
+        ? "exports"
+        : requestedPanel === "settings" && requestedSection === "account"
+          ? "account"
+          : requestedPanel === "settings"
+            ? "settings"
+            : "map";
   const [checklistItems, setChecklistItems] = useState<ProjectChecklistItem[]>([]);
   const [editingChecklistId, setEditingChecklistId] = useState<string | null>(null);
   const [checklistDraft, setChecklistDraft] = useState("");
@@ -453,7 +403,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const selectedTotals = sumSelectedMeasurements(selectedZones);
   const groupedMeasurements = useMemo(() => {
     return workZones.reduce<Array<{ key: string; color: string; zones: WorkZone[]; total: string }>>((groups, zone) => {
-      const key = zone.serviceTypeLabel ?? zoneLabels[zone.type] ?? zone.type;
+      const key = getMeasurementGroupLabel(zone);
       const color = zone.color ?? zoneColors[zone.type];
       let group = groups.find((item) => item.key === key);
       if (!group) {
@@ -481,6 +431,8 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     if (!activeProjectId) return { step: "Save", message: "Save this property to keep measurements, notes, and quotes together." };
     return { step: "Export", message: "Project is ready to share or export when needed." };
   }, [activeProjectId, address, quotes, workZones.length]);
+  const effectivePanel = activePanel ?? (selectedZones.length ? "measurements" : null);
+  const isInspectorOpen = effectivePanel !== null;
   const summaryRows = [
     { label: "Parcel total", value: propertyAcres ? `${formatAcres(propertyAcres)} ac` : `${formatAcres(measurements?.acres ?? null)} ac` },
     { label: "Grass total", value: grassAcres ? `${formatAcres(grassAcres)} ac` : "--" },
@@ -826,14 +778,16 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     setProjectMessage("Project loaded.");
   }, [projects, requestedProjectId]);
 
-  async function handleLogout() {
-    const supabase = createSupabaseBrowserClient();
-    if (!supabase) return;
-    setIsSigningOut(true);
-    await supabase.auth.signOut();
-    router.replace("/login");
-    router.refresh();
-  }
+  useEffect(() => {
+    if (!requestedPanel) {
+      setActivePanel(null);
+      return;
+    }
+
+    if (requestedPanel === "measurements" || requestedPanel === "project" || requestedPanel === "settings") {
+      setActivePanel(requestedPanel);
+    }
+  }, [requestedPanel]);
 
   const handleAddressChange = useCallback((nextAddress: string) => {
     setAddress(nextAddress);
@@ -846,6 +800,14 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     }
   }, [addActivity]);
 
+  const handleSelectedZonesChange = useCallback((zones: WorkZone[]) => {
+    setSelectedZones(zones);
+    setActivePanel((current) => {
+      if (zones.length) return "measurements";
+      return current === "measurements" ? null : current;
+    });
+  }, []);
+
   function handleNewProject() {
     setActiveProjectId(null);
     setProjectForm(emptyProjectForm);
@@ -854,6 +816,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     setPolygon(null);
     setWorkZones([]);
     setSelectedZones([]);
+    setActivePanel(null);
     setDraftMapData(null);
     setAddressDetails(null);
     setMapResetKey((current) => current + 1);
@@ -1066,7 +1029,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   }
 
   return (
-    <main className={`dashboard-page${isSidebarCollapsed ? " is-sidebar-collapsed" : ""}`}>
+    <main className="dashboard-page">
       <div className="toast-stack" aria-live="polite" aria-atomic="true">
         {toasts.map((toast) => (
           <div className="dashboard-toast" key={toast.id}>
@@ -1076,16 +1039,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       </div>
       <header className="dashboard-header">
         <div className="dashboard-header-search-wrap">
-          <button
-            aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="sidebar-collapse-button"
-            type="button"
-            onClick={() => setIsSidebarCollapsed((current) => !current)}
-          >
-            <span />
-            <span />
-            <span />
-          </button>
           <div className="dashboard-header-search" id="dashboard-search-mount" />
         </div>
         <div className="dashboard-header-actions">
@@ -1107,39 +1060,10 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
 
       <section className="dashboard-layout">
         <aside className="dashboard-sidebar">
-          <a className="dashboard-brand" href="/" aria-label="Acrex home">
-            <Image src="/assets/acrex-logo.png" alt="Acrex" width={154} height={46} priority />
-          </a>
-
-          <nav className="sidebar-nav" aria-label="Dashboard navigation">
-            {navItems.map((item) =>
-              item.active ? (
-                <a className="active" href="/dashboard" key={item.key}>
-                  <NavIcon icon={item.icon} />
-                  <span>{item.label}</span>
-                </a>
-              ) : "href" in item ? (
-                <a href={item.href} key={item.key}>
-                  <NavIcon icon={item.icon} />
-                  <span>{item.label}</span>
-                </a>
-              ) : (
-                <span className="sidebar-placeholder" key={item.key}>
-                  <NavIcon icon={item.icon} />
-                  <span>{item.label}</span>
-                </span>
-              )
-            )}
-            <button className="sidebar-logout-button" type="button" onClick={handleLogout} disabled={isSigningOut}>
-              <svg aria-hidden="true" viewBox="0 0 20 20">
-                <path d="M7 4.2H4.9A1.9 1.9 0 0 0 3 6.1V14a1.9 1.9 0 0 0 1.9 1.8H7M11.1 6l4 4-4 4M15 10H7.4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-              </svg>
-              <span>{isSigningOut ? "Logging out..." : "Logout"}</span>
-            </button>
-          </nav>
+          <AppSidebar active={sidebarActiveKey} ariaLabel="Dashboard navigation" />
         </aside>
 
-        <section className="dashboard-main">
+        <section className={`dashboard-main${isInspectorOpen ? " has-inspector" : ""}`}>
           <section className="dashboard-map-panel">
             <div className="workflow-guide-bar" aria-label="AcreX workflow">
               {["Search", "Select Service", "Draw", "Measurements", "Quote", "Export"].map((step) => (
@@ -1150,16 +1074,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
               <strong>{workflowState.message}</strong>
             </div>
             <div className="map-command-bar" aria-label="Quick actions">
-              {dashboardPanelItems.map((item) => (
-                <button
-                  className={activePanel === item.key ? "active" : ""}
-                  key={item.key}
-                  type="button"
-                  onClick={() => setActivePanel(item.key)}
-                >
-                  {item.label}
-                </button>
-              ))}
               <button type="button" onClick={handleSaveProject} disabled={isSavingProject}>
                 {isSavingProject ? "Saving..." : "Save"}
               </button>
@@ -1175,13 +1089,14 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
               onMeasurementsChange={setMeasurements}
               onPolygonChange={setPolygon}
               onZonesChange={setWorkZones}
-              onSelectedZonesChange={setSelectedZones}
+              onSelectedZonesChange={handleSelectedZonesChange}
               onParcelLookupChange={setParcelLookup}
               searchMountId="dashboard-search-mount"
               useParcelRequestKey={useParcelRequestKey}
             />
           </section>
 
+          {isInspectorOpen ? (
           <aside className="dashboard-summary-panel">
             <div className="dashboard-summary-card">
               <div className="dashboard-summary-heading">
@@ -1189,12 +1104,24 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                   <span>Project Summary</span>
                   <strong>{activeProject?.project_name ?? projectForm.projectName}</strong>
                 </div>
-                <button className="summary-light-button" type="button" onClick={handleNewProject}>
-                  New Project
-                </button>
+                <div className="dashboard-summary-actions">
+                  <button className="summary-light-button" type="button" onClick={handleNewProject}>
+                    New Project
+                  </button>
+                  <button
+                    className="summary-light-button"
+                    type="button"
+                    onClick={() => {
+                      setSelectedZones([]);
+                      setActivePanel(null);
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
 
-              <div className={getPanelClass(activePanel, "project", "dashboard-metrics-grid")}>
+              <div className={getPanelClass(effectivePanel, "project", "dashboard-metrics-grid")}>
                 <span>Projects this month <strong>{dashboardMetrics.thisMonthProjects}</strong></span>
                 <span>Quotes sent <strong>{dashboardMetrics.quotesSent}</strong></span>
                 <span>Quotes accepted <strong>{dashboardMetrics.quotesAccepted}</strong></span>
@@ -1205,7 +1132,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 <span>Upcoming jobs <strong>Coming Soon</strong></span>
               </div>
 
-              <div className={getPanelClass(activePanel, "search", "global-search-panel")}>
+              <div className={getPanelClass(effectivePanel, "search", "global-search-panel")}>
                 <label>
                   Global Search
                   <input
@@ -1257,20 +1184,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 {draftSavedAt ? <small>✓ Draft Saved {new Date(draftSavedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</small> : null}
               </div>
 
-              <nav className="dashboard-context-tabs" aria-label="Dashboard tools">
-                {dashboardPanelItems.map((item) => (
-                  <button
-                    className={activePanel === item.key ? "active" : ""}
-                    key={item.key}
-                    type="button"
-                    onClick={() => setActivePanel(item.key)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </nav>
-
-              <div className={getPanelClass(activePanel, "project", "project-health-panel")}>
+              <div className={getPanelClass(effectivePanel, "project", "project-health-panel")}>
                 <div className="selected-areas-heading">
                   <span>Project Health</span>
                   <strong>{projectForm.status}</strong>
@@ -1291,7 +1205,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </div>
               </div>
 
-                <div className={getPanelClass(activePanel, "project", "tag-panel")}>
+                <div className={getPanelClass(effectivePanel, "project", "tag-panel")}>
                 <div className="selected-areas-heading">
                   <span>Project Tags</span>
                   <strong>{activeProjectTags.length || "None"}</strong>
@@ -1315,7 +1229,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
               </div>
 
               {addressDetails ? (
-                <div className={getPanelClass(activePanel, "search", "address-details-panel")}>
+                <div className={getPanelClass(effectivePanel, "search", "address-details-panel")}>
                   <div>
                     <span>Address Details</span>
                     <strong>{addressDetails.address}</strong>
@@ -1341,7 +1255,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </div>
               ) : null}
 
-              <div className={getPanelClass(activePanel, "layers", `parcel-boundary-panel parcel-status-${parcelLookup.status}`)}>
+              <div className={getPanelClass(effectivePanel, "layers", `parcel-boundary-panel parcel-status-${parcelLookup.status}`)}>
                 <div>
                   <span>Parcel Lines</span>
                   <strong>
@@ -1380,7 +1294,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </div>
               </div>
 
-              <label className={getPanelClass(activePanel, "project", "project-status-control")}>
+              <label className={getPanelClass(effectivePanel, "project", "project-status-control")}>
                 Client
                 <select
                   value={projectForm.clientId}
@@ -1404,7 +1318,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 <span>{selectedClient ? selectedClient.email || selectedClient.phone || "Client linked to this project." : "Create clients on the Clients page, then link them here."}</span>
               </label>
 
-              <label className={getPanelClass(activePanel, "project", "project-status-control")}>
+              <label className={getPanelClass(effectivePanel, "project", "project-status-control")}>
                 Status
                 <select
                   value={projectForm.status}
@@ -1423,7 +1337,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </select>
               </label>
 
-              <div className={getPanelClass(activePanel, "measurements", "dashboard-summary-metrics")}>
+              <div className={getPanelClass(effectivePanel, "measurements", "dashboard-summary-metrics measurement-totals-pin")}>
                 {summaryRows.map((row) => (
                   <div className="summary-metric-row" key={row.label}>
                     <span>{row.label}</span>
@@ -1432,7 +1346,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 ))}
               </div>
 
-              <div className={getPanelClass(activePanel, "measurements", "measurements-by-service-panel")}>
+              <div className={getPanelClass(effectivePanel, "measurements", "measurements-by-service-panel")}>
                 <div className="selected-areas-heading">
                   <span>Measurements by Service</span>
                   <strong>{workZones.length ? `${workZones.length} saved` : "Empty"}</strong>
@@ -1448,9 +1362,16 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                       {group.zones.map((zone) => (
                         <div className="measurement-zone-row" key={zone.id}>
                           <i style={{ background: zone.color ?? zoneColors[zone.type] }} />
-                          <span>{zone.name}</span>
-                          <strong>{formatZoneMeasurement(zone)}</strong>
-                          <Link href={`/quotes?project=${activeProjectId ?? ""}`}>Add to quote</Link>
+                          <div className="measurement-zone-main">
+                            <span>{zone.name}</span>
+                            <strong>{formatZoneMeasurement(zone)}</strong>
+                          </div>
+                          <div className="measurement-zone-actions" aria-label={`${zone.name} actions`}>
+                            <button type="button" onClick={() => showToast("Select the zone on the map to edit it")}>Edit</button>
+                            <button type="button" onClick={() => showToast("Use the map layer controls to hide this zone type")}>Hide</button>
+                            <button type="button" onClick={() => showToast("Select the zone on the map, then delete it")}>Delete</button>
+                            <Link href={`/quotes?project=${activeProjectId ?? ""}`}>Add to quote</Link>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1460,7 +1381,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 )}
               </div>
 
-              <div className={getPanelClass(activePanel, "measurements", "selected-areas-panel")} aria-live="polite">
+              <div className={getPanelClass(effectivePanel, "measurements", "selected-areas-panel")} aria-live="polite">
                 <div className="selected-areas-heading">
                   <span>Selected Areas</span>
                   <strong>{selectedZones.length ? `${selectedZones.length} selected` : "None selected"}</strong>
@@ -1512,7 +1433,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 )}
               </div>
 
-              <div className={getPanelClass(activePanel, "quote", "estimator-panel")}>
+              <div className={getPanelClass(effectivePanel, "quote", "estimator-panel")}>
                 <div className="selected-areas-heading">
                   <span>Project Estimator</span>
                   <strong>{formatCurrency(recommendedQuote)}</strong>
@@ -1583,7 +1504,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 )}
               </div>
 
-              <div className={getPanelClass(activePanel, "quote", "profit-panel")}>
+              <div className={getPanelClass(effectivePanel, "quote", "profit-panel")}>
                 <div className="selected-areas-heading">
                   <span>Pricing Inputs</span>
                   <strong>{formatCurrency(projectEstimate.estimatedProfit)}</strong>
@@ -1622,7 +1543,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </div>
               </div>
 
-              <details className={getPanelClass(activePanel, "settings", "service-template-panel")}>
+              <details className={getPanelClass(effectivePanel, "settings", "service-template-panel")}>
                 <summary>
                   <span>Job Cost Library</span>
                   <strong>{serviceTemplates.filter((template) => template.active !== false).length} active</strong>
@@ -1705,7 +1626,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </div>
               </details>
 
-              <div className={getPanelClass(activePanel, "project", "workflow-panel")}>
+              <div className={getPanelClass(effectivePanel, "project", "workflow-panel")}>
                 <span>Workflow</span>
                 <div>
                   <strong className={workZones.length ? "done" : ""}>Project</strong>
@@ -1716,7 +1637,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </div>
               </div>
 
-              <div className={getPanelClass(activePanel, "project", "checklist-panel")}>
+              <div className={getPanelClass(effectivePanel, "project", "checklist-panel")}>
                 <div className="selected-areas-heading">
                   <span>Project Checklist</span>
                   <strong>{checklistItems.filter((item) => item.completed).length}/{checklistItems.length}</strong>
@@ -1756,7 +1677,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </div>
               </div>
 
-              <div className={getPanelClass(activePanel, "project", "notes-panel")}>
+              <div className={getPanelClass(effectivePanel, "project", "notes-panel")}>
                 <div className="selected-areas-heading">
                   <span>Notes Timeline</span>
                   <strong>{projectNotes.length}</strong>
@@ -1780,7 +1701,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </div>
               </div>
 
-              <div className={getPanelClass(activePanel, "project", "activity-panel")}>
+              <div className={getPanelClass(effectivePanel, "project", "activity-panel")}>
                 <div className="selected-areas-heading">
                   <span>Activity Log</span>
                   <strong>{activityLog.length}</strong>
@@ -1797,7 +1718,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </div>
               </div>
 
-              <div className={getPanelClass(activePanel, "measurements", "calculator-panel")}>
+              <div className={getPanelClass(effectivePanel, "measurements", "calculator-panel")}>
                 <div className="selected-areas-heading">
                   <span>Built-in Calculators</span>
                   <strong>{getCalculatorResult(calculatorType, measurements)}</strong>
@@ -1818,7 +1739,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 <p>Uses the current project measurements when available.</p>
               </div>
 
-              <div className={getPanelClass(activePanel, "project", "snapshot-panel")}>
+              <div className={getPanelClass(effectivePanel, "project", "snapshot-panel")}>
                 <div className="selected-areas-heading">
                   <span>Project Snapshots</span>
                   <strong>{snapshots.length}</strong>
@@ -1836,7 +1757,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </div>
               </div>
 
-              <div className={getPanelClass(activePanel, "project", "share-panel")}>
+              <div className={getPanelClass(effectivePanel, "project", "share-panel")}>
                 <div>
                   <span>Share Project</span>
                   <strong>Read-only share links coming soon.</strong>
@@ -1845,7 +1766,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 {shareMessage ? <p>{shareMessage}</p> : null}
               </div>
 
-              <div className={getPanelClass(activePanel, "settings", "photo-placeholder-panel")}>
+              <div className={getPanelClass(effectivePanel, "settings", "photo-placeholder-panel")}>
                 <span>Project Photos</span>
                 <strong>Photos coming soon.</strong>
                 <p>Before, during, and after photo storage will be enabled when storage is configured.</p>
@@ -1891,6 +1812,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
               </div>
             </div>
           </aside>
+          ) : null}
         </section>
       </section>
     </main>

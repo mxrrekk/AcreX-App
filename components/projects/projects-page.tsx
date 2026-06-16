@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { AppSidebar } from "@/components/ui/app-sidebar";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatAcres } from "@/lib/geo/format";
 import { defaultProjectTags, getGlobalStorageKey, readStoredValue, writeStoredValue, type ProjectTagStore } from "@/lib/projects/operations";
@@ -129,16 +129,7 @@ export function ProjectsPage({ userId, userEmail, projects, clients, errorMessag
   return (
     <main className="projects-page">
       <aside className="projects-sidebar">
-        <Link className="dashboard-brand projects-brand" href="/" aria-label="Acrex home">
-          <Image src="/assets/acrex-logo.png" alt="Acrex" width={154} height={46} priority />
-        </Link>
-        <nav className="projects-nav" aria-label="Projects navigation">
-          <Link href="/dashboard">Dashboard</Link>
-          <Link className="active" href="/projects">Projects</Link>
-          <Link href="/clients">Clients</Link>
-          <Link href="/quotes">Quotes</Link>
-          <Link href="/invoices">Invoices</Link>
-        </nav>
+        <AppSidebar active="projects" ariaLabel="Projects navigation" />
       </aside>
 
       <section className="projects-workspace">

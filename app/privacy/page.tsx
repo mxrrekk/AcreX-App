@@ -1,12 +1,10 @@
-import Link from "next/link";
+import { AcrexLogo } from "@/components/ui/acrex-logo";
 
 export default function PrivacyPage() {
   return (
     <main className="legal-page">
       <section className="legal-card">
-        <Link className="landing-wordmark" href="/" aria-label="Acrex home">
-          ACRE<span>X</span>
-        </Link>
+        <AcrexLogo className="landing-wordmark" />
         <p className="section-kicker">Privacy Policy</p>
         <h1>AcreX Privacy Policy</h1>
         <p>

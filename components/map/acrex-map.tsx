@@ -983,15 +983,15 @@ export function AcrexMap({
       });
 
       const assignZoneDefaults = (features: GeoJSON.Feature[]) => {
-        const existingCount = draw.getAll().features.filter(isDrawShapeFeature).length;
+        const createdFeatures = features.filter(isDrawShapeFeature);
+        const existingCount = Math.max(0, draw.getAll().features.filter(isDrawShapeFeature).length - createdFeatures.length);
         const serviceType = activeServiceTypeRef.current;
-        features.filter(isDrawShapeFeature).forEach((feature, featureIndex) => {
+        createdFeatures.forEach((feature, featureIndex) => {
           if (!feature.id) return;
           const properties = (feature.properties ?? {}) as DrawFeatureProperties;
-          const defaults = getServiceDefaults(serviceType, existingCount + featureIndex);
-          const zoneType = isZoneType(properties.zoneType) ? properties.zoneType : defaults.type;
-          const effectiveService = properties.serviceTypeId ? getServiceTypeById(properties.serviceTypeId) : serviceType;
-          const geometryType = isLineFeature(feature) ? "line" : properties.shapeType === "circle" ? "circle" : effectiveService.geometry;
+          const defaults = getServiceDefaults(serviceType, existingCount + featureIndex + 1);
+          const zoneType = serviceType.zoneType;
+          const geometryType = isLineFeature(feature) ? "line" : properties.shapeType === "circle" ? "circle" : serviceType.geometry;
           const visible = layerVisibilityRef.current[zoneType];
           draw.setFeatureProperty(String(feature.id), "zoneType", zoneType);
           draw.setFeatureProperty(String(feature.id), "zoneName", properties.zoneName ?? defaults.name);
@@ -999,13 +999,13 @@ export function AcrexMap({
           draw.setFeatureProperty(String(feature.id), "zoneLocked", properties.zoneLocked ?? false);
           draw.setFeatureProperty(String(feature.id), "zoneVisible", visible);
           draw.setFeatureProperty(String(feature.id), "shapeType", geometryType);
-          draw.setFeatureProperty(String(feature.id), "serviceTypeId", effectiveService.id);
-          draw.setFeatureProperty(String(feature.id), "serviceTypeLabel", effectiveService.label);
+          draw.setFeatureProperty(String(feature.id), "serviceTypeId", serviceType.id);
+          draw.setFeatureProperty(String(feature.id), "serviceTypeLabel", serviceType.label);
           draw.setFeatureProperty(String(feature.id), "geometryType", geometryType);
-          draw.setFeatureProperty(String(feature.id), "color", effectiveService.color);
+          draw.setFeatureProperty(String(feature.id), "color", serviceType.color);
           draw.setFeatureProperty(String(feature.id), "label", properties.label ?? defaults.name);
-          draw.setFeatureProperty(String(feature.id), "quoteCategory", effectiveService.quoteCategory);
-          draw.setFeatureProperty(String(feature.id), "defaultRateType", effectiveService.defaultRateType);
+          draw.setFeatureProperty(String(feature.id), "quoteCategory", serviceType.quoteCategory);
+          draw.setFeatureProperty(String(feature.id), "defaultRateType", serviceType.defaultRateType);
           draw.setFeatureProperty(String(feature.id), "visible", visible);
           draw.setFeatureProperty(String(feature.id), "createdAt", properties.createdAt ?? new Date().toISOString());
         });
@@ -1568,6 +1568,7 @@ export function AcrexMap({
     setActiveServiceType(nextServiceType);
     activeServiceTypeRef.current = nextServiceType;
     setActiveZoneType(nextServiceType.zoneType);
+    activeZoneTypeRef.current = nextServiceType.zoneType;
     const map = mapRef.current;
     if (map?.getLayer("acrex-circle-preview-fill")) {
       map.setPaintProperty("acrex-circle-preview-fill", "fill-color", nextServiceType.color);
@@ -1587,14 +1588,16 @@ export function AcrexMap({
     setActiveServiceType(serviceType);
     activeServiceTypeRef.current = serviceType;
     setActiveZoneType(serviceType.zoneType);
+    activeZoneTypeRef.current = serviceType.zoneType;
     const map = mapRef.current;
     if (map?.getLayer("acrex-circle-preview-fill")) {
       map.setPaintProperty("acrex-circle-preview-fill", "fill-color", serviceType.color);
       map.setPaintProperty("acrex-circle-preview-line", "line-color", serviceType.color);
     }
-    if (!applyServiceTypeToSelectedZone(serviceType)) {
-      setDrawMode("draw");
-    }
+    selectedZoneIdsRef.current = [];
+    setSelectedZoneIds([]);
+    onSelectedZonesChangeRef.current?.([]);
+    setDrawMode("draw");
   }
 
   function toggleSelectedZoneLock() {

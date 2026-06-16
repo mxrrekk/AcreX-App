@@ -1,12 +1,10 @@
-import Link from "next/link";
+import { AcrexLogo } from "@/components/ui/acrex-logo";
 
 export default function TermsPage() {
   return (
     <main className="legal-page">
       <section className="legal-card">
-        <Link className="landing-wordmark" href="/" aria-label="Acrex home">
-          ACRE<span>X</span>
-        </Link>
+        <AcrexLogo className="landing-wordmark" />
         <p className="section-kicker">Terms & Conditions</p>
         <h1>AcreX Terms & Conditions</h1>
         <p>

@@ -1,8 +1,7 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
+import { AppSidebar } from "@/components/ui/app-sidebar";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { ClientFormState, ClientRecord, InvoiceRecord, ProjectRecord, QuoteRecord } from "@/lib/projects/types";
 
@@ -182,16 +181,7 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
   return (
     <main className="clients-page">
       <aside className="projects-sidebar">
-        <Link className="dashboard-brand projects-brand" href="/" aria-label="Acrex home">
-          <Image src="/assets/acrex-logo.png" alt="Acrex" width={154} height={46} priority />
-        </Link>
-        <nav className="projects-nav" aria-label="Clients navigation">
-          <Link href="/dashboard">Dashboard</Link>
-          <Link href="/projects">Projects</Link>
-          <Link className="active" href="/clients">Clients</Link>
-          <Link href="/quotes">Quotes</Link>
-          <Link href="/invoices">Invoices</Link>
-        </nav>
+        <AppSidebar active="clients" ariaLabel="Clients navigation" />
       </aside>
 
       <section className="clients-workspace">

@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { AcrexLogo } from "@/components/ui/acrex-logo";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { hasSupabaseConfig } from "@/lib/supabase/config";
 
@@ -107,9 +107,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     <main className={isSignup ? "auth-page signup-auth-page" : "auth-page login-auth-page"}>
       {isSignup ? (
         <aside className="auth-brand-panel">
-          <Link className="auth-logo dark-logo" href="/" aria-label="Acrex home">
-            <Image src="/assets/acrex-logo.png" alt="Acrex" width={178} height={54} priority />
-          </Link>
+          <AcrexLogo className="auth-logo dark-logo" width={178} height={54} priority />
           <div>
             <p className="section-kicker">Acrex Early Access</p>
             <h1>Build quotes from the property, not from guesswork.</h1>
@@ -124,9 +122,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       ) : null}
 
       <section className="auth-card">
-        <Link className="auth-logo" href="/" aria-label="Acrex home">
-          <Image src="/assets/acrex-logo.png" alt="Acrex" width={150} height={45} priority />
-        </Link>
+        <AcrexLogo className="auth-logo" width={150} height={45} priority />
         <p className="section-kicker">{isSignup ? "Create workspace" : "Acrex account"}</p>
         <h1>{isSignup ? "Create your account" : "Welcome back"}</h1>
         <p className="auth-copy">

@@ -9,11 +9,15 @@ export type InvoiceStatus = "Draft" | "Sent" | "Paid" | "Overdue";
 export type QuoteService =
   | "Mowing"
   | "Brush Clearing"
+  | "Forestry Mulching / Brush Clearing"
   | "Forestry Mulching"
   | "Land Clearing"
   | "Driveway Prep"
+  | "Gravel Driveway"
   | "House Pad"
+  | "House Pad Prep"
   | "Fencing"
+  | "Fence Installation"
   | "Sod"
   | "Irrigation"
   | "Custom";
@@ -179,6 +183,16 @@ export type QuoteFormState = {
   projectId: string;
   clientId: string;
   status: QuoteStatus;
+  discount: string;
+  taxPercent: string;
+  depositPercent: string;
+  depositAmount: string;
+  depositMode: "percent" | "amount";
+  scopeOfWork: string;
+  customerNotes: string;
+  exclusions: string;
+  paymentTerms: string;
+  estimatedTimeline: string;
   notes: string;
 };
 

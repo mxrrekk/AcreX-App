@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AcrexLogo } from "@/components/ui/acrex-logo";
 
 const industries = [
   { name: "Land Clearing", icon: "LC" },
@@ -97,9 +98,7 @@ export function LandingPage() {
     <main className="landing-page phase-two-landing">
       <div className="landing-hero-stage">
         <header className="landing-header">
-          <Link className="landing-wordmark" href="/" aria-label="Acrex home">
-            ACRE<span>X</span>
-          </Link>
+          <AcrexLogo className="landing-wordmark" priority />
           <nav className="landing-nav" aria-label="Primary navigation">
             <a href="#features">Features</a>
             <a href="#how-it-works">How It Works</a>
@@ -311,9 +310,7 @@ export function LandingPage() {
       </section>
 
       <footer className="landing-footer">
-        <Link className="landing-wordmark" href="/" aria-label="Acrex home">
-          ACRE<span>X</span>
-        </Link>
+        <AcrexLogo className="landing-wordmark" />
         <p>Property measurements and quoting tools for land contractors.</p>
         <div>
           <Link href="/login">Login</Link>

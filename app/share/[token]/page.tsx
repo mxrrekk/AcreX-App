@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AcrexLogo } from "@/components/ui/acrex-logo";
 
 type SharePageProps = {
   params: {
@@ -10,9 +11,7 @@ export default function ShareProjectPage({ params }: SharePageProps) {
   return (
     <main className="shared-project-page">
       <section className="shared-project-card">
-        <Link className="landing-wordmark" href="/" aria-label="Acrex home">
-          ACRE<span>X</span>
-        </Link>
+        <AcrexLogo className="landing-wordmark" />
         <p className="section-kicker">Customer View</p>
         <h1>Shared project view foundation</h1>
         <p>

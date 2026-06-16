@@ -24,7 +24,7 @@ export const zoneLabels: Record<ZoneType, string> = {
   Driveway: "Driveway / Parking",
   HousePad: "House Pad",
   Building: "House Pad",
-  Excluded: "Excluded",
+  Excluded: "Exclusion",
   Custom: "Custom"
 };
 

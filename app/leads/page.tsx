@@ -1,12 +1,11 @@
 import Link from "next/link";
+import { AcrexLogo } from "@/components/ui/acrex-logo";
 
 export default function LeadsFoundationPage() {
   return (
     <main className="shared-project-page">
       <section className="shared-project-card">
-        <Link className="landing-wordmark" href="/" aria-label="Acrex home">
-          ACRE<span>X</span>
-        </Link>
+        <AcrexLogo className="landing-wordmark" />
         <p className="section-kicker">Future Lead Marketplace</p>
         <h1>Lead marketplace foundation</h1>
         <p>
