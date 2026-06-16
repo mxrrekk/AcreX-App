@@ -108,9 +108,10 @@ const emptyPolygonCollection: FeatureCollection<Polygon> = {
   type: "FeatureCollection",
   features: []
 };
-const zoneColorExpression = [
+function getZoneColorExpression(fallbackColor = zoneColors.Custom) {
+  return [
   "match",
-  ["get", "zoneType"],
+    ["coalesce", ["get", "user_zoneType"], ["get", "zoneType"]],
   "Property",
   zoneColors.Property,
   "Grass",
@@ -131,9 +132,15 @@ const zoneColorExpression = [
   zoneColors.Excluded,
   "Custom",
   zoneColors.Custom,
-  zoneColors.Custom
-];
-const featureColorExpression = ["coalesce", ["get", "color"], zoneColorExpression];
+    fallbackColor
+  ];
+}
+
+function getFeatureColorExpression(fallbackColor = zoneColors.Custom) {
+  return ["coalesce", ["get", "user_color"], ["get", "color"], getZoneColorExpression(fallbackColor)];
+}
+
+const featureColorExpression = getFeatureColorExpression();
 const zoneFillOpacityExpression = [
   "case",
   ["==", ["get", "active"], "true"],
@@ -210,6 +217,20 @@ function getFeatureCoordinates(feature: DrawShapeFeature): [number, number][] {
     return feature.geometry.coordinates.flat().map(([lng, lat]) => [lng, lat] as [number, number]);
   }
   return feature.geometry.coordinates.map(([lng, lat]) => [lng, lat] as [number, number]);
+}
+
+function setDrawLayerFallbackColor(map: MapboxMap | null, color: string) {
+  if (!map) return;
+  const colorExpression = getFeatureColorExpression(color) as never;
+  ["acrex-polygon-fill-inactive", "acrex-polygon-fill-active"].forEach((layerId) => {
+    if (!map.getLayer(layerId)) return;
+    map.setPaintProperty(layerId, "fill-color", colorExpression);
+    map.setPaintProperty(layerId, "fill-outline-color", colorExpression);
+  });
+  ["acrex-polygon-line-inactive", "acrex-polygon-line-active", "acrex-line-inactive", "acrex-line-active"].forEach((layerId) => {
+    if (!map.getLayer(layerId)) return;
+    map.setPaintProperty(layerId, "line-color", colorExpression);
+  });
 }
 
 function fitMapToFeatures(map: MapboxMap, features: DrawShapeFeature[]) {
@@ -847,6 +868,7 @@ export function AcrexMap({
       const draw = new MapboxDraw({
         displayControlsDefault: false,
         defaultMode: "simple_select",
+        userProperties: true,
         styles: [
           {
             id: "acrex-polygon-fill-inactive",
@@ -1571,6 +1593,7 @@ export function AcrexMap({
     setActiveZoneType(nextServiceType.zoneType);
     activeZoneTypeRef.current = nextServiceType.zoneType;
     const map = mapRef.current;
+    setDrawLayerFallbackColor(map, nextServiceType.color);
     if (map?.getLayer("acrex-circle-preview-fill")) {
       map.setPaintProperty("acrex-circle-preview-fill", "fill-color", nextServiceType.color);
       map.setPaintProperty("acrex-circle-preview-line", "line-color", nextServiceType.color);
@@ -1591,6 +1614,7 @@ export function AcrexMap({
     setActiveZoneType(serviceType.zoneType);
     activeZoneTypeRef.current = serviceType.zoneType;
     const map = mapRef.current;
+    setDrawLayerFallbackColor(map, serviceType.color);
     if (map?.getLayer("acrex-circle-preview-fill")) {
       map.setPaintProperty("acrex-circle-preview-fill", "fill-color", serviceType.color);
       map.setPaintProperty("acrex-circle-preview-line", "line-color", serviceType.color);
