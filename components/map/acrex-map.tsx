@@ -79,6 +79,7 @@ type RecentSearch = AddressDetails & {
 };
 
 type LayerVisibility = Record<ZoneType, boolean>;
+type ActiveMapPanel = "draw" | "layers" | null;
 
 type DrawShapeFeature = Feature<Polygon | LineString, DrawFeatureProperties>;
 type DrawSnapshot = FeatureCollection<Polygon | LineString, DrawFeatureProperties>;
@@ -353,6 +354,7 @@ export function AcrexMap({
 }: AcrexMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapControlsRef = useRef<HTMLDivElement | null>(null);
   const drawRef = useRef<MapboxDraw | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const onMeasurementsChangeRef = useRef(onMeasurementsChange);
@@ -389,7 +391,7 @@ export function AcrexMap({
   const [mapStyle, setMapStyle] = useState<MapStyle>("satellite");
   const [layerVisibility, setLayerVisibility] = useState<LayerVisibility>(defaultLayerVisibility);
   const [parcelLinesVisible, setParcelLinesVisible] = useState(true);
-  const [isDrawMenuOpen, setIsDrawMenuOpen] = useState(false);
+  const [activeMapPanel, setActiveMapPanel] = useState<ActiveMapPanel>(null);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const [, setLinearMeasurement] = useState<LinearMeasurement | null>(null);
   const [, setCircleMeasurement] = useState<CircleMeasurement | null>(null);
@@ -1623,7 +1625,7 @@ export function AcrexMap({
     setSelectedZoneIds([]);
     onSelectedZonesChangeRef.current?.([]);
     setDrawMode("draw");
-    setIsDrawMenuOpen(false);
+    setActiveMapPanel(null);
   }
 
   function toggleSelectedZoneLock() {
@@ -1838,6 +1840,19 @@ export function AcrexMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useParcelRequestKey]);
 
+  useEffect(() => {
+    if (!activeMapPanel) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && mapControlsRef.current?.contains(target)) return;
+      setActiveMapPanel(null);
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [activeMapPanel]);
+
   if (!mapboxToken || mapError) {
     return (
       <div className="map-warning">
@@ -1855,38 +1870,66 @@ export function AcrexMap({
   return (
     <>
       {!searchMountId ? <div className="map-search-bar" ref={searchContainerRef} /> : null}
-      <div className="draw-toolbar" aria-label="Drawing toolbar">
-        <button
-          className={isDrawMenuOpen || activeMode === "draw" ? "active" : ""}
-          type="button"
-          onClick={() => setIsDrawMenuOpen((current) => !current)}
-          aria-expanded={isDrawMenuOpen}
-          aria-haspopup="menu"
-        >
-          Draw
-        </button>
-        {isDrawMenuOpen ? (
-          <div className="draw-service-menu" role="menu" aria-label="Draw service type">
-            {serviceTypes.filter((serviceType) => serviceType.id !== "property-boundary").map((serviceType) => (
-              <button
-                className={activeServiceType.id === serviceType.id ? "active" : ""}
-                key={serviceType.id}
-                type="button"
-                role="menuitem"
-                onClick={() => handleServiceTypeSelect(serviceType)}
-              >
-                <i style={{ background: serviceType.color }} />
-                <span>{serviceType.shortLabel}</span>
+      <div className="map-tool-controls" ref={mapControlsRef}>
+        <div className="draw-toolbar" aria-label="Drawing toolbar">
+          <button
+            className={activeMapPanel === "draw" || activeMode === "draw" ? "active" : ""}
+            type="button"
+            onClick={() => setActiveMapPanel((current) => (current === "draw" ? null : "draw"))}
+            aria-expanded={activeMapPanel === "draw"}
+            aria-haspopup="menu"
+          >
+            Draw
+          </button>
+          {activeMapPanel === "draw" ? (
+            <div className="draw-service-menu" role="menu" aria-label="Draw service type">
+              <div className="map-popover-heading">
+                <span>Draw Type</span>
+                <button type="button" onClick={() => setActiveMapPanel(null)} aria-label="Close draw tools">
+                  Close
+                </button>
+              </div>
+              {serviceTypes.filter((serviceType) => serviceType.id !== "property-boundary").map((serviceType) => (
+                <button
+                  className={activeServiceType.id === serviceType.id ? "active" : ""}
+                  key={serviceType.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => handleServiceTypeSelect(serviceType)}
+                >
+                  <i style={{ background: serviceType.color }} />
+                  <span>{serviceType.shortLabel}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <div className="map-layer-chips" aria-label="Layer visibility">
+          <button
+            className={activeMapPanel === "layers" || parcelLinesVisible ? "active" : ""}
+            type="button"
+            onClick={() => setActiveMapPanel((current) => (current === "layers" ? null : "layers"))}
+            aria-expanded={activeMapPanel === "layers"}
+            aria-haspopup="dialog"
+          >
+            <i style={{ background: zoneColors.Property }} />
+            Layers
+          </button>
+          {activeMapPanel === "layers" ? (
+            <div className="map-layers-popover" role="dialog" aria-label="Layer controls">
+              <div className="map-popover-heading">
+                <span>Layers</span>
+                <button type="button" onClick={() => setActiveMapPanel(null)} aria-label="Close layers">
+                  Close
+                </button>
+              </div>
+              <button className={parcelLinesVisible ? "active" : ""} type="button" onClick={toggleParcelLines}>
+                <i style={{ background: zoneColors.Property }} />
+                Parcel boundaries
               </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-      <div className="map-layer-chips" aria-label="Layer visibility">
-        <button className={parcelLinesVisible ? "active" : ""} type="button" onClick={toggleParcelLines}>
-          <i style={{ background: zoneColors.Property }} />
-          Layers
-        </button>
+            </div>
+          ) : null}
+        </div>
       </div>
       <div className="map-view-controls map-hidden-tools" aria-label="Map view controls">
         <div className="map-style-toggle" role="group" aria-label="Map style">
