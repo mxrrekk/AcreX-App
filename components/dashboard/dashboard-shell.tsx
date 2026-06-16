@@ -433,6 +433,9 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   }, [activeProjectId, address, quotes, workZones.length]);
   const effectivePanel = activePanel ?? (selectedZones.length ? "measurements" : null);
   const isInspectorOpen = effectivePanel !== null;
+  const draftSavedTime = draftSavedAt
+    ? new Date(draftSavedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : null;
   const summaryRows = [
     { label: "Parcel total", value: propertyAcres ? `${formatAcres(propertyAcres)} ac` : `${formatAcres(measurements?.acres ?? null)} ac` },
     { label: "Grass total", value: grassAcres ? `${formatAcres(grassAcres)} ac` : "--" },
@@ -493,7 +496,14 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   }, [invoices, projectEstimate.profitMargin, projects, quotes]);
   const globalSearchResults = useMemo(() => {
     const term = globalSearchTerm.trim().toLowerCase();
-    if (!term) return null;
+    const emptyResults = {
+      projectMatches: [] as ProjectRecord[],
+      clientMatches: [] as ClientRecord[],
+      quoteMatches: [] as QuoteRecord[],
+      invoiceMatches: [] as InvoiceRecord[],
+      activityMatches: [] as ProjectActivity[]
+    };
+    if (!term) return emptyResults;
 
     const projectMatches = projects.filter((project) =>
       [project.project_name, project.address ?? "", project.customer_name ?? "", project.service_type ?? "", ...(tagStore[project.id] ?? [])].join(" ").toLowerCase().includes(term)
@@ -1063,7 +1073,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
           <AppSidebar active={sidebarActiveKey} ariaLabel="Dashboard navigation" />
         </aside>
 
-        <section className={`dashboard-main${isInspectorOpen ? " has-inspector" : ""}`}>
+        <section className="dashboard-main">
           <section className="dashboard-map-panel">
             <div className="workflow-guide-bar" aria-label="AcreX workflow">
               {["Search", "Select Service", "Draw", "Measurements", "Quote", "Export"].map((step) => (
@@ -1142,7 +1152,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                     type="search"
                   />
                 </label>
-                {globalSearchResults ? (
+                {globalSearchTerm.trim() ? (
                   <div className="global-search-results">
                     <div>
                       <strong>Projects</strong>
@@ -1181,7 +1191,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
               <div className="dashboard-summary-address">
                 <strong>{address}</strong>
                 <span>{isLoadingProjects ? "Loading saved project data..." : `${workZones.length} work zone${workZones.length === 1 ? "" : "s"} marked on the map.`}</span>
-                {draftSavedAt ? <small>✓ Draft Saved {new Date(draftSavedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</small> : null}
+                {draftSavedTime ? <small>✓ Draft Saved {draftSavedTime}</small> : null}
               </div>
 
               <div className={getPanelClass(effectivePanel, "project", "project-health-panel")}>

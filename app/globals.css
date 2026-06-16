@@ -2019,10 +2019,6 @@ img {
   transition: grid-template-columns 220ms ease;
 }
 
-.dashboard-main.has-inspector {
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 22%);
-}
-
 .dashboard-map-panel {
   position: relative;
   min-width: 0;
@@ -2766,7 +2762,7 @@ img {
 }
 
 .dashboard-summary-panel {
-  display: grid;
+  display: none;
   gap: 14px;
   min-height: 0;
   max-height: 100%;
