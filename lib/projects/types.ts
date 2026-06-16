@@ -1,6 +1,8 @@
-import type { Feature, FeatureCollection, Polygon } from "geojson";
+import type { Feature, FeatureCollection, LineString, Polygon } from "geojson";
 
-export type ZoneType = "Property" | "Grass" | "Brush" | "Driveway" | "Building" | "Excluded" | "Custom";
+export type ZoneType = "Property" | "Grass" | "Brush" | "Woods" | "Fence" | "Driveway" | "HousePad" | "Building" | "Excluded" | "Custom";
+export type ShapeGeometryType = "polygon" | "line" | "circle";
+export type QuoteRateType = "per_acre" | "per_sq_ft" | "per_linear_ft" | "each";
 export type ProjectStatus = "Draft" | "Estimating" | "Quoted" | "Won" | "Lost" | "Completed" | "Archived";
 export type QuoteStatus = "Draft" | "Sent" | "Accepted" | "Declined";
 export type InvoiceStatus = "Draft" | "Sent" | "Paid" | "Overdue";
@@ -25,7 +27,19 @@ export type WorkZone = {
   perimeterFeet: number;
   locked: boolean;
   notes: string;
-  feature: Feature<Polygon, SavedZoneProperties>;
+  serviceTypeId?: string;
+  serviceTypeLabel?: string;
+  geometryType?: ShapeGeometryType;
+  color?: string;
+  areaAcres?: number;
+  areaSqFt?: number;
+  lengthFt?: number;
+  label?: string;
+  quoteCategory?: QuoteService | string;
+  defaultRateType?: QuoteRateType;
+  visible?: boolean;
+  createdAt?: string;
+  feature: Feature<Polygon | LineString, SavedZoneProperties>;
 };
 
 export type SavedZoneProperties = {
@@ -37,14 +51,26 @@ export type SavedZoneProperties = {
   perimeterFeet?: number;
   zoneLocked?: boolean;
   zoneVisible?: boolean;
-  shapeType?: "polygon" | "circle";
+  shapeType?: ShapeGeometryType;
   radiusFeet?: number;
   circumferenceFeet?: number;
+  serviceTypeId?: string;
+  serviceTypeLabel?: string;
+  geometryType?: ShapeGeometryType;
+  color?: string;
+  areaAcres?: number;
+  areaSqFt?: number;
+  lengthFt?: number;
+  label?: string;
+  quoteCategory?: QuoteService | string;
+  defaultRateType?: QuoteRateType;
+  visible?: boolean;
+  createdAt?: string;
 };
 
 export type SavedProjectMapData =
-  | Feature<Polygon, SavedZoneProperties>
-  | (FeatureCollection<Polygon, SavedZoneProperties> & {
+  | Feature<Polygon | LineString, SavedZoneProperties>
+  | (FeatureCollection<Polygon | LineString, SavedZoneProperties> & {
       properties?: {
         status?: ProjectStatus;
         address?: string;

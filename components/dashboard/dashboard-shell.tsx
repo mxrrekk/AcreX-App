@@ -141,6 +141,12 @@ function sumZoneAcres(zones: WorkZone[], types: ZoneType[]) {
     .reduce((total, zone) => total + zone.acres, 0);
 }
 
+function sumZoneLength(zones: WorkZone[], types: ZoneType[]) {
+  return zones
+    .filter((zone) => types.includes(zone.type))
+    .reduce((total, zone) => total + (zone.lengthFt ?? zone.perimeterFeet), 0);
+}
+
 function sumSelectedMeasurements(zones: WorkZone[]): ProjectMeasurements {
   return zones.reduce<ProjectMeasurements>(
     (total, zone) => ({
@@ -154,6 +160,14 @@ function sumSelectedMeasurements(zones: WorkZone[]): ProjectMeasurements {
 
 function formatNumber(value: number, maximumFractionDigits = 2) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits }).format(Number.isFinite(value) ? value : 0);
+}
+
+function formatZoneMeasurement(zone: WorkZone) {
+  if (zone.geometryType === "line" || zone.type === "Fence") return `${formatFeet(zone.lengthFt ?? zone.perimeterFeet)} ft`;
+  if ((zone.defaultRateType === "per_sq_ft" || zone.type === "Driveway" || zone.type === "HousePad" || zone.type === "Building") && zone.squareFeet > 0) {
+    return `${formatSquareFeet(zone.squareFeet)} sq ft`;
+  }
+  return `${formatAcres(zone.acres)} ac`;
 }
 
 function formatDateTime(value: string | null | undefined) {
@@ -257,7 +271,19 @@ function createSavedProjectMapData(
         zoneVisible: zone.feature.properties?.zoneVisible ?? true,
         acres: zone.acres,
         squareFeet: zone.squareFeet,
-        perimeterFeet: zone.perimeterFeet
+        perimeterFeet: zone.perimeterFeet,
+        serviceTypeId: zone.serviceTypeId,
+        serviceTypeLabel: zone.serviceTypeLabel,
+        geometryType: zone.geometryType,
+        color: zone.color,
+        areaAcres: zone.areaAcres ?? zone.acres,
+        areaSqFt: zone.areaSqFt ?? zone.squareFeet,
+        lengthFt: zone.lengthFt,
+        label: zone.label ?? zone.name,
+        quoteCategory: zone.quoteCategory,
+        defaultRateType: zone.defaultRateType,
+        visible: zone.visible ?? true,
+        createdAt: zone.createdAt
       }
     }))
   };
@@ -415,17 +441,53 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const propertyAcres = sumZoneAcres(workZones, ["Property"]);
   const grassAcres = sumZoneAcres(workZones, ["Grass"]);
   const brushAcres = sumZoneAcres(workZones, ["Brush"]);
+  const woodsAcres = sumZoneAcres(workZones, ["Woods"]);
   const drivewayAcres = sumZoneAcres(workZones, ["Driveway"]);
-  const buildingAcres = sumZoneAcres(workZones, ["Building"]);
+  const drivewaySqFt = sumSelectedMeasurements(workZones.filter((zone) => zone.type === "Driveway")).squareFeet;
+  const housePadSqFt = sumSelectedMeasurements(workZones.filter((zone) => zone.type === "HousePad" || zone.type === "Building")).squareFeet;
+  const fenceLinearFt = sumZoneLength(workZones, ["Fence"]);
+  const buildingAcres = sumZoneAcres(workZones, ["Building", "HousePad"]);
   const excludedAcres = sumZoneAcres(workZones, ["Excluded"]);
-  const billableWorkAcres = sumZoneAcres(workZones, ["Grass", "Brush", "Driveway", "Custom"]);
+  const billableWorkAcres = sumZoneAcres(workZones, ["Grass", "Brush", "Woods", "Driveway", "HousePad", "Custom"]);
   const netBillableAcres = billableWorkAcres;
   const selectedTotals = sumSelectedMeasurements(selectedZones);
+  const groupedMeasurements = useMemo(() => {
+    return workZones.reduce<Array<{ key: string; color: string; zones: WorkZone[]; total: string }>>((groups, zone) => {
+      const key = zone.serviceTypeLabel ?? zoneLabels[zone.type] ?? zone.type;
+      const color = zone.color ?? zoneColors[zone.type];
+      let group = groups.find((item) => item.key === key);
+      if (!group) {
+        group = { key, color, zones: [], total: "" };
+        groups.push(group);
+      }
+      group.zones.push(zone);
+      const acres = group.zones.reduce((total, item) => total + item.acres, 0);
+      const squareFeet = group.zones.reduce((total, item) => total + item.squareFeet, 0);
+      const lengthFeet = group.zones.reduce((total, item) => total + (item.lengthFt ?? (item.geometryType === "line" ? item.perimeterFeet : 0)), 0);
+      if (group.zones.some((item) => item.geometryType === "line" || item.type === "Fence")) {
+        group.total = `${formatFeet(lengthFeet)} ft`;
+      } else if (group.zones.some((item) => item.defaultRateType === "per_sq_ft" || item.type === "Driveway" || item.type === "HousePad" || item.type === "Building")) {
+        group.total = `${formatSquareFeet(squareFeet)} sq ft`;
+      } else {
+        group.total = `${formatAcres(acres)} ac`;
+      }
+      return groups;
+    }, []);
+  }, [workZones]);
+  const workflowState = useMemo(() => {
+    if (address === "No address selected") return { step: "Search", message: "Start by searching a property address." };
+    if (!workZones.length) return { step: "Select Service", message: "Next: choose what you want to measure, then draw on the map." };
+    if (!quotes.some((quote) => quote.project_id === activeProjectId)) return { step: "Quote", message: "Measurement saved. Add measurements to your quote." };
+    if (!activeProjectId) return { step: "Save", message: "Save this property to keep measurements, notes, and quotes together." };
+    return { step: "Export", message: "Project is ready to share or export when needed." };
+  }, [activeProjectId, address, quotes, workZones.length]);
   const summaryRows = [
     { label: "Parcel total", value: propertyAcres ? `${formatAcres(propertyAcres)} ac` : `${formatAcres(measurements?.acres ?? null)} ac` },
     { label: "Grass total", value: grassAcres ? `${formatAcres(grassAcres)} ac` : "--" },
-    { label: "Brush/tree total", value: brushAcres ? `${formatAcres(brushAcres)} ac` : "--" },
-    { label: "Driveway/parking total", value: drivewayAcres ? `${formatAcres(drivewayAcres)} ac` : "--" },
+    { label: "Brush/tree total", value: brushAcres + woodsAcres ? `${formatAcres(brushAcres + woodsAcres)} ac` : "--" },
+    { label: "Fence total", value: fenceLinearFt ? `${formatFeet(fenceLinearFt)} ft` : "--" },
+    { label: "Driveway/parking total", value: drivewaySqFt ? `${formatSquareFeet(drivewaySqFt)} sq ft` : drivewayAcres ? `${formatAcres(drivewayAcres)} ac` : "--" },
+    { label: "House pad total", value: housePadSqFt ? `${formatSquareFeet(housePadSqFt)} sq ft` : "--" },
     { label: "Building total", value: buildingAcres ? `${formatAcres(buildingAcres)} ac` : "--" },
     { label: "Excluded total", value: excludedAcres ? `${formatAcres(excludedAcres)} ac` : "--" },
     { label: "Net billable total", value: netBillableAcres ? `${formatAcres(netBillableAcres)} ac` : "--" }
@@ -1079,6 +1141,30 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
 
         <section className="dashboard-main">
           <section className="dashboard-map-panel">
+            <div className="workflow-guide-bar" aria-label="AcreX workflow">
+              {["Search", "Select Service", "Draw", "Measurements", "Quote", "Export"].map((step) => (
+                <span className={workflowState.step === step ? "active" : ""} key={step}>
+                  {step}
+                </span>
+              ))}
+              <strong>{workflowState.message}</strong>
+            </div>
+            <div className="map-command-bar" aria-label="Quick actions">
+              {dashboardPanelItems.map((item) => (
+                <button
+                  className={activePanel === item.key ? "active" : ""}
+                  key={item.key}
+                  type="button"
+                  onClick={() => setActivePanel(item.key)}
+                >
+                  {item.label}
+                </button>
+              ))}
+              <button type="button" onClick={handleSaveProject} disabled={isSavingProject}>
+                {isSavingProject ? "Saving..." : "Save"}
+              </button>
+              <button type="button" onClick={handleShareProject}>Export</button>
+            </div>
             <AcrexMap
               activeProjectId={activeProjectId}
               resetKey={mapResetKey}
@@ -1346,6 +1432,34 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 ))}
               </div>
 
+              <div className={getPanelClass(activePanel, "measurements", "measurements-by-service-panel")}>
+                <div className="selected-areas-heading">
+                  <span>Measurements by Service</span>
+                  <strong>{workZones.length ? `${workZones.length} saved` : "Empty"}</strong>
+                </div>
+                {groupedMeasurements.length ? (
+                  groupedMeasurements.map((group) => (
+                    <div className="measurement-service-group" key={group.key}>
+                      <div>
+                        <span style={{ "--zone-color": group.color } as CSSProperties} />
+                        <strong>{group.key}</strong>
+                        <small>{group.total}</small>
+                      </div>
+                      {group.zones.map((zone) => (
+                        <div className="measurement-zone-row" key={zone.id}>
+                          <i style={{ background: zone.color ?? zoneColors[zone.type] }} />
+                          <span>{zone.name}</span>
+                          <strong>{formatZoneMeasurement(zone)}</strong>
+                          <Link href={`/quotes?project=${activeProjectId ?? ""}`}>Add to quote</Link>
+                        </div>
+                      ))}
+                    </div>
+                  ))
+                ) : (
+                  <p>No measurements yet. Select Grass, Brush, Fence, Driveway, or another service and draw on the map.</p>
+                )}
+              </div>
+
               <div className={getPanelClass(activePanel, "measurements", "selected-areas-panel")} aria-live="polite">
                 <div className="selected-areas-heading">
                   <span>Selected Areas</span>
@@ -1358,8 +1472,8 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                         <div className="selected-area-row" key={zone.id}>
                           <div>
                             <strong>{zone.name}</strong>
-                            <span className="zone-color-badge" style={{ "--zone-color": zoneColors[zone.type] } as CSSProperties}>
-                              {zone.locked ? "Locked " : ""}{zone.type}
+                            <span className="zone-color-badge" style={{ "--zone-color": zone.color ?? zoneColors[zone.type] } as CSSProperties}>
+                              {zone.locked ? "Locked " : ""}{zone.serviceTypeLabel ?? zoneLabels[zone.type]}
                             </span>
                           </div>
                           <dl>
@@ -1373,7 +1487,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                             </div>
                             <div>
                               <dt>Perimeter</dt>
-                              <dd>{formatFeet(zone.perimeterFeet)} linear ft</dd>
+                              <dd>{formatFeet(zone.lengthFt ?? zone.perimeterFeet)} linear ft</dd>
                             </div>
                             {zone.notes ? (
                               <div>
@@ -1403,11 +1517,15 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                   <span>Project Estimator</span>
                   <strong>{formatCurrency(recommendedQuote)}</strong>
                 </div>
+                <Link className="summary-light-button quote-measurements-link" href={`/quotes${activeProjectId ? `?project=${activeProjectId}` : ""}`}>
+                  Add measurements to quote
+                </Link>
                 <div className="live-estimator-grid">
                   <span>Parcel acreage <strong>{formatAcres(propertyAcres || measurements?.acres || 0)} ac</strong></span>
                   <span>Grass acreage <strong>{formatAcres(grassAcres)} ac</strong></span>
                   <span>Brush acreage <strong>{formatAcres(brushAcres)} ac</strong></span>
-                  <span>Driveway <strong>{formatSquareFeet(sumSelectedMeasurements(workZones.filter((zone) => zone.type === "Driveway")).squareFeet)} sq ft</strong></span>
+                  <span>Driveway <strong>{formatSquareFeet(drivewaySqFt)} sq ft</strong></span>
+                  <span>Fence <strong>{formatFeet(fenceLinearFt)} ft</strong></span>
                   <span>Building/excluded <strong>{formatAcres(buildingAcres + excludedAcres)} ac</strong></span>
                   <span>Net billable <strong>{formatAcres(netBillableAcres)} ac</strong></span>
                   <span>Estimated revenue <strong>{formatCurrency(projectEstimate.estimatedRevenue)}</strong></span>
@@ -1751,7 +1869,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 >
                   {isSavingProject ? "Saving..." : "Save Project"}
                 </button>
-                <Link className="generate-quote-button" href="/quotes">
+                <Link className="generate-quote-button" href={`/quotes${activeProjectId ? `?project=${activeProjectId}` : ""}`}>
                   Generate Quote
                 </Link>
                 {projectMessage ? <p className="project-message">{projectMessage}</p> : null}

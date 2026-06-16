@@ -2,9 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { defaultServiceTemplates, getTemplateQuantity, mergeServiceTemplates, serviceTemplatesStorageKey, type ServiceTemplate } from "@/lib/projects/pricing";
+import { getServiceTypeByZoneType } from "@/lib/projects/service-types";
 import type {
   ClientRecord,
   ProjectRecord,
@@ -34,6 +36,13 @@ type ZoneMeasurement = {
   squareFeet: number;
   perimeterFeet: number;
   notes: string;
+  serviceTypeId?: string;
+  serviceTypeLabel?: string;
+  geometryType?: string;
+  color?: string;
+  lengthFt?: number;
+  quoteCategory?: string;
+  defaultRateType?: string;
 };
 
 const quoteStatuses: QuoteStatus[] = ["Draft", "Sent", "Accepted", "Declined"];
@@ -123,7 +132,14 @@ function getProjectZones(project: ProjectRecord | null): ZoneMeasurement[] {
         acres: Number(properties.acres ?? 0),
         squareFeet: Number(properties.squareFeet ?? 0),
         perimeterFeet: Number(properties.perimeterFeet ?? 0),
-        notes: properties.zoneNotes || ""
+        notes: properties.zoneNotes || "",
+        serviceTypeId: properties.serviceTypeId,
+        serviceTypeLabel: properties.serviceTypeLabel,
+        geometryType: properties.geometryType,
+        color: properties.color,
+        lengthFt: Number(properties.lengthFt ?? 0),
+        quoteCategory: properties.quoteCategory,
+        defaultRateType: properties.defaultRateType
       };
     });
   }
@@ -137,7 +153,14 @@ function getProjectZones(project: ProjectRecord | null): ZoneMeasurement[] {
         acres: Number(properties.acres ?? project?.acres ?? 0),
         squareFeet: Number(properties.squareFeet ?? project?.square_feet ?? 0),
         perimeterFeet: Number(properties.perimeterFeet ?? 0),
-        notes: properties.zoneNotes || ""
+        notes: properties.zoneNotes || "",
+        serviceTypeId: properties.serviceTypeId,
+        serviceTypeLabel: properties.serviceTypeLabel,
+        geometryType: properties.geometryType,
+        color: properties.color,
+        lengthFt: Number(properties.lengthFt ?? 0),
+        quoteCategory: properties.quoteCategory,
+        defaultRateType: properties.defaultRateType
       }
     ];
   }
@@ -150,7 +173,8 @@ function getProjectZones(project: ProjectRecord | null): ZoneMeasurement[] {
         acres: Number(project.acres ?? 0),
         squareFeet: Number(project.square_feet ?? 0),
         perimeterFeet: 0,
-        notes: ""
+        notes: "",
+        quoteCategory: project.service_type ?? undefined
       }
     ];
   }
@@ -177,6 +201,11 @@ function getTemplateForService(service: QuoteService, templates: ServiceTemplate
 function getSuggestedTemplateForZone(zone: ZoneMeasurement, project: ProjectRecord | null, templates: ServiceTemplate[]) {
   const projectService = (project?.service_type ?? "").toLowerCase();
   const zoneText = `${zone.name} ${zone.type} ${zone.notes}`.toLowerCase();
+  const categoryTemplate = getTemplateForService(zone.quoteCategory as QuoteService, templates);
+
+  if (categoryTemplate) {
+    return categoryTemplate;
+  }
 
   if (projectService.includes("fenc") || zoneText.includes("fenc")) {
     return getTemplateForService("Fencing", templates);
@@ -184,8 +213,10 @@ function getSuggestedTemplateForZone(zone: ZoneMeasurement, project: ProjectReco
 
   if (zone.type === "Grass") return getTemplateForService("Mowing", templates);
   if (zone.type === "Brush") return getTemplateForService("Brush Clearing", templates);
+  if (zone.type === "Woods") return getTemplateForService("Land Clearing", templates) ?? getTemplateForService("Forestry Mulching", templates);
+  if (zone.type === "Fence") return getTemplateForService("Fencing", templates);
   if (zone.type === "Driveway") return getTemplateForService("Driveway Prep", templates);
-  if (zone.type === "Building") return getTemplateForService("House Pad", templates);
+  if (zone.type === "HousePad" || zone.type === "Building") return getTemplateForService("House Pad", templates);
   if (zone.type === "Property") {
     if (projectService.includes("mulch")) return getTemplateForService("Forestry Mulching", templates);
     return getTemplateForService("Land Clearing", templates) ?? getTemplateForService("Forestry Mulching", templates);
@@ -201,11 +232,12 @@ function getDefaultsForZone(
 ): Pick<QuoteItemFormState, "service" | "unit" | "unitPrice" | "quantity"> {
   const matchingTemplate = getSuggestedTemplateForZone(zone, project, templates);
   if (matchingTemplate) {
+    const effectiveType = zone.type === "Fence" ? "Fence" : (zone.type as ZoneType);
     const quantity = getTemplateQuantity(
-      zone.type as ZoneType,
+      effectiveType as ZoneType,
       zone.acres,
       zone.squareFeet,
-      zone.perimeterFeet,
+      zone.lengthFt || zone.perimeterFeet,
       matchingTemplate
     );
     const unitPrice =
@@ -228,11 +260,19 @@ function getDefaultsForZone(
     return { service: "Brush Clearing", unit: "acre", unitPrice: "950", quantity: zone.acres.toFixed(2) };
   }
 
+  if (zone.type === "Woods") {
+    return { service: "Land Clearing", unit: "acre", unitPrice: "1850", quantity: zone.acres.toFixed(2) };
+  }
+
+  if (zone.type === "Fence") {
+    return { service: "Fencing", unit: "linear ft", unitPrice: "18", quantity: Math.round(zone.lengthFt || zone.perimeterFeet).toString() };
+  }
+
   if (zone.type === "Driveway") {
     return { service: "Driveway Prep", unit: "sq ft", unitPrice: "3.25", quantity: Math.round(zone.squareFeet).toString() };
   }
 
-  if (zone.type === "Building") {
+  if (zone.type === "HousePad" || zone.type === "Building") {
     return { service: "House Pad", unit: "sq ft", unitPrice: "4.50", quantity: Math.round(zone.squareFeet).toString() };
   }
 
@@ -240,7 +280,17 @@ function getDefaultsForZone(
     return { service: "Land Clearing", unit: "acre", unitPrice: "1850", quantity: zone.acres.toFixed(2) };
   }
 
-  return { service: "Custom", unit: "acre", unitPrice: "0", quantity: zone.acres.toFixed(2) };
+  const serviceType = getServiceTypeByZoneType(zone.type);
+  return {
+    service: serviceType.quoteCategory,
+    unit: serviceType.unit,
+    unitPrice: "0",
+    quantity: serviceType.unit === "linear ft"
+      ? Math.round(zone.lengthFt || zone.perimeterFeet).toString()
+      : serviceType.unit === "sq ft"
+        ? Math.round(zone.squareFeet).toString()
+        : zone.acres.toFixed(2)
+  };
 }
 
 function createItemFromZone(zone: ZoneMeasurement, project: ProjectRecord | null, templates: ServiceTemplate[]): QuoteItemFormState {
@@ -283,6 +333,8 @@ function formatDate(value: string) {
 }
 
 export function QuotesPage({ userId, userEmail, projects, clients, quotes, errorMessage }: QuotesPageProps) {
+  const searchParams = useSearchParams();
+  const requestedProjectId = searchParams.get("project");
   const [formState, setFormState] = useState<QuoteFormState>(emptyQuoteForm);
   const [items, setItems] = useState<QuoteItemFormState[]>([]);
   const [savedQuotes, setSavedQuotes] = useState<QuoteRecord[]>(quotes);
@@ -304,17 +356,38 @@ export function QuotesPage({ userId, userEmail, projects, clients, quotes, error
   const zoneMeasurements = useMemo(() => getProjectZones(selectedProject), [selectedProject]);
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + getLineTotal(item), 0), [items]);
 
+  function addMeasurementsToQuote(project = selectedProject) {
+    const nextZones = getProjectZones(project).filter((zone) => zone.type !== "Excluded" && zone.type !== "Building");
+    if (!nextZones.length) {
+      setMessage("Draw billable measurements on the project before adding them to a quote.");
+      return;
+    }
+    setItems(nextZones.map((zone) => createItemFromZone(zone, project, serviceTemplates)));
+    setMessage("✓ Measurements added as editable quote line items.");
+  }
+
   function handleProjectChange(projectId: string) {
     const nextProject = projects.find((project) => project.id === projectId) ?? null;
-    const nextZones = getProjectZones(nextProject).filter((zone) => zone.type !== "Excluded");
     setFormState((current) => ({
       ...current,
       projectId,
       clientId: nextProject?.client_id ?? current.clientId
     }));
-    setItems(nextZones.map((zone) => createItemFromZone(zone, nextProject, serviceTemplates)));
-    setMessage(null);
+    if (nextProject) {
+      addMeasurementsToQuote(nextProject);
+    } else {
+      setItems([]);
+      setMessage(null);
+    }
   }
+
+  useEffect(() => {
+    if (!requestedProjectId || formState.projectId === requestedProjectId) return;
+    if (!projects.some((project) => project.id === requestedProjectId)) return;
+    handleProjectChange(requestedProjectId);
+  // Query-driven project preload should run only when project availability changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formState.projectId, projects, requestedProjectId]);
 
   function updateItem(id: string, field: keyof QuoteItemFormState, value: string) {
     setItems((current) =>
@@ -540,13 +613,16 @@ export function QuotesPage({ userId, userEmail, projects, clients, quotes, error
               {zoneMeasurements.length ? (
                 zoneMeasurements.map((zone) => (
                   <span key={`${zone.name}-${zone.type}`}>
-                    {zone.name} · {zone.type} · {formatNumber(zone.acres)} ac · {formatNumber(zone.squareFeet)} sq ft · {formatNumber(zone.perimeterFeet)} lf
+                    {zone.name} · {zone.serviceTypeLabel ?? zone.type} · {formatNumber(zone.acres)} ac · {formatNumber(zone.squareFeet)} sq ft · {formatNumber(zone.lengthFt || zone.perimeterFeet)} lf
                   </span>
                 ))
               ) : (
                 <span>Select a saved project with drawn zones to pull measurements into the quote.</span>
               )}
             </div>
+            <button className="quote-measurements-button" type="button" onClick={() => addMeasurementsToQuote()} disabled={!selectedProject}>
+              Add measurements to quote
+            </button>
 
             <label className="quote-notes-field">
               Notes
@@ -580,6 +656,9 @@ export function QuotesPage({ userId, userEmail, projects, clients, quotes, error
             </div>
             <button type="button" onClick={() => setItems((current) => [...current, createBlankItem()])}>
               Add Item
+            </button>
+            <button type="button" onClick={() => addMeasurementsToQuote()} disabled={!selectedProject}>
+              Add Measurements
             </button>
           </div>
 

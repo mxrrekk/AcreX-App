@@ -119,7 +119,7 @@ export const defaultServiceTemplates: ServiceTemplate[] = [
     materialCostPerUnit: 0,
     disposalCostPerUnit: 125,
     notes: "General land clearing estimate. Verify tree density, access, hauling, and disposal.",
-    billableZoneTypes: ["Property", "Custom"],
+    billableZoneTypes: ["Property", "Woods", "Custom"],
     active: true
   },
   {
@@ -134,7 +134,7 @@ export const defaultServiceTemplates: ServiceTemplate[] = [
     materialCostPerUnit: 0,
     disposalCostPerUnit: 0,
     notes: "Mulching rate depends on density, slope, access, and debris size.",
-    billableZoneTypes: ["Property", "Brush", "Custom"],
+    billableZoneTypes: ["Property", "Brush", "Woods", "Custom"],
     active: true
   },
   {
@@ -149,7 +149,7 @@ export const defaultServiceTemplates: ServiceTemplate[] = [
     materialCostPerUnit: 7.5,
     disposalCostPerUnit: 0,
     notes: "Use measured perimeter or dedicated measurement mode.",
-    billableZoneTypes: ["Property", "Custom"],
+    billableZoneTypes: ["Fence", "Property", "Custom"],
     active: true
   },
   {
@@ -179,7 +179,7 @@ export const defaultServiceTemplates: ServiceTemplate[] = [
     materialCostPerUnit: 0.65,
     disposalCostPerUnit: 0.05,
     notes: "Verify compaction requirements, fill depth, and drainage.",
-    billableZoneTypes: ["Building"],
+    billableZoneTypes: ["HousePad", "Building"],
     active: true
   },
   {
@@ -287,7 +287,7 @@ export function calculateProjectEstimate(
   templates: ServiceTemplate[] = defaultServiceTemplates,
   inputs: ProfitInputs = defaultProfitInputs
 ): ProjectEstimate {
-  const billableZones = zones.filter((zone) => !["Excluded", "Building"].includes(zone.type));
+  const billableZones = zones.filter((zone) => zone.type !== "Excluded");
   const lines = billableZones.map<EstimateLine>((zone) => {
     const template = getTemplateForZone(zone.type, templates);
     const quantity = getTemplateQuantity(zone.type, zone.acres, zone.squareFeet, zone.perimeterFeet, template);

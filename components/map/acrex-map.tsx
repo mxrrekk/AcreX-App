@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type MapboxDraw from "@mapbox/mapbox-gl-draw";
 import type { LngLatBoundsLike, Map as MapboxMap } from "mapbox-gl";
 import type { Feature, FeatureCollection, LineString, Point, Polygon } from "geojson";
@@ -9,6 +9,7 @@ import { calculatePolygonMeasurements, type ProjectMeasurements } from "@/lib/ge
 import { formatAcres, formatFeet, formatSquareFeet } from "@/lib/geo/format";
 import type { ParcelBoundaryFeature, ParcelLookupState } from "@/lib/projects/parcels";
 import type { SavedProjectMapData, WorkZone, ZoneType } from "@/lib/projects/types";
+import { defaultServiceType, getServiceTypeById, getServiceTypeByZoneType, serviceTypes, type ActiveServiceType } from "@/lib/projects/service-types";
 import { zoneColors, zoneLabels, zoneTypes } from "@/lib/projects/zones";
 
 type AcrexMapProps = {
@@ -45,12 +46,24 @@ type DrawFeatureProperties = {
   zoneNotes?: string;
   zoneLocked?: boolean;
   zoneVisible?: boolean;
-  shapeType?: "polygon" | "circle";
+  shapeType?: "polygon" | "line" | "circle";
   radiusFeet?: number;
   circumferenceFeet?: number;
   acres?: number;
   squareFeet?: number;
   perimeterFeet?: number;
+  serviceTypeId?: string;
+  serviceTypeLabel?: string;
+  geometryType?: "polygon" | "line" | "circle";
+  color?: string;
+  areaAcres?: number;
+  areaSqFt?: number;
+  lengthFt?: number;
+  label?: string;
+  quoteCategory?: string;
+  defaultRateType?: string;
+  visible?: boolean;
+  createdAt?: string;
 };
 
 type AddressDetails = {
@@ -67,7 +80,8 @@ type RecentSearch = AddressDetails & {
 
 type LayerVisibility = Record<ZoneType, boolean>;
 
-type DrawSnapshot = FeatureCollection<Polygon, DrawFeatureProperties>;
+type DrawShapeFeature = Feature<Polygon | LineString, DrawFeatureProperties>;
+type DrawSnapshot = FeatureCollection<Polygon | LineString, DrawFeatureProperties>;
 
 type LinearMeasurement = {
   points: [number, number][];
@@ -103,8 +117,14 @@ const zoneColorExpression = [
   zoneColors.Grass,
   "Brush",
   zoneColors.Brush,
+  "Woods",
+  zoneColors.Woods,
+  "Fence",
+  zoneColors.Fence,
   "Driveway",
   zoneColors.Driveway,
+  "HousePad",
+  zoneColors.HousePad,
   "Building",
   zoneColors.Building,
   "Excluded",
@@ -113,6 +133,7 @@ const zoneColorExpression = [
   zoneColors.Custom,
   zoneColors.Custom
 ];
+const featureColorExpression = ["coalesce", ["get", "color"], zoneColorExpression];
 const zoneFillOpacityExpression = [
   "case",
   ["==", ["get", "active"], "true"],
@@ -124,6 +145,14 @@ function isPolygonFeature(feature: GeoJSON.Feature): feature is Feature<Polygon>
   return feature.geometry.type === "Polygon";
 }
 
+function isLineFeature(feature: GeoJSON.Feature): feature is Feature<LineString> {
+  return feature.geometry.type === "LineString";
+}
+
+function isDrawShapeFeature(feature: GeoJSON.Feature): feature is DrawShapeFeature {
+  return isPolygonFeature(feature) || isLineFeature(feature);
+}
+
 function isFeatureCollection(value: SavedProjectMapData): value is Extract<SavedProjectMapData, { type: "FeatureCollection" }> {
   return value.type === "FeatureCollection";
 }
@@ -133,19 +162,58 @@ function isZoneType(value: unknown): value is ZoneType {
 }
 
 function getZoneDefaults(type: ZoneType, index: number) {
+  const serviceType = getServiceTypeByZoneType(type);
   return {
-    name: type === "Custom" ? `Custom Zone ${index}` : `${type} ${index}`,
+    name: type === "Custom" ? `Custom Zone ${index}` : `${serviceType.shortLabel} ${index}`,
     type,
     notes: ""
   };
 }
 
-function getFeatureId(feature: Feature<Polygon>) {
-  return String(feature.id ?? feature.properties?.id ?? crypto.randomUUID());
+function getServiceDefaults(serviceType: ActiveServiceType, index: number) {
+  return {
+    name: serviceType.zoneType === "Custom" ? `Custom Zone ${index}` : `${serviceType.shortLabel} ${index}`,
+    type: serviceType.zoneType,
+    notes: ""
+  };
 }
 
-function fitMapToFeatures(map: MapboxMap, features: Feature<Polygon>[]) {
-  const coordinates = features.flatMap((feature) => feature.geometry.coordinates.flat());
+function getShapeFeatureId(feature: DrawShapeFeature) {
+  return String(feature.id ?? crypto.randomUUID());
+}
+
+function calculateLineFeet(coordinates: number[][]) {
+  if (coordinates.length < 2) return 0;
+  return turfLength(turfLineString(coordinates), { units: "kilometers" }) * 3280.839895;
+}
+
+function getShapeMeasurements(feature: DrawShapeFeature): ProjectMeasurements {
+  if (feature.geometry.type === "Polygon") return calculatePolygonMeasurements(feature.geometry.coordinates);
+  const lengthFt = calculateLineFeet(feature.geometry.coordinates as number[][]);
+  return {
+    acres: 0,
+    squareFeet: 0,
+    perimeterFeet: lengthFt
+  };
+}
+
+function formatShapeMeasurement(zone: WorkZone) {
+  if (zone.geometryType === "line" || zone.type === "Fence") return `${formatFeet(zone.lengthFt ?? zone.perimeterFeet)} ft`;
+  if ((zone.defaultRateType === "per_sq_ft" || zone.type === "Driveway" || zone.type === "HousePad" || zone.type === "Building") && zone.squareFeet > 0) {
+    return `${formatSquareFeet(zone.squareFeet)} sq ft`;
+  }
+  return `${formatAcres(zone.acres)} ac`;
+}
+
+function getFeatureCoordinates(feature: DrawShapeFeature): [number, number][] {
+  if (feature.geometry.type === "Polygon") {
+    return feature.geometry.coordinates.flat().map(([lng, lat]) => [lng, lat] as [number, number]);
+  }
+  return feature.geometry.coordinates.map(([lng, lat]) => [lng, lat] as [number, number]);
+}
+
+function fitMapToFeatures(map: MapboxMap, features: DrawShapeFeature[]) {
+  const coordinates = features.flatMap(getFeatureCoordinates);
   if (!coordinates.length) return;
 
   const lngValues = coordinates.map(([lng]) => lng);
@@ -163,17 +231,17 @@ function fitMapToFeatures(map: MapboxMap, features: Feature<Polygon>[]) {
 }
 
 function fitMapToPolygon(map: MapboxMap, polygon: Feature<Polygon>) {
-  fitMapToFeatures(map, [polygon]);
+  fitMapToFeatures(map, [polygon as DrawShapeFeature]);
 }
 
-function clonePolygonFeature(feature: Feature<Polygon>): Feature<Polygon, DrawFeatureProperties> {
-  return JSON.parse(JSON.stringify(feature)) as Feature<Polygon, DrawFeatureProperties>;
+function cloneShapeFeature(feature: DrawShapeFeature): DrawShapeFeature {
+  return JSON.parse(JSON.stringify(feature)) as DrawShapeFeature;
 }
 
-function createSnapshot(features: Feature<Polygon>[]): DrawSnapshot {
+function createSnapshot(features: DrawShapeFeature[]): DrawSnapshot {
   return {
     type: "FeatureCollection",
-    features: features.map((feature) => clonePolygonFeature(feature))
+    features: features.map((feature) => cloneShapeFeature(feature))
   };
 }
 
@@ -183,6 +251,10 @@ function areSnapshotsEqual(a: DrawSnapshot | null | undefined, b: DrawSnapshot |
 
 function offsetPolygonCoordinates(coordinates: number[][][], offset = 0.00018) {
   return coordinates.map((ring) => ring.map(([lng, lat]) => [lng + offset, lat - offset]));
+}
+
+function offsetLineCoordinates(coordinates: number[][], offset = 0.00018) {
+  return coordinates.map(([lng, lat]) => [lng + offset, lat - offset]);
 }
 
 function getCountyFromContext(context: Array<{ id?: string; text?: string }> | undefined) {
@@ -270,10 +342,11 @@ export function AcrexMap({
   const onAddressDetailsChangeRef = useRef(onAddressDetailsChange);
   const onParcelLookupChangeRef = useRef(onParcelLookupChange);
   const activeZoneTypeRef = useRef<ZoneType>("Property");
+  const activeServiceTypeRef = useRef<ActiveServiceType>(defaultServiceType);
   const activeModeRef = useRef<DrawMode>("select");
   const workZonesRef = useRef<WorkZone[]>([]);
   const layerVisibilityRef = useRef<LayerVisibility>(defaultLayerVisibility);
-  const lockedFeatureRef = useRef<Record<string, Feature<Polygon, DrawFeatureProperties>>>({});
+  const lockedFeatureRef = useRef<Record<string, DrawShapeFeature>>({});
   const historyRef = useRef<DrawSnapshot[]>([]);
   const redoRef = useRef<DrawSnapshot[]>([]);
   const isApplyingHistoryRef = useRef(false);
@@ -289,6 +362,7 @@ export function AcrexMap({
   const [workZones, setWorkZones] = useState<WorkZone[]>([]);
   const [selectedZoneIds, setSelectedZoneIds] = useState<string[]>([]);
   const [activeZoneType, setActiveZoneType] = useState<ZoneType>("Property");
+  const [activeServiceType, setActiveServiceType] = useState<ActiveServiceType>(defaultServiceType);
   const [activeMode, setActiveMode] = useState<DrawMode>("select");
   const [mapReady, setMapReady] = useState(false);
   const [mapStyle, setMapStyle] = useState<MapStyle>("satellite");
@@ -299,6 +373,7 @@ export function AcrexMap({
   const [, setCircleMeasurement] = useState<CircleMeasurement | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const [savePill, setSavePill] = useState<{ id: string; message: string; color: string } | null>(null);
   const selectedZoneIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -314,6 +389,10 @@ export function AcrexMap({
   useEffect(() => {
     activeZoneTypeRef.current = activeZoneType;
   }, [activeZoneType]);
+
+  useEffect(() => {
+    activeServiceTypeRef.current = activeServiceType;
+  }, [activeServiceType]);
 
   useEffect(() => {
     activeModeRef.current = activeMode;
@@ -340,7 +419,7 @@ export function AcrexMap({
   }
 
   function getCurrentSnapshot(): DrawSnapshot {
-    const features = drawRef.current?.getAll().features.filter(isPolygonFeature) ?? [];
+    const features = drawRef.current?.getAll().features.filter(isDrawShapeFeature) ?? [];
     return createSnapshot(features);
   }
 
@@ -659,11 +738,12 @@ export function AcrexMap({
     const draw = drawRef.current;
     if (!draw) return;
 
-    draw.getAll().features.filter(isPolygonFeature).forEach((feature) => {
+    draw.getAll().features.filter(isDrawShapeFeature).forEach((feature) => {
       const properties = (feature.properties ?? {}) as DrawFeatureProperties;
       const type = isZoneType(properties.zoneType) ? properties.zoneType : "Property";
       if (feature.id) {
         draw.setFeatureProperty(String(feature.id), "zoneVisible", nextVisibility[type]);
+        draw.setFeatureProperty(String(feature.id), "visible", nextVisibility[type]);
       }
     });
   }
@@ -673,7 +753,7 @@ export function AcrexMap({
     if (!draw) return false;
 
     const lockedUpdates = features
-      .filter(isPolygonFeature)
+      .filter(isDrawShapeFeature)
       .filter((feature) => feature.id && lockedFeatureRef.current[String(feature.id)]);
 
     if (!lockedUpdates.length) return false;
@@ -691,7 +771,7 @@ export function AcrexMap({
 
   function fitMapToCurrentZones() {
     const map = mapRef.current;
-    const features = drawRef.current?.getAll().features.filter(isPolygonFeature) ?? [];
+    const features = drawRef.current?.getAll().features.filter(isDrawShapeFeature) ?? [];
     if (!map || !features.length) return false;
     fitMapToFeatures(map, features);
     return true;
@@ -772,8 +852,8 @@ export function AcrexMap({
             type: "fill",
             filter: ["all", ["==", "$type", "Polygon"], ["!=", "mode", "static"], ["!=", "active", "true"], hiddenFilter],
             paint: {
-              "fill-color": zoneColorExpression,
-              "fill-outline-color": zoneColorExpression,
+              "fill-color": featureColorExpression,
+              "fill-outline-color": featureColorExpression,
               "fill-opacity": zoneFillOpacityExpression
             }
           },
@@ -782,8 +862,8 @@ export function AcrexMap({
             type: "fill",
             filter: ["all", ["==", "$type", "Polygon"], ["!=", "mode", "static"], ["==", "active", "true"], hiddenFilter],
             paint: {
-              "fill-color": zoneColorExpression,
-              "fill-outline-color": zoneColorExpression,
+              "fill-color": featureColorExpression,
+              "fill-outline-color": featureColorExpression,
               "fill-opacity": zoneFillOpacityExpression
             }
           },
@@ -796,7 +876,7 @@ export function AcrexMap({
               "line-join": "round"
             },
             paint: {
-              "line-color": zoneColorExpression,
+              "line-color": featureColorExpression,
               "line-width": 3,
               "line-blur": 0.35
             }
@@ -810,9 +890,37 @@ export function AcrexMap({
               "line-join": "round"
             },
             paint: {
-              "line-color": zoneColorExpression,
+              "line-color": featureColorExpression,
               "line-width": 4.5,
               "line-blur": 0.2
+            }
+          },
+          {
+            id: "acrex-line-inactive",
+            type: "line",
+            filter: ["all", ["==", "$type", "LineString"], ["!=", "mode", "static"], ["!=", "active", "true"], hiddenFilter],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round"
+            },
+            paint: {
+              "line-color": featureColorExpression,
+              "line-width": 4,
+              "line-opacity": 0.9
+            }
+          },
+          {
+            id: "acrex-line-active",
+            type: "line",
+            filter: ["all", ["==", "$type", "LineString"], ["!=", "mode", "static"], ["==", "active", "true"], hiddenFilter],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round"
+            },
+            paint: {
+              "line-color": featureColorExpression,
+              "line-width": 6,
+              "line-opacity": 1
             }
           },
           {
@@ -875,25 +983,38 @@ export function AcrexMap({
       });
 
       const assignZoneDefaults = (features: GeoJSON.Feature[]) => {
-        const existingCount = draw.getAll().features.filter(isPolygonFeature).length;
-        features.filter(isPolygonFeature).forEach((feature, featureIndex) => {
+        const existingCount = draw.getAll().features.filter(isDrawShapeFeature).length;
+        const serviceType = activeServiceTypeRef.current;
+        features.filter(isDrawShapeFeature).forEach((feature, featureIndex) => {
           if (!feature.id) return;
           const properties = (feature.properties ?? {}) as DrawFeatureProperties;
-          const defaults = getZoneDefaults(activeZoneTypeRef.current, existingCount + featureIndex);
-          const zoneType = properties.zoneType ?? defaults.type;
+          const defaults = getServiceDefaults(serviceType, existingCount + featureIndex);
+          const zoneType = isZoneType(properties.zoneType) ? properties.zoneType : defaults.type;
+          const effectiveService = properties.serviceTypeId ? getServiceTypeById(properties.serviceTypeId) : serviceType;
+          const geometryType = isLineFeature(feature) ? "line" : properties.shapeType === "circle" ? "circle" : effectiveService.geometry;
+          const visible = layerVisibilityRef.current[zoneType];
           draw.setFeatureProperty(String(feature.id), "zoneType", zoneType);
           draw.setFeatureProperty(String(feature.id), "zoneName", properties.zoneName ?? defaults.name);
           draw.setFeatureProperty(String(feature.id), "zoneNotes", properties.zoneNotes ?? defaults.notes);
           draw.setFeatureProperty(String(feature.id), "zoneLocked", properties.zoneLocked ?? false);
-          draw.setFeatureProperty(String(feature.id), "zoneVisible", layerVisibilityRef.current[zoneType]);
-          draw.setFeatureProperty(String(feature.id), "shapeType", properties.shapeType ?? "polygon");
+          draw.setFeatureProperty(String(feature.id), "zoneVisible", visible);
+          draw.setFeatureProperty(String(feature.id), "shapeType", geometryType);
+          draw.setFeatureProperty(String(feature.id), "serviceTypeId", effectiveService.id);
+          draw.setFeatureProperty(String(feature.id), "serviceTypeLabel", effectiveService.label);
+          draw.setFeatureProperty(String(feature.id), "geometryType", geometryType);
+          draw.setFeatureProperty(String(feature.id), "color", effectiveService.color);
+          draw.setFeatureProperty(String(feature.id), "label", properties.label ?? defaults.name);
+          draw.setFeatureProperty(String(feature.id), "quoteCategory", effectiveService.quoteCategory);
+          draw.setFeatureProperty(String(feature.id), "defaultRateType", effectiveService.defaultRateType);
+          draw.setFeatureProperty(String(feature.id), "visible", visible);
+          draw.setFeatureProperty(String(feature.id), "createdAt", properties.createdAt ?? new Date().toISOString());
         });
       };
 
       const updateMeasurements = () => {
-        const polygons = draw.getAll().features.filter(isPolygonFeature);
+        const shapes = draw.getAll().features.filter(isDrawShapeFeature);
 
-        if (!polygons.length) {
+        if (!shapes.length) {
           onMeasurementsChangeRef.current(null);
           onPolygonChangeRef.current?.(null);
           onZonesChangeRef.current?.([]);
@@ -907,18 +1028,21 @@ export function AcrexMap({
           return;
         }
 
-        const primaryPolygon = polygons[0];
-        const zones = polygons.map<WorkZone>((feature, index) => {
+        const primaryPolygon = shapes.find((feature): feature is Feature<Polygon, DrawFeatureProperties> => feature.geometry.type === "Polygon") ?? null;
+        const zones = shapes.map<WorkZone>((feature, index) => {
           const properties = (feature.properties ?? {}) as DrawFeatureProperties;
-          const defaults = getZoneDefaults(isZoneType(properties.zoneType) ? properties.zoneType : "Property", index + 1);
-          const zoneMeasurements = calculatePolygonMeasurements(feature.geometry.coordinates);
+          const serviceType = properties.serviceTypeId ? getServiceTypeById(properties.serviceTypeId) : getServiceTypeByZoneType(properties.zoneType);
+          const defaults = getServiceDefaults(serviceType, index + 1);
+          const zoneMeasurements = getShapeMeasurements(feature);
           const zoneType = isZoneType(properties.zoneType) ? properties.zoneType : defaults.type;
           const zoneName = properties.zoneName?.trim() || defaults.name;
           const zoneNotes = properties.zoneNotes?.trim() ?? "";
           const zoneLocked = Boolean(properties.zoneLocked);
           const zoneVisible = properties.zoneVisible !== false;
+          const geometryType = isLineFeature(feature) ? "line" : properties.shapeType === "circle" ? "circle" : serviceType.geometry;
+          const lengthFt = geometryType === "line" ? zoneMeasurements.perimeterFeet : undefined;
           return {
-            id: getFeatureId(feature),
+            id: getShapeFeatureId(feature),
             name: zoneName,
             type: zoneType,
             acres: zoneMeasurements.acres,
@@ -926,6 +1050,18 @@ export function AcrexMap({
             perimeterFeet: zoneMeasurements.perimeterFeet,
             locked: zoneLocked,
             notes: zoneNotes,
+            serviceTypeId: serviceType.id,
+            serviceTypeLabel: properties.serviceTypeLabel ?? serviceType.label,
+            geometryType,
+            color: properties.color ?? serviceType.color,
+            areaAcres: zoneMeasurements.acres,
+            areaSqFt: zoneMeasurements.squareFeet,
+            lengthFt,
+            label: properties.label ?? zoneName,
+            quoteCategory: properties.quoteCategory ?? serviceType.quoteCategory,
+            defaultRateType: serviceType.defaultRateType,
+            visible: zoneVisible,
+            createdAt: properties.createdAt ?? new Date().toISOString(),
             feature: {
               ...feature,
               properties: {
@@ -937,7 +1073,19 @@ export function AcrexMap({
                 zoneVisible,
                 acres: zoneMeasurements.acres,
                 squareFeet: zoneMeasurements.squareFeet,
-                perimeterFeet: zoneMeasurements.perimeterFeet
+                perimeterFeet: zoneMeasurements.perimeterFeet,
+                serviceTypeId: serviceType.id,
+                serviceTypeLabel: properties.serviceTypeLabel ?? serviceType.label,
+                geometryType,
+                color: properties.color ?? serviceType.color,
+                areaAcres: zoneMeasurements.acres,
+                areaSqFt: zoneMeasurements.squareFeet,
+                lengthFt,
+                label: properties.label ?? zoneName,
+                quoteCategory: properties.quoteCategory ?? serviceType.quoteCategory,
+                defaultRateType: serviceType.defaultRateType,
+                visible: zoneVisible,
+                createdAt: properties.createdAt ?? new Date().toISOString()
               }
             }
           };
@@ -973,11 +1121,23 @@ export function AcrexMap({
         assignZoneDefaults(event.features);
         updateMeasurements();
         pushHistorySnapshot();
-        const createdFeature = event.features.find(isPolygonFeature);
+        const createdFeature = event.features.find(isDrawShapeFeature);
         const nextIds = createdFeature?.id ? [String(createdFeature.id)] : [];
         selectedZoneIdsRef.current = nextIds;
         setSelectedZoneIds(nextIds);
-        onSelectedZonesChangeRef.current?.(workZonesRef.current.filter((zone) => nextIds.includes(zone.id)));
+        const selected = workZonesRef.current.filter((zone) => nextIds.includes(zone.id));
+        onSelectedZonesChangeRef.current?.(selected);
+        const createdZone = selected[0] ?? workZonesRef.current.find((zone) => zone.id === nextIds[0]);
+        if (createdZone) {
+          setSavePill({
+            id: createdZone.id,
+            message: `${createdZone.name} saved • ${formatShapeMeasurement(createdZone)}`,
+            color: createdZone.color ?? zoneColors[createdZone.type]
+          });
+          window.setTimeout(() => {
+            setSavePill((current) => (current?.id === createdZone.id ? null : current));
+          }, 5200);
+        }
         setActiveMode("select");
       };
 
@@ -995,7 +1155,7 @@ export function AcrexMap({
 
       const handleSelectionChange = (event: { features: GeoJSON.Feature[] }) => {
         const nextIds = event.features
-          .filter(isPolygonFeature)
+          .filter(isDrawShapeFeature)
           .map((feature) => (feature.id ? String(feature.id) : ""))
           .filter(Boolean);
         selectedZoneIdsRef.current = nextIds;
@@ -1005,11 +1165,11 @@ export function AcrexMap({
 
       const handleDrawRender = () => {
         if (activeModeRef.current !== "draw" && activeModeRef.current !== "edit") return;
-        const polygons = draw.getAll().features.filter(isPolygonFeature);
-        const activePolygon = draw.getSelected().features.find(isPolygonFeature) ?? polygons[polygons.length - 1];
-        if (!activePolygon) return;
+        const shapes = draw.getAll().features.filter(isDrawShapeFeature);
+        const activeShape = draw.getSelected().features.find(isDrawShapeFeature) ?? shapes[shapes.length - 1];
+        if (!activeShape) return;
         try {
-          const live = calculatePolygonMeasurements(activePolygon.geometry.coordinates);
+          const live = getShapeMeasurements(activeShape);
           setMeasurements(live);
         } catch {
           // Drawing can pass through invalid intermediate geometry before the polygon is complete.
@@ -1034,26 +1194,42 @@ export function AcrexMap({
 
           const radiusMiles = turfDistance(center, point, { units: "miles" });
           if (radiusMiles <= 0) return;
+          const serviceType = activeServiceTypeRef.current;
+          const circleId = crypto.randomUUID();
           const circleFeature = turfCircle(center, radiusMiles, {
             steps: 80,
             units: "miles",
             properties: {
-              zoneType: activeZoneTypeRef.current,
-              zoneName: `${activeZoneTypeRef.current} Circle`,
+              zoneType: serviceType.zoneType,
+              zoneName: `${serviceType.shortLabel} Circle`,
               zoneNotes: "",
               zoneLocked: false,
-              zoneVisible: layerVisibilityRef.current[activeZoneTypeRef.current],
+              zoneVisible: layerVisibilityRef.current[serviceType.zoneType],
               shapeType: "circle",
               radiusFeet: radiusMiles * 5280,
-              circumferenceFeet: 2 * Math.PI * radiusMiles * 5280
+              circumferenceFeet: 2 * Math.PI * radiusMiles * 5280,
+              serviceTypeId: serviceType.id,
+              serviceTypeLabel: serviceType.label,
+              geometryType: "circle",
+              color: serviceType.color,
+              label: `${serviceType.shortLabel} Circle`,
+              quoteCategory: serviceType.quoteCategory,
+              defaultRateType: serviceType.defaultRateType,
+              visible: layerVisibilityRef.current[serviceType.zoneType],
+              createdAt: new Date().toISOString()
             }
           }) as Feature<Polygon, DrawFeatureProperties>;
-          circleFeature.id = crypto.randomUUID();
+          circleFeature.id = circleId;
           draw.add(circleFeature);
           circleCenterRef.current = null;
           updateCirclePreview(null);
           updateMeasurements();
           pushHistorySnapshot();
+          setSavePill({
+            id: circleId,
+            message: `${serviceType.shortLabel} Circle saved`,
+            color: serviceType.color
+          });
           setActiveMode("select");
         }
       };
@@ -1140,7 +1316,7 @@ export function AcrexMap({
       return;
     }
 
-    const featuresToAdd = isFeatureCollection(initialPolygon)
+    const featuresToAdd = (isFeatureCollection(initialPolygon)
       ? initialPolygon.features
       : [
           {
@@ -1152,7 +1328,7 @@ export function AcrexMap({
               ...(initialPolygon.properties ?? {})
             }
           }
-        ];
+        ]).filter(isDrawShapeFeature);
 
     const addedIds = draw.add({
       type: "FeatureCollection",
@@ -1161,16 +1337,19 @@ export function AcrexMap({
 
     const nextZones = featuresToAdd.map<WorkZone>((feature, index) => {
       const properties = (feature.properties ?? {}) as DrawFeatureProperties;
-      const defaultType = isZoneType(properties.zoneType) ? properties.zoneType : "Property";
-      const defaults = getZoneDefaults(defaultType, index + 1);
-      const zoneMeasurements = calculatePolygonMeasurements(feature.geometry.coordinates);
+      const serviceType = properties.serviceTypeId ? getServiceTypeById(properties.serviceTypeId) : getServiceTypeByZoneType(properties.zoneType);
+      const defaultType = isZoneType(properties.zoneType) ? properties.zoneType : serviceType.zoneType;
+      const defaults = getServiceDefaults(getServiceTypeByZoneType(defaultType), index + 1);
+      const zoneMeasurements = getShapeMeasurements(feature);
       const zoneType = isZoneType(properties.zoneType) ? properties.zoneType : defaults.type;
       const zoneName = properties.zoneName?.trim() || defaults.name;
       const zoneNotes = properties.zoneNotes?.trim() ?? "";
       const zoneLocked = Boolean(properties.zoneLocked);
       const zoneVisible = properties.zoneVisible !== false;
+      const geometryType = isLineFeature(feature) ? "line" : properties.shapeType === "circle" ? "circle" : serviceType.geometry;
+      const lengthFt = geometryType === "line" ? zoneMeasurements.perimeterFeet : undefined;
       return {
-        id: addedIds[index] ?? getFeatureId(feature),
+        id: addedIds[index] ?? getShapeFeatureId(feature),
         name: zoneName,
         type: zoneType,
         acres: zoneMeasurements.acres,
@@ -1178,6 +1357,18 @@ export function AcrexMap({
         perimeterFeet: zoneMeasurements.perimeterFeet,
         locked: zoneLocked,
         notes: zoneNotes,
+        serviceTypeId: serviceType.id,
+        serviceTypeLabel: properties.serviceTypeLabel ?? serviceType.label,
+        geometryType,
+        color: properties.color ?? serviceType.color,
+        areaAcres: zoneMeasurements.acres,
+        areaSqFt: zoneMeasurements.squareFeet,
+        lengthFt,
+        label: properties.label ?? zoneName,
+        quoteCategory: properties.quoteCategory ?? serviceType.quoteCategory,
+        defaultRateType: serviceType.defaultRateType,
+        visible: zoneVisible,
+        createdAt: properties.createdAt ?? new Date().toISOString(),
         feature: {
           ...feature,
           id: addedIds[index] ?? feature.id,
@@ -1190,7 +1381,19 @@ export function AcrexMap({
             zoneVisible,
             acres: zoneMeasurements.acres,
             squareFeet: zoneMeasurements.squareFeet,
-            perimeterFeet: zoneMeasurements.perimeterFeet
+            perimeterFeet: zoneMeasurements.perimeterFeet,
+            serviceTypeId: serviceType.id,
+            serviceTypeLabel: properties.serviceTypeLabel ?? serviceType.label,
+            geometryType,
+            color: properties.color ?? serviceType.color,
+            areaAcres: zoneMeasurements.acres,
+            areaSqFt: zoneMeasurements.squareFeet,
+            lengthFt,
+            label: properties.label ?? zoneName,
+            quoteCategory: properties.quoteCategory ?? serviceType.quoteCategory,
+            defaultRateType: serviceType.defaultRateType,
+            visible: zoneVisible,
+            createdAt: properties.createdAt ?? new Date().toISOString()
           }
         }
       };
@@ -1212,13 +1415,14 @@ export function AcrexMap({
     selectedZoneIdsRef.current = initialSelectedIds;
     setSelectedZoneIds(initialSelectedIds);
     setHasPolygon(true);
-    lockedFeatureRef.current = nextZones.reduce<Record<string, Feature<Polygon, DrawFeatureProperties>>>((current, zone) => {
-      if (zone.locked) current[zone.id] = clonePolygonFeature(zone.feature);
+    lockedFeatureRef.current = nextZones.reduce<Record<string, DrawShapeFeature>>((current, zone) => {
+      if (zone.locked) current[zone.id] = cloneShapeFeature(zone.feature);
       return current;
     }, {});
     syncLayerVisibility();
     onMeasurementsChangeRef.current(nextMeasurements);
-    onPolygonChangeRef.current?.(featuresToAdd[0] ?? null);
+    const loadedPrimaryPolygon = (featuresToAdd.find((feature) => feature.geometry.type === "Polygon") as Feature<Polygon, DrawFeatureProperties> | undefined) ?? null;
+    onPolygonChangeRef.current?.(loadedPrimaryPolygon);
     onZonesChangeRef.current?.(nextZones);
     onSelectedZonesChangeRef.current?.(nextZones.filter((zone) => initialSelectedIds.includes(zone.id)));
 
@@ -1242,7 +1446,11 @@ export function AcrexMap({
     updateCirclePreview(null);
 
     if (mode === "draw") {
-      draw.changeMode("draw_polygon");
+      if (activeServiceTypeRef.current.geometry === "line") {
+        draw.changeMode("draw_line_string");
+      } else {
+        draw.changeMode("draw_polygon");
+      }
     }
 
     if (mode === "select") {
@@ -1337,24 +1545,54 @@ export function AcrexMap({
     pushHistorySnapshot();
   }
 
+  function applyServiceTypeToSelectedZone(serviceType: ActiveServiceType) {
+    const draw = drawRef.current;
+    if (!draw || !selectedZone || selectedZone.locked) return false;
+
+    draw.setFeatureProperty(selectedZone.id, "zoneType", serviceType.zoneType);
+    draw.setFeatureProperty(selectedZone.id, "zoneVisible", layerVisibilityRef.current[serviceType.zoneType]);
+    draw.setFeatureProperty(selectedZone.id, "serviceTypeId", serviceType.id);
+    draw.setFeatureProperty(selectedZone.id, "serviceTypeLabel", serviceType.label);
+    draw.setFeatureProperty(selectedZone.id, "geometryType", selectedZone.geometryType ?? serviceType.geometry);
+    draw.setFeatureProperty(selectedZone.id, "color", serviceType.color);
+    draw.setFeatureProperty(selectedZone.id, "quoteCategory", serviceType.quoteCategory);
+    draw.setFeatureProperty(selectedZone.id, "defaultRateType", serviceType.defaultRateType);
+    draw.setFeatureProperty(selectedZone.id, "visible", layerVisibilityRef.current[serviceType.zoneType]);
+    refreshZonesRef.current();
+    pushHistorySnapshot();
+    return true;
+  }
+
   function handleActiveZoneTypeChange(nextType: ZoneType) {
-    setActiveZoneType(nextType);
+    const nextServiceType = getServiceTypeByZoneType(nextType);
+    setActiveServiceType(nextServiceType);
+    activeServiceTypeRef.current = nextServiceType;
+    setActiveZoneType(nextServiceType.zoneType);
     const map = mapRef.current;
     if (map?.getLayer("acrex-circle-preview-fill")) {
-      map.setPaintProperty("acrex-circle-preview-fill", "fill-color", zoneColors[nextType]);
-      map.setPaintProperty("acrex-circle-preview-line", "line-color", zoneColors[nextType]);
+      map.setPaintProperty("acrex-circle-preview-fill", "fill-color", nextServiceType.color);
+      map.setPaintProperty("acrex-circle-preview-line", "line-color", nextServiceType.color);
     }
 
-    const draw = drawRef.current;
-    if (draw && selectedZone && !selectedZone.locked) {
-      draw.setFeatureProperty(selectedZone.id, "zoneType", nextType);
-      draw.setFeatureProperty(selectedZone.id, "zoneVisible", layerVisibilityRef.current[nextType]);
-      refreshZonesRef.current();
-      pushHistorySnapshot();
+    if (applyServiceTypeToSelectedZone(nextServiceType)) {
       return;
     }
 
-    if (draw && !selectedZone) {
+    if (drawRef.current && !selectedZone) {
+      setDrawMode("draw");
+    }
+  }
+
+  function handleServiceTypeSelect(serviceType: ActiveServiceType) {
+    setActiveServiceType(serviceType);
+    activeServiceTypeRef.current = serviceType;
+    setActiveZoneType(serviceType.zoneType);
+    const map = mapRef.current;
+    if (map?.getLayer("acrex-circle-preview-fill")) {
+      map.setPaintProperty("acrex-circle-preview-fill", "fill-color", serviceType.color);
+      map.setPaintProperty("acrex-circle-preview-line", "line-color", serviceType.color);
+    }
+    if (!applyServiceTypeToSelectedZone(serviceType)) {
       setDrawMode("draw");
     }
   }
@@ -1366,8 +1604,8 @@ export function AcrexMap({
     const nextLocked = !selectedZone.locked;
     draw.setFeatureProperty(selectedZone.id, "zoneLocked", nextLocked);
     if (nextLocked) {
-      const feature = draw.get(selectedZone.id) as Feature<Polygon, DrawFeatureProperties> | undefined;
-      if (feature) lockedFeatureRef.current[selectedZone.id] = clonePolygonFeature(feature);
+      const feature = draw.get(selectedZone.id);
+      if (feature && isDrawShapeFeature(feature)) lockedFeatureRef.current[selectedZone.id] = cloneShapeFeature(feature);
       draw.changeMode("simple_select");
     } else {
       delete lockedFeatureRef.current[selectedZone.id];
@@ -1380,15 +1618,22 @@ export function AcrexMap({
     const draw = drawRef.current;
     if (!draw || !selectedZone) return;
 
-    const source = draw.get(selectedZone.id) as Feature<Polygon, DrawFeatureProperties> | undefined;
-    if (!source) return;
+    const source = draw.get(selectedZone.id);
+    if (!source || !isDrawShapeFeature(source)) return;
 
-    const duplicate = clonePolygonFeature(source);
+    const duplicate = cloneShapeFeature(source);
     duplicate.id = crypto.randomUUID();
-    duplicate.geometry = {
-      ...duplicate.geometry,
-      coordinates: offsetPolygonCoordinates(duplicate.geometry.coordinates)
-    };
+    if (duplicate.geometry.type === "Polygon") {
+      duplicate.geometry = {
+        ...duplicate.geometry,
+        coordinates: offsetPolygonCoordinates(duplicate.geometry.coordinates)
+      } as Polygon;
+    } else {
+      duplicate.geometry = {
+        ...duplicate.geometry,
+        coordinates: offsetLineCoordinates(duplicate.geometry.coordinates)
+      } as LineString;
+    }
     duplicate.properties = {
       ...(duplicate.properties ?? {}),
       zoneName: `${selectedZone.name} Copy`,
@@ -1434,8 +1679,10 @@ export function AcrexMap({
     if (!draw || !parcel) return;
 
     const measurements = getParcelMeasurements(parcel);
+    const serviceType = getServiceTypeByZoneType("Property");
     const feature: Feature<Polygon, DrawFeatureProperties> = {
-      ...clonePolygonFeature(parcel),
+      type: "Feature",
+      geometry: JSON.parse(JSON.stringify(parcel.geometry)) as Polygon,
       id: crypto.randomUUID(),
       properties: {
         ...(parcel.properties ?? {}),
@@ -1446,7 +1693,18 @@ export function AcrexMap({
         zoneVisible: layerVisibilityRef.current.Property,
         acres: measurements.acres,
         squareFeet: measurements.squareFeet,
-        perimeterFeet: measurements.perimeterFeet
+        perimeterFeet: measurements.perimeterFeet,
+        serviceTypeId: serviceType.id,
+        serviceTypeLabel: serviceType.label,
+        geometryType: serviceType.geometry,
+        color: serviceType.color,
+        areaAcres: measurements.acres,
+        areaSqFt: measurements.squareFeet,
+        label: "Parcel Boundary",
+        quoteCategory: serviceType.quoteCategory,
+        defaultRateType: serviceType.defaultRateType,
+        visible: layerVisibilityRef.current.Property,
+        createdAt: new Date().toISOString()
       }
     };
     const ids = draw.add(feature);
@@ -1569,40 +1827,19 @@ export function AcrexMap({
     <>
       {!searchMountId ? <div className="map-search-bar" ref={searchContainerRef} /> : null}
       <div className="draw-toolbar" aria-label="Drawing toolbar">
-        <label className="zone-type-picker">
-          Type
-          <select
-            value={selectedZone?.type ?? activeZoneType}
-            onChange={(event) => handleActiveZoneTypeChange(event.target.value as ZoneType)}
-          >
-            {zoneTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="toolbar-layer-list" aria-label="Layer visibility">
-          <span>Layers</span>
-          <label>
-            <input
-              type="checkbox"
-              checked={parcelLinesVisible}
-              onChange={toggleParcelLines}
-            />
-            <i style={{ background: zoneColors.Property }} />
-            <em>Parcel Lines</em>
-          </label>
-          {zoneTypes.map((type) => (
-            <label key={type}>
-              <input
-                type="checkbox"
-                checked={layerVisibility[type]}
-                onChange={() => toggleLayer(type)}
-              />
-              <i style={{ background: zoneColors[type] }} />
-              <em>{zoneLabels[type]}</em>
-            </label>
+        <div className="service-type-card-list" aria-label="Service type">
+          <span>Measure</span>
+          {serviceTypes.map((serviceType) => (
+            <button
+              className={activeServiceType.id === serviceType.id ? "active service-type-card" : "service-type-card"}
+              key={serviceType.id}
+              type="button"
+              onClick={() => handleServiceTypeSelect(serviceType)}
+            >
+              <i style={{ background: serviceType.color }} />
+              <strong>{serviceType.label}</strong>
+              <small>{serviceType.geometry === "line" ? "Line" : "Polygon"} · {serviceType.unit}</small>
+            </button>
           ))}
         </div>
         <button className={activeMode === "select" ? "active" : ""} type="button" onClick={() => setDrawMode("select")}>
@@ -1630,6 +1867,23 @@ export function AcrexMap({
         <button type="button" onClick={redoDrawChange} disabled={!canRedo}>
           Redo
         </button>
+      </div>
+      <div className="map-layer-chips" aria-label="Layer visibility">
+        <button className={parcelLinesVisible ? "active" : ""} type="button" onClick={toggleParcelLines}>
+          <i style={{ background: zoneColors.Property }} />
+          Parcel
+        </button>
+        {serviceTypes.map((serviceType) => (
+          <button
+            className={layerVisibility[serviceType.zoneType] ? "active" : ""}
+            key={serviceType.id}
+            type="button"
+            onClick={() => toggleLayer(serviceType.zoneType)}
+          >
+            <i style={{ background: serviceType.color }} />
+            {serviceType.shortLabel}
+          </button>
+        ))}
       </div>
       <div className="map-view-controls" aria-label="Map view controls">
         <div className="map-style-toggle" role="group" aria-label="Map style">
@@ -1662,13 +1916,29 @@ export function AcrexMap({
           ))}
         </div>
       ) : null}
+      {savePill ? (
+        <div className="shape-save-pill" style={{ "--zone-color": savePill.color } as CSSProperties}>
+          <strong>{savePill.message}</strong>
+          <button type="button" onClick={() => setDrawMode("draw")}>Draw Another</button>
+          <button type="button" onClick={undoDrawChange}>Undo</button>
+        </div>
+      ) : null}
+      {workZones.length ? (
+        <div className="map-measurement-pills" aria-label="Map measurement labels">
+          {workZones.filter((zone) => zone.visible !== false).slice(-4).map((zone) => (
+            <span key={zone.id} style={{ "--zone-color": zone.color ?? zoneColors[zone.type] } as CSSProperties}>
+              {zone.name} • {formatShapeMeasurement(zone)}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <div className="map-canvas" ref={mapContainerRef} aria-label="Mapbox property map" />
       <div className="parcel-note">Parcel lines require a parcel data provider.</div>
       <div className="zone-editor" aria-label="Selected zone details">
         <div className="zone-editor-heading">
           <span>{selectedZones.length > 1 ? "Selected Zones" : "Selected Zone"}</span>
-          <strong style={selectedZone ? { color: zoneColors[selectedZone.type] } : undefined}>
-            {selectedZones.length > 1 ? `${selectedZones.length} zones` : selectedZone ? selectedZone.type : activeZoneType}
+          <strong style={selectedZone ? { color: selectedZone.color ?? zoneColors[selectedZone.type] } : undefined}>
+            {selectedZones.length > 1 ? `${selectedZones.length} zones` : selectedZone ? selectedZone.serviceTypeLabel ?? zoneLabels[selectedZone.type] : activeServiceType.label}
           </strong>
         </div>
         {selectedZone ? (
@@ -1686,7 +1956,7 @@ export function AcrexMap({
           <select
             value={selectedZone?.type ?? activeZoneType}
             disabled={!selectedZone || selectedZone.locked}
-            onChange={(event) => updateSelectedZoneProperty("zoneType", event.target.value)}
+            onChange={(event) => handleActiveZoneTypeChange(event.target.value as ZoneType)}
           >
             {zoneTypes.map((type) => (
               <option key={type} value={type}>
@@ -1714,9 +1984,9 @@ export function AcrexMap({
           />
         </label>
         <div className="zone-editor-measurements">
-          <span>{selectedZone ? `${formatAcres(selectedZone.acres)} ac` : "-- ac"}</span>
+          <span>{selectedZone ? formatShapeMeasurement(selectedZone) : "--"}</span>
           <span>{selectedZone ? `${formatSquareFeet(selectedZone.squareFeet)} sq ft` : "-- sq ft"}</span>
-          <span>{selectedZone ? `${formatFeet(selectedZone.perimeterFeet)} linear ft` : "-- linear ft"}</span>
+          <span>{selectedZone ? `${formatFeet(selectedZone.lengthFt ?? selectedZone.perimeterFeet)} linear ft` : "-- linear ft"}</span>
         </div>
       </div>
     </>
