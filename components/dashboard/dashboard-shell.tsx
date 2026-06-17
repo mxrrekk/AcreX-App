@@ -1101,8 +1101,23 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
           <section className="dashboard-map-panel">
             <div className="map-measurement-summary" aria-label="Measurement summary">
               <span>Measurements</span>
-              <strong>{summaryRows[8].value}</strong>
-              <small>{workZones.length} drawn area{workZones.length === 1 ? "" : "s"}</small>
+              {workZones.length || measurements ? (
+                <>
+                  <strong>{workZones.length} saved</strong>
+                  <div className="map-measurement-summary-grid">
+                    <small>Parcel <b>{summaryRows[0].value}</b></small>
+                    <small>Brush <b>{brushAcres ? `${formatAcres(brushAcres)} ac` : "--"}</b></small>
+                    <small>Grass <b>{grassAcres ? `${formatAcres(grassAcres)} ac` : "--"}</b></small>
+                    <small>Woods <b>{woodsAcres ? `${formatAcres(woodsAcres)} ac` : "--"}</b></small>
+                    <small>Fence <b>{fenceLinearFt ? `${formatFeet(fenceLinearFt)} ft` : "--"}</b></small>
+                    <small>Driveway <b>{summaryRows[4].value}</b></small>
+                    <small>House Pad <b>{summaryRows[5].value}</b></small>
+                  </div>
+                </>
+              ) : (
+                <p>No measurements yet. Tap Draw to start.</p>
+              )}
+              <Link href="/dashboard?panel=measurements">Open Drawings</Link>
             </div>
             <AcrexMap
               activeProjectId={activeProjectId}

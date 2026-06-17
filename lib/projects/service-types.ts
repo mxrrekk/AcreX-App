@@ -46,7 +46,7 @@ export const serviceTypes: ActiveServiceType[] = [
     geometry: "polygon",
     color: "#f97316",
     unit: "acre",
-    quoteCategory: "Forestry Mulching / Brush Clearing",
+    quoteCategory: "Forestry Mulching",
     defaultRateType: "per_acre",
     description: "Brush, undergrowth, and small-tree clearing."
   },
@@ -76,7 +76,7 @@ export const serviceTypes: ActiveServiceType[] = [
   },
   {
     id: "driveway-gravel",
-    label: "Driveway / Gravel",
+    label: "Driveway",
     shortLabel: "Driveway",
     zoneType: "Driveway",
     geometry: "polygon",
@@ -106,7 +106,7 @@ export const serviceTypes: ActiveServiceType[] = [
     geometry: "polygon",
     color: "#ef4444",
     unit: "acre",
-    quoteCategory: "Custom",
+    quoteCategory: "Non-billable",
     defaultRateType: "per_acre",
     description: "Areas excluded from billable work."
   },
@@ -116,10 +116,10 @@ export const serviceTypes: ActiveServiceType[] = [
     shortLabel: "Custom",
     zoneType: "Custom",
     geometry: "polygon",
-    color: "#a980ff",
-    unit: "each",
+    color: "#64b5ff",
+    unit: "acre",
     quoteCategory: "Custom",
-    defaultRateType: "each",
+    defaultRateType: "per_acre",
     description: "Custom area or scope item."
   }
 ];

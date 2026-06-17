@@ -20,6 +20,7 @@ export type QuoteService =
   | "Fence Installation"
   | "Sod"
   | "Irrigation"
+  | "Non-billable"
   | "Custom";
 
 export type WorkZone = {
@@ -32,9 +33,11 @@ export type WorkZone = {
   locked: boolean;
   notes: string;
   serviceTypeId?: string;
+  serviceType?: string;
   serviceTypeLabel?: string;
   geometryType?: ShapeGeometryType;
   color?: string;
+  unit?: "acre" | "sq ft" | "linear ft" | "each";
   areaAcres?: number;
   areaSqFt?: number;
   lengthFt?: number;
@@ -59,9 +62,11 @@ export type SavedZoneProperties = {
   radiusFeet?: number;
   circumferenceFeet?: number;
   serviceTypeId?: string;
+  serviceType?: string;
   serviceTypeLabel?: string;
   geometryType?: ShapeGeometryType;
   color?: string;
+  unit?: "acre" | "sq ft" | "linear ft" | "each";
   areaAcres?: number;
   areaSqFt?: number;
   lengthFt?: number;

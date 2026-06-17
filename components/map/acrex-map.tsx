@@ -54,9 +54,11 @@ type DrawFeatureProperties = {
   squareFeet?: number;
   perimeterFeet?: number;
   serviceTypeId?: string;
+  serviceType?: string;
   serviceTypeLabel?: string;
   geometryType?: "polygon" | "line" | "circle";
   color?: string;
+  unit?: "acre" | "sq ft" | "linear ft" | "each";
   areaAcres?: number;
   areaSqFt?: number;
   lengthFt?: number;
@@ -1027,10 +1029,12 @@ export function AcrexMap({
           draw.setFeatureProperty(String(feature.id), "zoneVisible", visible);
           draw.setFeatureProperty(String(feature.id), "shapeType", geometryType);
           draw.setFeatureProperty(String(feature.id), "serviceTypeId", serviceType.id);
+          draw.setFeatureProperty(String(feature.id), "serviceType", serviceType.id);
           draw.setFeatureProperty(String(feature.id), "serviceTypeLabel", serviceType.label);
           draw.setFeatureProperty(String(feature.id), "geometryType", geometryType);
           draw.setFeatureProperty(String(feature.id), "color", serviceType.color);
-          draw.setFeatureProperty(String(feature.id), "label", properties.label ?? defaults.name);
+          draw.setFeatureProperty(String(feature.id), "label", properties.label ?? serviceType.label);
+          draw.setFeatureProperty(String(feature.id), "unit", serviceType.unit);
           draw.setFeatureProperty(String(feature.id), "quoteCategory", serviceType.quoteCategory);
           draw.setFeatureProperty(String(feature.id), "defaultRateType", serviceType.defaultRateType);
           draw.setFeatureProperty(String(feature.id), "visible", visible);
@@ -1078,13 +1082,15 @@ export function AcrexMap({
             locked: zoneLocked,
             notes: zoneNotes,
             serviceTypeId: serviceType.id,
+            serviceType: properties.serviceType ?? serviceType.id,
             serviceTypeLabel: properties.serviceTypeLabel ?? serviceType.label,
             geometryType,
             color: properties.color ?? serviceType.color,
+            unit: properties.unit ?? serviceType.unit,
             areaAcres: zoneMeasurements.acres,
             areaSqFt: zoneMeasurements.squareFeet,
             lengthFt,
-            label: properties.label ?? zoneName,
+            label: properties.label ?? serviceType.label,
             quoteCategory: properties.quoteCategory ?? serviceType.quoteCategory,
             defaultRateType: serviceType.defaultRateType,
             visible: zoneVisible,
@@ -1102,13 +1108,15 @@ export function AcrexMap({
                 squareFeet: zoneMeasurements.squareFeet,
                 perimeterFeet: zoneMeasurements.perimeterFeet,
                 serviceTypeId: serviceType.id,
+                serviceType: properties.serviceType ?? serviceType.id,
                 serviceTypeLabel: properties.serviceTypeLabel ?? serviceType.label,
                 geometryType,
                 color: properties.color ?? serviceType.color,
+                unit: properties.unit ?? serviceType.unit,
                 areaAcres: zoneMeasurements.acres,
                 areaSqFt: zoneMeasurements.squareFeet,
                 lengthFt,
-                label: properties.label ?? zoneName,
+                label: properties.label ?? serviceType.label,
                 quoteCategory: properties.quoteCategory ?? serviceType.quoteCategory,
                 defaultRateType: serviceType.defaultRateType,
                 visible: zoneVisible,
@@ -1236,10 +1244,12 @@ export function AcrexMap({
               radiusFeet: radiusMiles * 5280,
               circumferenceFeet: 2 * Math.PI * radiusMiles * 5280,
               serviceTypeId: serviceType.id,
+              serviceType: serviceType.id,
               serviceTypeLabel: serviceType.label,
               geometryType: "circle",
               color: serviceType.color,
-              label: `${serviceType.shortLabel} Circle`,
+              unit: serviceType.unit,
+              label: serviceType.label,
               quoteCategory: serviceType.quoteCategory,
               defaultRateType: serviceType.defaultRateType,
               visible: layerVisibilityRef.current[serviceType.zoneType],
@@ -1385,13 +1395,15 @@ export function AcrexMap({
         locked: zoneLocked,
         notes: zoneNotes,
         serviceTypeId: serviceType.id,
+        serviceType: properties.serviceType ?? serviceType.id,
         serviceTypeLabel: properties.serviceTypeLabel ?? serviceType.label,
         geometryType,
         color: properties.color ?? serviceType.color,
+        unit: properties.unit ?? serviceType.unit,
         areaAcres: zoneMeasurements.acres,
         areaSqFt: zoneMeasurements.squareFeet,
         lengthFt,
-        label: properties.label ?? zoneName,
+        label: properties.label ?? serviceType.label,
         quoteCategory: properties.quoteCategory ?? serviceType.quoteCategory,
         defaultRateType: serviceType.defaultRateType,
         visible: zoneVisible,
@@ -1410,13 +1422,15 @@ export function AcrexMap({
             squareFeet: zoneMeasurements.squareFeet,
             perimeterFeet: zoneMeasurements.perimeterFeet,
             serviceTypeId: serviceType.id,
+            serviceType: properties.serviceType ?? serviceType.id,
             serviceTypeLabel: properties.serviceTypeLabel ?? serviceType.label,
             geometryType,
             color: properties.color ?? serviceType.color,
+            unit: properties.unit ?? serviceType.unit,
             areaAcres: zoneMeasurements.acres,
             areaSqFt: zoneMeasurements.squareFeet,
             lengthFt,
-            label: properties.label ?? zoneName,
+            label: properties.label ?? serviceType.label,
             quoteCategory: properties.quoteCategory ?? serviceType.quoteCategory,
             defaultRateType: serviceType.defaultRateType,
             visible: zoneVisible,
@@ -1524,6 +1538,14 @@ export function AcrexMap({
     refreshZonesRef.current();
   }
 
+  function clearSelectedZone() {
+    const draw = drawRef.current;
+    selectedZoneIdsRef.current = [];
+    setSelectedZoneIds([]);
+    onSelectedZonesChangeRef.current?.([]);
+    draw?.changeMode("simple_select", { featureIds: [] });
+  }
+
   function resetView() {
     const map = mapRef.current;
     if (!map) return;
@@ -1579,9 +1601,12 @@ export function AcrexMap({
     draw.setFeatureProperty(selectedZone.id, "zoneType", serviceType.zoneType);
     draw.setFeatureProperty(selectedZone.id, "zoneVisible", layerVisibilityRef.current[serviceType.zoneType]);
     draw.setFeatureProperty(selectedZone.id, "serviceTypeId", serviceType.id);
+    draw.setFeatureProperty(selectedZone.id, "serviceType", serviceType.id);
     draw.setFeatureProperty(selectedZone.id, "serviceTypeLabel", serviceType.label);
     draw.setFeatureProperty(selectedZone.id, "geometryType", selectedZone.geometryType ?? serviceType.geometry);
     draw.setFeatureProperty(selectedZone.id, "color", serviceType.color);
+    draw.setFeatureProperty(selectedZone.id, "unit", serviceType.unit);
+    draw.setFeatureProperty(selectedZone.id, "label", serviceType.label);
     draw.setFeatureProperty(selectedZone.id, "quoteCategory", serviceType.quoteCategory);
     draw.setFeatureProperty(selectedZone.id, "defaultRateType", serviceType.defaultRateType);
     draw.setFeatureProperty(selectedZone.id, "visible", layerVisibilityRef.current[serviceType.zoneType]);
@@ -1630,6 +1655,16 @@ export function AcrexMap({
     setMapPanel(null);
   }
 
+  function handleSelectedZoneServiceTypeChange(serviceTypeId: string) {
+    const serviceType = getServiceTypeById(serviceTypeId);
+    setActiveServiceType(serviceType);
+    activeServiceTypeRef.current = serviceType;
+    setActiveZoneType(serviceType.zoneType);
+    activeZoneTypeRef.current = serviceType.zoneType;
+    setDrawLayerFallbackColor(mapRef.current, serviceType.color);
+    applyServiceTypeToSelectedZone(serviceType);
+  }
+
   const setMapPanel = useCallback((panel: ActiveMapPanel) => {
     setActiveMapPanel(panel);
     onToolPanelChange?.(panel);
@@ -1658,6 +1693,23 @@ export function AcrexMap({
     }
     refreshZonesRef.current();
     pushHistorySnapshot();
+  }
+
+  function toggleSelectedZoneVisibility() {
+    const draw = drawRef.current;
+    if (!draw || !selectedZone) return;
+
+    const nextVisible = selectedZone.visible === false;
+    draw.setFeatureProperty(selectedZone.id, "zoneVisible", nextVisible);
+    draw.setFeatureProperty(selectedZone.id, "visible", nextVisible);
+    refreshZonesRef.current();
+    pushHistorySnapshot();
+  }
+
+  function deleteSelectedZone() {
+    if (!selectedZone) return;
+    deleteBoundary();
+    clearSelectedZone();
   }
 
   function duplicateSelectedZone() {
@@ -1741,9 +1793,11 @@ export function AcrexMap({
         squareFeet: measurements.squareFeet,
         perimeterFeet: measurements.perimeterFeet,
         serviceTypeId: serviceType.id,
+        serviceType: serviceType.id,
         serviceTypeLabel: serviceType.label,
         geometryType: serviceType.geometry,
         color: serviceType.color,
+        unit: serviceType.unit,
         areaAcres: measurements.acres,
         areaSqFt: measurements.squareFeet,
         label: "Parcel Boundary",
@@ -1976,61 +2030,63 @@ export function AcrexMap({
       ) : null}
       <div className="map-canvas" ref={mapContainerRef} aria-label="Mapbox property map" />
       <div className="parcel-note">Parcel lines require a parcel data provider.</div>
-      <div className="zone-editor map-hidden-tools" aria-label="Selected zone details">
-        <div className="zone-editor-heading">
-          <span>{selectedZones.length > 1 ? "Selected Zones" : "Selected Zone"}</span>
-          <strong style={selectedZone ? { color: selectedZone.color ?? zoneColors[selectedZone.type] } : undefined}>
-            {selectedZones.length > 1 ? `${selectedZones.length} zones` : selectedZone ? selectedZone.serviceTypeLabel ?? zoneLabels[selectedZone.type] : activeServiceType.label}
-          </strong>
-        </div>
-        {selectedZone ? (
-          <div className="zone-editor-actions">
-            <button type="button" onClick={toggleSelectedZoneLock}>
-              {selectedZone.locked ? "Unlock" : "Lock"}
-            </button>
-            <button type="button" onClick={duplicateSelectedZone}>
-              Duplicate
+      {selectedZone ? (
+        <div className="zone-editor" aria-label="Selected shape inspector">
+          <div className="zone-editor-heading">
+            <span>Selected Shape</span>
+            <button type="button" onClick={clearSelectedZone} aria-label="Close shape inspector">
+              Close
             </button>
           </div>
-        ) : null}
-        <label>
-          Type
-          <select
-            value={selectedZone?.type ?? activeZoneType}
-            disabled={!selectedZone || selectedZone.locked}
-            onChange={(event) => handleActiveZoneTypeChange(event.target.value as ZoneType)}
-          >
-            {zoneTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Name
-          <input
-            value={selectedZone?.name ?? ""}
-            placeholder="Select or draw a zone"
-            disabled={!selectedZone || selectedZone.locked}
-            onChange={(event) => updateSelectedZoneProperty("zoneName", event.target.value)}
-          />
-        </label>
-        <label>
-          Notes
-          <textarea
-            value={selectedZone?.notes ?? ""}
-            placeholder="Access, obstacles, slope, gate notes..."
-            disabled={!selectedZone || selectedZone.locked}
-            onChange={(event) => updateSelectedZoneProperty("zoneNotes", event.target.value)}
-          />
-        </label>
-        <div className="zone-editor-measurements">
-          <span>{selectedZone ? formatShapeMeasurement(selectedZone) : "--"}</span>
-          <span>{selectedZone ? `${formatSquareFeet(selectedZone.squareFeet)} sq ft` : "-- sq ft"}</span>
-          <span>{selectedZone ? `${formatFeet(selectedZone.lengthFt ?? selectedZone.perimeterFeet)} linear ft` : "-- linear ft"}</span>
+          <div className="zone-inspector-title">
+            <i style={{ background: selectedZone.color ?? zoneColors[selectedZone.type] }} />
+            <strong>{selectedZone.name}</strong>
+            <small>{selectedZone.serviceTypeLabel ?? zoneLabels[selectedZone.type]}</small>
+          </div>
+          <div className="zone-editor-measurements">
+            <span>{formatShapeMeasurement(selectedZone)}</span>
+            <span>{formatSquareFeet(selectedZone.squareFeet)} sq ft</span>
+            <span>{formatFeet(selectedZone.lengthFt ?? selectedZone.perimeterFeet)} linear ft</span>
+          </div>
+          <label>
+            Rename
+            <input
+              value={selectedZone.name}
+              disabled={selectedZone.locked}
+              onChange={(event) => updateSelectedZoneProperty("zoneName", event.target.value)}
+            />
+          </label>
+          <label>
+            Service Type
+            <select
+              value={selectedZone.serviceTypeId ?? getServiceTypeByZoneType(selectedZone.type).id}
+              disabled={selectedZone.locked}
+              onChange={(event) => handleSelectedZoneServiceTypeChange(event.target.value)}
+            >
+              {serviceTypes.filter((serviceType) => serviceType.id !== "property-boundary").map((serviceType) => (
+                <option key={serviceType.id} value={serviceType.id}>
+                  {serviceType.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="zone-editor-actions">
+            <button type="button" onClick={toggleSelectedZoneVisibility}>
+              {selectedZone.visible === false ? "Show" : "Hide"}
+            </button>
+            <button type="button" onClick={deleteSelectedZone} disabled={selectedZone.locked}>
+              Delete
+            </button>
+          </div>
+          {activeProjectId ? (
+            <a className="zone-add-quote-link" href={`/quotes?project=${activeProjectId}`}>
+              Add to quote
+            </a>
+          ) : (
+            <small className="zone-inspector-note">Save the project before adding this shape to a quote.</small>
+          )}
         </div>
-      </div>
+      ) : null}
     </>
   );
 }
