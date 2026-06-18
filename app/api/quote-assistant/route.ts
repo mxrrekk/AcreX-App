@@ -184,7 +184,20 @@ function sanitizeContext(value: unknown) {
           geometryType: cleanText(measurement.geometryType, 40),
           quantity: Math.max(0, cleanNumber(measurement.quantity)),
           unit: cleanText(measurement.unit, 40),
-          billable: measurement.billable === true
+          billable: measurement.billable === true,
+          selected: measurement.selected === true
+        };
+      })
+    : [];
+  const selectedMeasurements = Array.isArray(measurements.selected)
+    ? measurements.selected.slice(0, 75).map((item) => {
+        const measurement = isRecord(item) ? item : {};
+        return {
+          sourceId: cleanText(measurement.sourceId, 160),
+          label: cleanText(measurement.label, 180),
+          serviceType: cleanText(measurement.serviceType, 140),
+          quantity: Math.max(0, cleanNumber(measurement.quantity)),
+          unit: cleanText(measurement.unit, 40)
         };
       })
     : [];
@@ -271,6 +284,7 @@ function sanitizeContext(value: unknown) {
     measurements: {
       available: availableMeasurements,
       selectedSourceIds: cleanStringList(measurements.selectedSourceIds, 75, 160),
+      selected: selectedMeasurements,
       totals: isRecord(measurements.totals)
         ? {
             drawingCount: Math.max(0, cleanNumber(measurements.totals.drawingCount)),
@@ -295,6 +309,13 @@ function sanitizeContext(value: unknown) {
             exclusions: cleanText(quote.notes.exclusions, 3000),
             paymentTerms: cleanText(quote.notes.paymentTerms, 3000),
             estimatedTimeline: cleanText(quote.notes.estimatedTimeline, 1000)
+          }
+        : {},
+      adjustments: isRecord(quote.adjustments)
+        ? {
+            discount: Math.max(0, cleanNumber(quote.adjustments.discount)),
+            taxPercent: Math.max(0, cleanNumber(quote.adjustments.taxPercent)),
+            depositPercent: Math.max(0, cleanNumber(quote.adjustments.depositPercent))
           }
         : {},
       totals: isRecord(quote.totals)
@@ -340,11 +361,17 @@ Rules:
 - AI suggestions are optional and will never be applied automatically.
 - Do not overwrite or duplicate existing quote lines without a clear reason.
 - Identify the project type from the primary service, drawings, measurements, and user notes before suggesting work.
+- Prioritize selected measurements and current quote lines over unrelated available project drawings when identifying project type.
+- Treat measurements with selected=true, measurements.selected, selectedSourceIds, and current quote lines as the active quote scope.
+- Available measurements that are not selected are reference-only. Do not generate service lines, materials, costs, scope, or questions for them unless the user's notes explicitly include them.
+- Do not suggest a service line when the same sourceMeasurementId already exists in current quote lines. Suggest supporting job costs or assumptions instead.
 - Make the estimate specific to that project type. A mowing estimate should focus on acreage, frequency, access, trimming, and production. A fence estimate should consider material, height, gates, posts, concrete, and linear footage. Brush clearing should consider density, haul-off, stumps, terrain, and access. Driveways should consider gravel type, depth, base preparation, delivery, grading, drainage, and culverts.
 - Use known measurement quantities and units. Do not invent geometry.
 - Suggest pricing ranges and a recommended starting rate only when context supports it.
 - Contractor pricing defaults outrank generic market assumptions.
 - If no pricing default exists, state the assumption and warn the user to verify local pricing.
+- Explain any saved markup or profit target in pricingAssumptions. Do not silently add markup as a separate customer charge or present it as guaranteed profit.
+- Respect current tax, discount, and deposit adjustments and mention them only when relevant.
 - Return a useful cost breakdown across service lines, materials, labor, equipment, fuel, mobilization, haul-off, disposal, scope, exclusions, assumptions, warnings, and terms, but include only categories relevant to this project type.
 - Ask simple missing-information questions when uncertainty materially affects the estimate.
 - Confidence is context completeness, not a guarantee of price accuracy.
@@ -424,6 +451,54 @@ function parseSuggestion(text: string): QuoteAssistantSuggestion | null {
   } catch {
     return null;
   }
+}
+
+function normalizeMatchText(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function removeDuplicateOrOutOfScopeLines(
+  suggestion: QuoteAssistantSuggestion,
+  context: ReturnType<typeof sanitizeContext>
+) {
+  const currentLines = context.quote.lineItems;
+  const activeSourceIds = new Set([
+    ...context.measurements.selectedSourceIds,
+    ...currentLines.map((line) => line.sourceMeasurementId).filter(Boolean)
+  ]);
+  const unselectedLabels = new Set(
+    context.measurements.available
+      .filter((measurement) => !measurement.selected && !activeSourceIds.has(measurement.sourceId))
+      .map((measurement) => normalizeMatchText(measurement.label))
+      .filter(Boolean)
+  );
+
+  return {
+    ...suggestion,
+    suggestedLineItems: suggestion.suggestedLineItems.filter((item) => {
+      if (item.sourceMeasurementId && activeSourceIds.size > 0 && !activeSourceIds.has(item.sourceMeasurementId)) {
+        return false;
+      }
+      if (!item.sourceMeasurementId && item.sourceMeasurement && unselectedLabels.has(normalizeMatchText(item.sourceMeasurement))) {
+        return false;
+      }
+
+      return !currentLines.some((line) => {
+        if (item.sourceMeasurementId && line.sourceMeasurementId === item.sourceMeasurementId) return true;
+        if (
+          item.sourceMeasurement &&
+          line.sourceMeasurement &&
+          normalizeMatchText(item.sourceMeasurement) === normalizeMatchText(line.sourceMeasurement)
+        ) {
+          return true;
+        }
+        const sameService = normalizeMatchText(item.serviceName) === normalizeMatchText(line.serviceName);
+        const sameUnit = normalizeMatchText(item.unit) === normalizeMatchText(line.unit);
+        const quantityTolerance = Math.max(0.01, Math.abs(line.quantity) * 0.001);
+        return sameService && sameUnit && Math.abs(item.quantity - line.quantity) <= quantityTolerance;
+      });
+    })
+  };
 }
 
 export async function POST(request: Request) {
@@ -561,8 +636,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const suggestion = parseSuggestion(extractGeminiText(providerPayload));
-  if (!suggestion) {
+  const parsedSuggestion = parseSuggestion(extractGeminiText(providerPayload));
+  if (!parsedSuggestion) {
     logDevelopmentError("Gemini response did not match the expected quote schema.", {
       model: selectedModel
     });
@@ -572,5 +647,6 @@ export async function POST(request: Request) {
     );
   }
 
+  const suggestion = removeDuplicateOrOutOfScopeLines(parsedSuggestion, context);
   return NextResponse.json({ suggestion });
 }

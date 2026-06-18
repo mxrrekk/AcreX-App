@@ -155,6 +155,7 @@ type EstimateContext = {
       quantity: number;
       unit: string;
       billable: boolean;
+      selected: boolean;
     }>;
     selectedSourceIds: string[];
     selected: Array<{
@@ -588,13 +589,13 @@ const quoteWorkspaceTabs: Array<{ id: QuoteWorkspaceTab; label: string }> = [
 function detectProjectType(
   project: ProjectRecord | null,
   measurements: MeasurementRow[],
+  lineItems: QuoteLineItem[],
   notes: QuoteNotes,
   siteNotes: string
 ) {
-  const context = [
+  const selectedContext = [
+    ...lineItems.flatMap((item) => [item.serviceName, item.description, item.zoneType, item.notes]),
     project?.service_type,
-    project?.project_name,
-    ...measurements.flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, measurement.label]),
     notes.scopeOfWork,
     notes.customerNotes,
     siteNotes
@@ -602,15 +603,30 @@ function detectProjectType(
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
+  const availableContext = [
+    project?.project_name,
+    ...measurements.flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, measurement.label])
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 
-  if (/\b(forestry mulch|mulching|timber mulch)\b/.test(context)) return "Forestry Mulching";
-  if (/\b(fence|fencing|chain link|vinyl|aluminum)\b/.test(context)) return "Fence Installation";
-  if (/\b(driveway|gravel|culvert)\b/.test(context)) return "Gravel Driveway";
-  if (/\b(house pad|building pad|site pad)\b/.test(context)) return "House Pad";
-  if (/\b(sod|irrigation|sprinkler)\b/.test(context)) return "Sod / Irrigation";
-  if (/\b(brush|underbrush|vegetation clearing)\b/.test(context)) return "Brush Clearing";
-  if (/\b(land clearing|clear lot|clearing)\b/.test(context)) return "Land Clearing";
-  if (/\b(mow|mowing|grass|lawn)\b/.test(context)) return "Mowing";
+  function matchType(context: string) {
+    if (/\b(mow|mowing|grass|lawn)\b/.test(context)) return "Mowing";
+    if (/\b(forestry mulch|mulching|timber mulch)\b/.test(context)) return "Forestry Mulching";
+    if (/\b(fence|fencing|chain link|vinyl|aluminum)\b/.test(context)) return "Fence Installation";
+    if (/\b(driveway|gravel|culvert)\b/.test(context)) return "Gravel Driveway";
+    if (/\b(house pad|building pad|site pad)\b/.test(context)) return "House Pad";
+    if (/\b(sod|irrigation|sprinkler)\b/.test(context)) return "Sod / Irrigation";
+    if (/\b(brush|underbrush|vegetation clearing)\b/.test(context)) return "Brush Clearing";
+    if (/\b(land clearing|clear lot|clearing)\b/.test(context)) return "Land Clearing";
+    return null;
+  }
+
+  const selectedType = matchType(selectedContext);
+  if (selectedType) return selectedType;
+  const availableType = matchType(availableContext);
+  if (availableType) return availableType;
   return project?.service_type || "Not detected";
 }
 
@@ -769,8 +785,8 @@ export function QuotesPage({
   const grandTotal = taxableSubtotal + taxAmount;
   const depositRequired = grandTotal * (parseAmount(depositPercent) / 100);
   const detectedProjectType = useMemo(
-    () => detectProjectType(selectedProject, availableMeasurements, notes, siteConditions.notes),
-    [availableMeasurements, notes, selectedProject, siteConditions.notes]
+    () => detectProjectType(selectedProject, availableMeasurements, lineItems, notes, siteConditions.notes),
+    [availableMeasurements, lineItems, notes, selectedProject, siteConditions.notes]
   );
   const hasPricingDefaults = Boolean(savedTemplates?.some((template) => template.active !== false));
   const estimateContext = useMemo<EstimateContext>(() => {
@@ -843,7 +859,8 @@ export function QuotesPage({
           geometryType: measurement.geometryType,
           quantity: measurement.quantity,
           unit: measurement.unit,
-          billable: measurement.billable
+          billable: measurement.billable,
+          selected: addedSourceIds.has(measurement.sourceId)
         })),
         selectedSourceIds: lineItems.map((item) => item.sourceId).filter((sourceId): sourceId is string => Boolean(sourceId)),
         selected: selectedMeasurements,
