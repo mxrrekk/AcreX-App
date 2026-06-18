@@ -6124,6 +6124,101 @@ img {
   color: #dfffd6;
 }
 
+.quote-ai-conditions {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  background: rgba(2, 8, 6, 0.36);
+  padding: 14px;
+}
+
+.quote-ai-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.quote-ai-section-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.quote-ai-section-heading span,
+.quote-condition-grid label,
+.quote-condition-notes {
+  color: #91a097;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.quote-ai-section-heading strong {
+  color: #eff8f1;
+  font-size: 0.9rem;
+}
+
+.quote-ai-section-heading small {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 1px solid rgba(127, 217, 87, 0.18);
+  border-radius: 999px;
+  color: #dfffd6;
+  background: rgba(127, 217, 87, 0.06);
+  padding: 0 9px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.quote-condition-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.quote-condition-grid label,
+.quote-condition-notes {
+  display: grid;
+  gap: 6px;
+}
+
+.quote-condition-grid select,
+.quote-condition-notes textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 10px;
+  color: #eff8f1;
+  background: rgba(255, 255, 255, 0.045);
+  font: inherit;
+  font-size: 0.8rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.quote-condition-grid select {
+  min-height: 40px;
+  padding: 0 9px;
+}
+
+.quote-condition-notes textarea {
+  min-height: 66px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.quote-condition-grid select:focus,
+.quote-condition-notes textarea:focus {
+  border-color: rgba(127, 217, 87, 0.52);
+  box-shadow: 0 0 0 3px rgba(127, 217, 87, 0.1);
+  outline: 0;
+}
+
 .quote-ai-composer {
   position: relative;
   z-index: 1;
@@ -7205,6 +7300,10 @@ img {
     grid-template-columns: 1fr;
   }
 
+  .quote-condition-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .quote-workspace-header {
     grid-template-columns: 1fr;
   }
@@ -7654,6 +7753,16 @@ img {
 
   .quote-ai-heading,
   .quote-ai-composer {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-ai-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .quote-condition-grid {
     grid-template-columns: 1fr;
   }
 

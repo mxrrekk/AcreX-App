@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
-import { getTemplateForZone, mergeServiceTemplates, serviceTemplatesStorageKey, type ServiceTemplate } from "@/lib/projects/pricing";
+import {
+  getTemplateForZone,
+  mergeServiceTemplates,
+  profitInputsStorageKey,
+  serviceTemplatesStorageKey,
+  type ProfitInputs,
+  type ServiceTemplate
+} from "@/lib/projects/pricing";
 import type { ClientRecord, ProjectRecord, QuoteStatus, SavedZoneProperties, ZoneType } from "@/lib/projects/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -24,6 +31,7 @@ type MeasurementRow = {
   label: string;
   serviceType: string;
   zoneType: ZoneType | string;
+  geometryType: string;
   quoteCategory: string;
   quantity: number;
   unit: string;
@@ -69,6 +77,113 @@ type QuoteNotes = {
   estimatedTimeline: string;
 };
 
+type SiteConditions = {
+  access: "" | "Easy" | "Moderate" | "Difficult";
+  terrain: "" | "Flat" | "Sloped" | "Rough";
+  density: "" | "Light" | "Medium" | "Heavy";
+  haulOff: "" | "None" | "Partial" | "Full";
+  timeline: "" | "Flexible" | "Normal" | "Rush";
+  notes: string;
+};
+
+type EstimateContext = {
+  project: {
+    id: string | null;
+    name: string;
+    address: string;
+    primaryServiceType: string;
+    status: string;
+  };
+  customer: {
+    id: string | null;
+    name: string;
+    company: string;
+    email: string;
+    phone: string;
+    address: string;
+    notes: string;
+  } | null;
+  measurements: {
+    available: Array<{
+      sourceId: string;
+      label: string;
+      zoneType: string;
+      serviceType: string;
+      quoteCategory: string;
+      geometryType: string;
+      quantity: number;
+      unit: string;
+      billable: boolean;
+    }>;
+    selectedSourceIds: string[];
+    selected: Array<{
+      sourceId: string;
+      label: string;
+      serviceType: string;
+      quantity: number;
+      unit: string;
+    }>;
+    totals: {
+      drawingCount: number;
+      validMeasurementCount: number;
+      billableAcres: number;
+      excludedAcres: number;
+      squareFeet: number;
+      linearFeet: number;
+    };
+  };
+  quote: {
+    quoteNumber: string;
+    status: QuoteUiStatus;
+    lineItems: Array<{
+      serviceName: string;
+      description: string;
+      sourceMeasurementId: string | null;
+      sourceMeasurement: string;
+      zoneType: string;
+      quantity: number;
+      unit: string;
+      rate: number | null;
+      total: number;
+      notes: string;
+    }>;
+    materials: Array<{
+      name: string;
+      quantity: number | null;
+      unit: string;
+      unitCost: number | null;
+      total: number;
+      notes: string;
+    }>;
+    laborEquipment: Array<{
+      category: CostLine["category"];
+      name: string;
+      amount: number | null;
+      notes: string;
+    }>;
+    notes: QuoteNotes;
+    adjustments: {
+      discount: number;
+      taxPercent: number;
+      depositPercent: number;
+    };
+    totals: {
+      services: number;
+      materials: number;
+      laborEquipment: number;
+      mobilization: number;
+      tax: number;
+      depositRequired: number;
+      grandTotal: number;
+    };
+  };
+  siteConditions: SiteConditions;
+  pricingDefaults: {
+    serviceTemplates: ServiceTemplate[];
+    global: Partial<ProfitInputs> | null;
+  };
+};
+
 const commonMaterials = [
   "Gravel",
   "Topsoil",
@@ -99,6 +214,15 @@ const emptyNotes: QuoteNotes = {
   exclusions: "",
   paymentTerms: "",
   estimatedTimeline: ""
+};
+
+const emptySiteConditions: SiteConditions = {
+  access: "",
+  terrain: "",
+  density: "",
+  haulOff: "",
+  timeline: "",
+  notes: ""
 };
 
 const zoneFallbackColors: Record<string, string> = {
@@ -206,6 +330,7 @@ function getFeatureMeasurements(project: ProjectRecord | null): MeasurementRow[]
       label,
       serviceType: properties.serviceTypeLabel ?? quoteCategory,
       zoneType,
+      geometryType: String(geometryType),
       quoteCategory,
       quantity,
       unit,
@@ -222,6 +347,20 @@ function loadSavedServiceTemplates() {
 
   try {
     return mergeServiceTemplates(JSON.parse(storedTemplates) as Partial<ServiceTemplate>[]);
+  } catch {
+    return null;
+  }
+}
+
+function loadSavedProfitInputs() {
+  if (typeof window === "undefined") return null;
+  const storedInputs = window.localStorage.getItem(profitInputsStorageKey);
+  if (!storedInputs) return null;
+
+  try {
+    const parsed = JSON.parse(storedInputs) as Partial<ProfitInputs>;
+    const numericEntries = Object.entries(parsed).filter(([, value]) => typeof value === "number" && Number.isFinite(value));
+    return Object.fromEntries(numericEntries) as Partial<ProfitInputs>;
   } catch {
     return null;
   }
@@ -310,6 +449,12 @@ function materialTotal(item: MaterialItem) {
   return parseAmount(item.quantity) * parseAmount(item.unitCost);
 }
 
+function getProjectStatus(project: ProjectRecord | null) {
+  const mapData = project?.polygon_geojson;
+  if (mapData?.type === "FeatureCollection" && mapData.properties?.status) return mapData.properties.status;
+  return "Estimating";
+}
+
 export function QuotesPage({
   userId,
   userEmail,
@@ -344,10 +489,13 @@ export function QuotesPage({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveMessage, setSaveMessage] = useState("");
   const [savedTemplates, setSavedTemplates] = useState<ServiceTemplate[] | null>(null);
+  const [savedProfitInputs, setSavedProfitInputs] = useState<Partial<ProfitInputs> | null>(null);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  const [siteConditions, setSiteConditions] = useState<SiteConditions>(emptySiteConditions);
 
   useEffect(() => {
     setSavedTemplates(loadSavedServiceTemplates());
+    setSavedProfitInputs(loadSavedProfitInputs());
     setTemplatesLoaded(true);
   }, []);
 
@@ -387,6 +535,165 @@ export function QuotesPage({
   const taxAmount = taxableSubtotal * (parseAmount(taxPercent) / 100);
   const grandTotal = taxableSubtotal + taxAmount;
   const depositRequired = grandTotal * (parseAmount(depositPercent) / 100);
+  const estimateContext = useMemo<EstimateContext>(() => {
+    const selectedMeasurements = availableMeasurements
+      .filter((measurement) => addedSourceIds.has(measurement.sourceId))
+      .map((measurement) => ({
+        sourceId: measurement.sourceId,
+        label: measurement.label,
+        serviceType: measurement.serviceType,
+        quantity: measurement.quantity,
+        unit: measurement.unit
+      }));
+    const measurementTotals = availableMeasurements.reduce(
+      (totals, measurement) => {
+        if (measurement.quantity > 0) totals.validMeasurementCount += 1;
+        if (measurement.unit === "acres") {
+          if (measurement.billable) totals.billableAcres += measurement.quantity;
+          else totals.excludedAcres += measurement.quantity;
+        }
+        if (measurement.unit === "sq ft" && measurement.billable) totals.squareFeet += measurement.quantity;
+        if (measurement.unit === "linear feet" && measurement.billable) totals.linearFeet += measurement.quantity;
+        return totals;
+      },
+      {
+        drawingCount: availableMeasurements.length,
+        validMeasurementCount: 0,
+        billableAcres: 0,
+        excludedAcres: 0,
+        squareFeet: 0,
+        linearFeet: 0
+      }
+    );
+
+    return {
+      project: {
+        id: selectedProject?.id ?? null,
+        name: selectedProject?.project_name ?? "",
+        address: selectedProject?.address ?? "",
+        primaryServiceType: selectedProject?.service_type ?? "",
+        status: getProjectStatus(selectedProject)
+      },
+      customer: selectedClient
+        ? {
+            id: selectedClient.id,
+            name: selectedClient.name,
+            company: selectedClient.company ?? "",
+            email: selectedClient.email ?? "",
+            phone: selectedClient.phone ?? "",
+            address: selectedClient.address ?? "",
+            notes: selectedClient.notes ?? ""
+          }
+        : selectedProject?.customer_name
+          ? {
+              id: null,
+              name: selectedProject.customer_name,
+              company: "",
+              email: "",
+              phone: "",
+              address: selectedProject.address ?? "",
+              notes: ""
+            }
+          : null,
+      measurements: {
+        available: availableMeasurements.map((measurement) => ({
+          sourceId: measurement.sourceId,
+          label: measurement.label,
+          zoneType: String(measurement.zoneType),
+          serviceType: measurement.serviceType,
+          quoteCategory: measurement.quoteCategory,
+          geometryType: measurement.geometryType,
+          quantity: measurement.quantity,
+          unit: measurement.unit,
+          billable: measurement.billable
+        })),
+        selectedSourceIds: lineItems.map((item) => item.sourceId).filter((sourceId): sourceId is string => Boolean(sourceId)),
+        selected: selectedMeasurements,
+        totals: measurementTotals
+      },
+      quote: {
+        quoteNumber,
+        status,
+        lineItems: lineItems.map((item) => ({
+          serviceName: item.serviceName,
+          description: item.description,
+          sourceMeasurementId: item.sourceId,
+          sourceMeasurement: item.sourceMeasurement,
+          zoneType: item.zoneType,
+          quantity: parseAmount(item.quantity),
+          unit: item.unit,
+          rate: item.rate.trim() ? parseAmount(item.rate) : null,
+          total: lineTotal(item),
+          notes: item.notes
+        })),
+        materials: materials.map((item) => ({
+          name: item.name,
+          quantity: item.quantity.trim() ? parseAmount(item.quantity) : null,
+          unit: item.unit,
+          unitCost: item.unitCost.trim() ? parseAmount(item.unitCost) : null,
+          total: materialTotal(item),
+          notes: item.notes
+        })),
+        laborEquipment: costLines.map((item) => ({
+          category: item.category,
+          name: item.name,
+          amount: item.amount.trim() ? parseAmount(item.amount) : null,
+          notes: item.notes
+        })),
+        notes,
+        adjustments: {
+          discount: discountAmount,
+          taxPercent: parseAmount(taxPercent),
+          depositPercent: parseAmount(depositPercent)
+        },
+        totals: {
+          services: serviceSubtotal,
+          materials: materialsSubtotal,
+          laborEquipment: laborEquipmentSubtotal,
+          mobilization,
+          tax: taxAmount,
+          depositRequired,
+          grandTotal
+        }
+      },
+      siteConditions,
+      pricingDefaults: {
+        serviceTemplates: (savedTemplates ?? []).filter((template) => template.active !== false),
+        global: savedProfitInputs
+      }
+    };
+  }, [
+    addedSourceIds,
+    availableMeasurements,
+    costLines,
+    depositPercent,
+    depositRequired,
+    discountAmount,
+    grandTotal,
+    laborEquipmentSubtotal,
+    lineItems,
+    materials,
+    materialsSubtotal,
+    mobilization,
+    notes,
+    quoteNumber,
+    savedProfitInputs,
+    savedTemplates,
+    selectedClient,
+    selectedProject,
+    serviceSubtotal,
+    siteConditions,
+    status,
+    taxAmount,
+    taxPercent
+  ]);
+  const completedConditionCount = Object.entries(siteConditions)
+    .filter(([key, value]) => key !== "notes" && Boolean(value))
+    .length;
+  const estimateContextReady = Boolean(
+    estimateContext.project.id &&
+      (estimateContext.measurements.totals.validMeasurementCount > 0 || estimateContext.quote.lineItems.length > 0)
+  );
 
   function updateLineItem(id: string, patch: Partial<QuoteLineItem>) {
     setLineItems((items) => items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
@@ -401,6 +708,10 @@ export function QuotesPage({
   function updateCostLine(id: string, patch: Partial<CostLine>) {
     setCostLines((items) => items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
     setSaveState("idle");
+  }
+
+  function updateSiteCondition<Key extends keyof SiteConditions>(key: Key, value: SiteConditions[Key]) {
+    setSiteConditions((conditions) => ({ ...conditions, [key]: value }));
   }
 
   function addMeasurementToQuote(measurement: MeasurementRow) {
@@ -597,7 +908,7 @@ export function QuotesPage({
                     keeping every suggestion under your control.
                   </p>
                 </div>
-                <span className="quote-ai-status">Layout ready</span>
+                <span className="quote-ai-status">Context builder ready</span>
               </div>
 
               <div className="quote-ai-context">
@@ -615,13 +926,103 @@ export function QuotesPage({
                 </span>
               </div>
 
+              <div className="quote-ai-conditions">
+                <div className="quote-ai-section-heading">
+                  <div>
+                    <span>Job Conditions</span>
+                    <strong>Confirm what changes production and price</strong>
+                  </div>
+                  <small>{completedConditionCount}/5 confirmed</small>
+                </div>
+                <div className="quote-condition-grid">
+                  <label>
+                    Access
+                    <select
+                      name="access"
+                      value={siteConditions.access}
+                      onChange={(event) => updateSiteCondition("access", event.target.value as SiteConditions["access"])}
+                    >
+                      <option value="">Not confirmed</option>
+                      <option>Easy</option>
+                      <option>Moderate</option>
+                      <option>Difficult</option>
+                    </select>
+                  </label>
+                  <label>
+                    Terrain
+                    <select
+                      name="terrain"
+                      value={siteConditions.terrain}
+                      onChange={(event) => updateSiteCondition("terrain", event.target.value as SiteConditions["terrain"])}
+                    >
+                      <option value="">Not confirmed</option>
+                      <option>Flat</option>
+                      <option>Sloped</option>
+                      <option>Rough</option>
+                    </select>
+                  </label>
+                  <label>
+                    Density
+                    <select
+                      name="density"
+                      value={siteConditions.density}
+                      onChange={(event) => updateSiteCondition("density", event.target.value as SiteConditions["density"])}
+                    >
+                      <option value="">Not confirmed</option>
+                      <option>Light</option>
+                      <option>Medium</option>
+                      <option>Heavy</option>
+                    </select>
+                  </label>
+                  <label>
+                    Haul-off
+                    <select
+                      name="haulOff"
+                      value={siteConditions.haulOff}
+                      onChange={(event) => updateSiteCondition("haulOff", event.target.value as SiteConditions["haulOff"])}
+                    >
+                      <option value="">Not confirmed</option>
+                      <option>None</option>
+                      <option>Partial</option>
+                      <option>Full</option>
+                    </select>
+                  </label>
+                  <label>
+                    Timeline
+                    <select
+                      name="timeline"
+                      value={siteConditions.timeline}
+                      onChange={(event) => updateSiteCondition("timeline", event.target.value as SiteConditions["timeline"])}
+                    >
+                      <option value="">Not confirmed</option>
+                      <option>Flexible</option>
+                      <option>Normal</option>
+                      <option>Rush</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="quote-condition-notes">
+                  Site notes
+                  <textarea
+                    name="siteNotes"
+                    value={siteConditions.notes}
+                    placeholder="Utilities, gates, slope, debris destination, material requirements, or other estimating context."
+                    onChange={(event) => updateSiteCondition("notes", event.target.value)}
+                  />
+                </label>
+              </div>
+
               <div className="quote-ai-composer">
                 <div>
-                  <strong>AI estimate workspace</strong>
-                  <p>Structured recommendations and review controls will appear here when the estimator phase is connected.</p>
+                  <strong>{estimateContextReady ? "Estimate context assembled" : "Complete the estimate context"}</strong>
+                  <p>
+                    {estimateContextReady
+                      ? `${estimateContext.measurements.totals.validMeasurementCount} measurements, ${estimateContext.quote.lineItems.length} current lines, and ${completedConditionCount} confirmed job conditions are ready.`
+                      : "Select a project and add a valid measurement or manual service line before building an estimate."}
+                  </p>
                 </div>
-                <button type="button" disabled title="AI estimator connection is scheduled for the next phase">
-                  AI setup pending
+                <button type="button" disabled title="Gemini connection is scheduled for the Build Estimate phase">
+                  Build Estimate
                 </button>
               </div>
 
