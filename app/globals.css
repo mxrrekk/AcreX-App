@@ -6851,7 +6851,7 @@ img {
 .quote-editor-line-grid {
   grid-template-columns:
     minmax(150px, 1fr) minmax(170px, 1.15fr) minmax(130px, 0.8fr) 82px 100px 96px 112px
-    minmax(140px, 0.95fr) 86px;
+    minmax(140px, 0.95fr) 164px;
 }
 
 .quote-editor-material-grid {
@@ -6921,6 +6921,29 @@ img {
 .quote-editor-row button:hover {
   border-color: rgba(255, 120, 91, 0.45);
   background: rgba(255, 120, 91, 0.13);
+}
+
+.quote-editor-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.quote-editor-actions button {
+  min-width: 0;
+  padding: 0 8px;
+  font-size: 0.72rem;
+}
+
+.quote-editor-actions button.duplicate {
+  border-color: rgba(127, 217, 87, 0.22);
+  color: #dfffd6;
+  background: rgba(127, 217, 87, 0.07);
+}
+
+.quote-editor-actions button.duplicate:hover {
+  border-color: rgba(127, 217, 87, 0.38);
+  background: rgba(127, 217, 87, 0.11);
 }
 
 .quote-notes-grid {
@@ -8005,6 +8028,42 @@ img {
   .quote-card-heading {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .quote-editor-table {
+    overflow: visible;
+  }
+
+  .quote-editor-header {
+    display: none;
+  }
+
+  .quote-editor-row,
+  .quote-editor-line-grid,
+  .quote-editor-material-grid,
+  .quote-editor-cost-grid {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+
+  .quote-editor-row {
+    gap: 8px;
+    margin: 0 12px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.025);
+    padding: 12px;
+  }
+
+  .quote-source-measurement {
+    border: 1px solid rgba(127, 217, 87, 0.13);
+    border-radius: 9px;
+    background: rgba(127, 217, 87, 0.05);
+    padding: 9px 10px;
+  }
+
+  .quote-line-total {
+    justify-content: flex-start;
   }
 
   .quote-ai-heading,

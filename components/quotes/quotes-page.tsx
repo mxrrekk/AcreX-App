@@ -205,16 +205,6 @@ const commonMaterials = [
   "Geotextile Fabric"
 ];
 
-const initialCostLines: CostLine[] = [
-  { id: "labor", category: "labor", name: "Labor", amount: "", notes: "" },
-  { id: "equipment", category: "equipment", name: "Equipment", amount: "", notes: "" },
-  { id: "fuel", category: "fuel", name: "Fuel surcharge", amount: "", notes: "" },
-  { id: "mobilization", category: "mobilization", name: "Mobilization", amount: "", notes: "" },
-  { id: "haul-off", category: "haul-off", name: "Haul-off", amount: "", notes: "" },
-  { id: "disposal", category: "disposal", name: "Disposal", amount: "", notes: "" },
-  { id: "minimum", category: "minimum", name: "Minimum job charge", amount: "", notes: "" }
-];
-
 const emptyNotes: QuoteNotes = {
   scopeOfWork: "",
   customerNotes: "",
@@ -507,7 +497,7 @@ export function QuotesPage({
   const [status, setStatus] = useState<QuoteUiStatus>("Draft");
   const [lineItems, setLineItems] = useState<QuoteLineItem[]>([]);
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
-  const [costLines, setCostLines] = useState<CostLine[]>(initialCostLines);
+  const [costLines, setCostLines] = useState<CostLine[]>([]);
   const [discount, setDiscount] = useState("");
   const [taxPercent, setTaxPercent] = useState("");
   const [depositPercent, setDepositPercent] = useState("");
@@ -740,6 +730,11 @@ export function QuotesPage({
 
   function updateSiteCondition<Key extends keyof SiteConditions>(key: Key, value: SiteConditions[Key]) {
     setSiteConditions((conditions) => ({ ...conditions, [key]: value }));
+  }
+
+  function duplicateLineItem(item: QuoteLineItem) {
+    setLineItems((items) => [...items, { ...item, id: createId("line") }]);
+    setSaveState("idle");
   }
 
   function markSuggestionApplied(key: string) {
@@ -1178,7 +1173,13 @@ export function QuotesPage({
                   <span>Quote Line Items</span>
                   <strong>Editable service lines</strong>
                 </div>
-                <button type="button" onClick={() => setLineItems((items) => [...items, createBlankLineItem()])}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLineItems((items) => [...items, createBlankLineItem()]);
+                    setSaveState("idle");
+                  }}
+                >
                   Add Service Line
                 </button>
               </div>
@@ -1193,26 +1194,35 @@ export function QuotesPage({
                   <span>Rate</span>
                   <span>Total</span>
                   <span>Notes</span>
-                  <span>Action</span>
+                  <span>Actions</span>
                 </div>
                 {lineItems.length > 0 ? (
                   lineItems.map((item) => (
                     <div className="quote-editor-row quote-editor-line-grid" key={item.id}>
-                      <input value={item.serviceName} onChange={(event) => updateLineItem(item.id, { serviceName: event.target.value })} />
-                      <input value={item.description} onChange={(event) => updateLineItem(item.id, { description: event.target.value })} />
+                      <input aria-label="Service name" value={item.serviceName} onChange={(event) => updateLineItem(item.id, { serviceName: event.target.value })} />
+                      <input aria-label="Description" value={item.description} onChange={(event) => updateLineItem(item.id, { description: event.target.value })} />
                       <span className="quote-source-measurement">{item.sourceMeasurement}</span>
-                      <input value={item.quantity} inputMode="decimal" onChange={(event) => updateLineItem(item.id, { quantity: event.target.value })} />
-                      <input value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} />
-                      <input value={item.rate} inputMode="decimal" placeholder="0.00" onChange={(event) => updateLineItem(item.id, { rate: event.target.value })} />
+                      <input aria-label="Quantity" value={item.quantity} inputMode="decimal" onChange={(event) => updateLineItem(item.id, { quantity: event.target.value })} />
+                      <input aria-label="Unit" value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} />
+                      <input aria-label="Rate" value={item.rate} inputMode="decimal" placeholder="0.00" onChange={(event) => updateLineItem(item.id, { rate: event.target.value })} />
                       <strong className="quote-line-total">{formatCurrency(lineTotal(item))}</strong>
-                      <input value={item.notes} onChange={(event) => updateLineItem(item.id, { notes: event.target.value })} />
-                      <button type="button" onClick={() => setLineItems((items) => items.filter((line) => line.id !== item.id))}>
-                        Delete
-                      </button>
+                      <input aria-label="Line item notes" value={item.notes} onChange={(event) => updateLineItem(item.id, { notes: event.target.value })} />
+                      <div className="quote-editor-actions">
+                        <button type="button" className="duplicate" onClick={() => duplicateLineItem(item)}>Duplicate</button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLineItems((items) => items.filter((line) => line.id !== item.id));
+                            setSaveState("idle");
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   ))
                 ) : (
-                  <p className="quote-empty-state">Add measurements or create a manual service line to start the quote.</p>
+                  <p className="quote-empty-state">Add measurements or ask AI to generate a quote.</p>
                 )}
               </div>
             </section>
@@ -1223,13 +1233,26 @@ export function QuotesPage({
                   <span>Materials</span>
                   <strong>Editable material list</strong>
                 </div>
-                <button type="button" onClick={() => setMaterials((items) => [...items, createMaterial()])}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMaterials((items) => [...items, createMaterial()]);
+                    setSaveState("idle");
+                  }}
+                >
                   Add Material
                 </button>
               </div>
               <div className="quote-custom-presets">
                 {commonMaterials.map((material) => (
-                  <button type="button" key={material} onClick={() => setMaterials((items) => [...items, createMaterial(material)])}>
+                  <button
+                    type="button"
+                    key={material}
+                    onClick={() => {
+                      setMaterials((items) => [...items, createMaterial(material)]);
+                      setSaveState("idle");
+                    }}
+                  >
                     {material}
                   </button>
                 ))}
@@ -1247,13 +1270,16 @@ export function QuotesPage({
                 {materials.length > 0 ? (
                   materials.map((item) => (
                     <div className="quote-editor-row quote-editor-material-grid" key={item.id}>
-                      <input value={item.name} onChange={(event) => updateMaterial(item.id, { name: event.target.value })} />
-                      <input value={item.quantity} inputMode="decimal" onChange={(event) => updateMaterial(item.id, { quantity: event.target.value })} />
-                      <input value={item.unit} onChange={(event) => updateMaterial(item.id, { unit: event.target.value })} />
-                      <input value={item.unitCost} inputMode="decimal" placeholder="0.00" onChange={(event) => updateMaterial(item.id, { unitCost: event.target.value })} />
+                      <input aria-label="Material name" value={item.name} onChange={(event) => updateMaterial(item.id, { name: event.target.value })} />
+                      <input aria-label="Material quantity" value={item.quantity} inputMode="decimal" onChange={(event) => updateMaterial(item.id, { quantity: event.target.value })} />
+                      <input aria-label="Material unit" value={item.unit} onChange={(event) => updateMaterial(item.id, { unit: event.target.value })} />
+                      <input aria-label="Material unit cost" value={item.unitCost} inputMode="decimal" placeholder="0.00" onChange={(event) => updateMaterial(item.id, { unitCost: event.target.value })} />
                       <strong className="quote-line-total">{formatCurrency(materialTotal(item))}</strong>
-                      <input value={item.notes} onChange={(event) => updateMaterial(item.id, { notes: event.target.value })} />
-                      <button type="button" onClick={() => setMaterials((items) => items.filter((material) => material.id !== item.id))}>
+                      <input aria-label="Material notes" value={item.notes} onChange={(event) => updateMaterial(item.id, { notes: event.target.value })} />
+                      <button type="button" onClick={() => {
+                        setMaterials((items) => items.filter((material) => material.id !== item.id));
+                        setSaveState("idle");
+                      }}>
                         Delete
                       </button>
                     </div>
@@ -1272,9 +1298,10 @@ export function QuotesPage({
                 </div>
                 <button
                   type="button"
-                  onClick={() =>
-                    setCostLines((items) => [...items, { id: createId("cost"), category: "other", name: "Other cost", amount: "", notes: "" }])
-                  }
+                  onClick={() => {
+                    setCostLines((items) => [...items, { id: createId("cost"), category: "other", name: "", amount: "", notes: "" }]);
+                    setSaveState("idle");
+                  }}
                 >
                   Add Cost
                 </button>
@@ -1288,26 +1315,33 @@ export function QuotesPage({
                   <span>Notes</span>
                   <span>Action</span>
                 </div>
-                {costLines.map((item) => (
-                  <div className="quote-editor-row quote-editor-cost-grid" key={item.id}>
-                    <select value={item.category} onChange={(event) => updateCostLine(item.id, { category: event.target.value as CostLine["category"] })}>
-                      <option value="labor">Labor</option>
-                      <option value="equipment">Equipment</option>
-                      <option value="fuel">Fuel surcharge</option>
-                      <option value="mobilization">Mobilization</option>
-                      <option value="haul-off">Haul-off</option>
-                      <option value="disposal">Disposal</option>
-                      <option value="minimum">Minimum job charge</option>
-                      <option value="other">Other</option>
-                    </select>
-                    <input value={item.name} onChange={(event) => updateCostLine(item.id, { name: event.target.value })} />
-                    <input value={item.amount} inputMode="decimal" placeholder="0.00" onChange={(event) => updateCostLine(item.id, { amount: event.target.value })} />
-                    <input value={item.notes} onChange={(event) => updateCostLine(item.id, { notes: event.target.value })} />
-                    <button type="button" onClick={() => setCostLines((items) => items.filter((line) => line.id !== item.id))}>
-                      Delete
-                    </button>
-                  </div>
-                ))}
+                {costLines.length > 0 ? (
+                  costLines.map((item) => (
+                    <div className="quote-editor-row quote-editor-cost-grid" key={item.id}>
+                      <select aria-label="Cost category" value={item.category} onChange={(event) => updateCostLine(item.id, { category: event.target.value as CostLine["category"] })}>
+                        <option value="labor">Labor</option>
+                        <option value="equipment">Equipment</option>
+                        <option value="fuel">Fuel surcharge</option>
+                        <option value="mobilization">Mobilization</option>
+                        <option value="haul-off">Haul-off</option>
+                        <option value="disposal">Disposal</option>
+                        <option value="minimum">Minimum job charge</option>
+                        <option value="other">Other</option>
+                      </select>
+                      <input aria-label="Cost name" value={item.name} onChange={(event) => updateCostLine(item.id, { name: event.target.value })} />
+                      <input aria-label="Cost amount" value={item.amount} inputMode="decimal" placeholder="0.00" onChange={(event) => updateCostLine(item.id, { amount: event.target.value })} />
+                      <input aria-label="Cost notes" value={item.notes} onChange={(event) => updateCostLine(item.id, { notes: event.target.value })} />
+                      <button type="button" onClick={() => {
+                        setCostLines((items) => items.filter((line) => line.id !== item.id));
+                        setSaveState("idle");
+                      }}>
+                        Delete
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="quote-empty-state">No labor or equipment costs added yet.</p>
+                )}
               </div>
             </section>
 
