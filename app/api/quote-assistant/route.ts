@@ -149,6 +149,14 @@ function cleanStringList(value: unknown, maxItems = 30, maxLength = 500) {
   return value.map((item) => cleanText(item, maxLength)).filter(Boolean).slice(0, maxItems);
 }
 
+function cleanSerializedValue(value: unknown, maxLength = 20_000) {
+  try {
+    return JSON.stringify(value).slice(0, maxLength);
+  } catch {
+    return "";
+  }
+}
+
 function sanitizeContext(value: unknown) {
   const payload = isRecord(value) ? value : {};
   const project = isRecord(payload.project) ? payload.project : {};
@@ -238,6 +246,8 @@ function sanitizeContext(value: unknown) {
     : [];
 
   return {
+    editCommand: cleanText(payload.editCommand, 500),
+    currentSuggestion: cleanSerializedValue(payload.currentSuggestion),
     project: {
       id: cleanText(project.id, 160),
       name: cleanText(project.name, 220),
@@ -308,9 +318,17 @@ function sanitizeContext(value: unknown) {
 }
 
 function getPrompt(context: ReturnType<typeof sanitizeContext>) {
+  const editInstruction = context.editCommand
+    ? `The user requested this change: "${context.editCommand}"
+
+Revise or propose the affected suggestions while preserving useful unaffected context. Do not claim the change was applied.`
+    : "Build a complete first-pass estimate suggestion set.";
+
   return `You are the AcreX AI estimator for outdoor contractors.
 
 Analyze the complete structured quote context below. Return JSON matching the response schema exactly.
+
+${editInstruction}
 
 Rules:
 - AI suggestions are optional and will never be applied automatically.

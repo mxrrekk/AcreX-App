@@ -6339,6 +6339,73 @@ img {
   background: rgba(255, 120, 91, 0.06);
 }
 
+.quote-ai-edit-command {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 6px;
+}
+
+.quote-ai-edit-command > label {
+  color: #dfffd6;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.quote-ai-edit-command > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.quote-ai-edit-command input {
+  min-height: 42px;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 10px;
+  color: #eff8f1;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 0 11px;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.quote-ai-edit-command input:focus {
+  border-color: rgba(127, 217, 87, 0.52);
+  box-shadow: 0 0 0 3px rgba(127, 217, 87, 0.1);
+  outline: 0;
+}
+
+.quote-ai-edit-command input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.quote-ai-edit-command button {
+  min-height: 42px;
+  border: 1px solid rgba(127, 217, 87, 0.26);
+  border-radius: 10px;
+  color: #071007;
+  background: linear-gradient(180deg, var(--green), var(--green-2));
+  padding: 0 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.quote-ai-edit-command button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  color: #a5afa8;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.quote-ai-edit-command small {
+  color: #8f9c94;
+  font-size: 0.72rem;
+}
+
 .quote-ai-review-empty {
   position: relative;
   z-index: 1;
@@ -8154,6 +8221,10 @@ img {
 
   .quote-ai-heading,
   .quote-ai-composer {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-ai-edit-command > div {
     grid-template-columns: 1fr;
   }
 

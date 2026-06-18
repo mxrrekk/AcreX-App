@@ -534,6 +534,9 @@ export function QuotesPage({
   const [appliedSuggestionKeys, setAppliedSuggestionKeys] = useState<Set<string>>(() => new Set());
   const [aiBuildState, setAiBuildState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [aiBuildMessage, setAiBuildMessage] = useState("");
+  const [aiEditCommand, setAiEditCommand] = useState("");
+  const [aiEditState, setAiEditState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [aiEditMessage, setAiEditMessage] = useState("");
 
   useEffect(() => {
     setSavedTemplates(loadSavedServiceTemplates());
@@ -828,6 +831,43 @@ export function QuotesPage({
     } catch {
       setAiBuildState("error");
       setAiBuildMessage("AI Estimator could not connect. Manual quoting is still available.");
+    }
+  }
+
+  async function proposeAiChanges() {
+    const command = aiEditCommand.trim();
+    if (!aiSuggestion || !command || aiEditState === "loading") return;
+
+    setAiEditState("loading");
+    setAiEditMessage("AcreX is reviewing the requested change.");
+
+    try {
+      const response = await fetch("/api/quote-assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...estimateContext,
+          editCommand: command,
+          currentSuggestion: aiSuggestion
+        })
+      });
+      const data = (await response.json()) as { error?: string; suggestion?: AiEstimateSuggestion };
+
+      if (!response.ok || !data.suggestion) {
+        setAiEditState("error");
+        setAiEditMessage(data.error || "AcreX could not propose that change. Your quote was not changed.");
+        return;
+      }
+
+      setAiSuggestion(data.suggestion);
+      setAppliedSuggestionKeys(new Set());
+      setAiEditCommand("");
+      setAiEditState("success");
+      setAiEditMessage("Proposed changes are ready for review. Nothing was applied automatically.");
+      markQuoteUnsaved();
+    } catch {
+      setAiEditState("error");
+      setAiEditMessage("AcreX could not connect. Your quote and current suggestions were preserved.");
     }
   }
 
@@ -1298,6 +1338,43 @@ export function QuotesPage({
               {aiBuildMessage ? (
                 <p className={`quote-ai-build-message ${aiBuildState}`} role={aiBuildState === "error" ? "alert" : "status"}>
                   {aiBuildMessage}
+                </p>
+              ) : null}
+
+              <div className="quote-ai-edit-command">
+                <label htmlFor="ai-edit-command">Tell AcreX what to change…</label>
+                <div>
+                  <input
+                    id="ai-edit-command"
+                    value={aiEditCommand}
+                    placeholder="Remove haul-off, make fence vinyl, add mobilization…"
+                    disabled={!aiSuggestion || aiEditState === "loading"}
+                    onChange={(event) => {
+                      setAiEditCommand(event.target.value);
+                      setAiEditState("idle");
+                      setAiEditMessage("");
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void proposeAiChanges();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={proposeAiChanges}
+                    disabled={!aiSuggestion || !aiEditCommand.trim() || aiEditState === "loading"}
+                  >
+                    {aiEditState === "loading" ? "Reviewing..." : "Propose Changes"}
+                  </button>
+                </div>
+                {!aiSuggestion ? <small>Build an estimate before requesting changes.</small> : null}
+              </div>
+
+              {aiEditMessage ? (
+                <p className={`quote-ai-build-message ${aiEditState}`} role={aiEditState === "error" ? "alert" : "status"}>
+                  {aiEditMessage}
                 </p>
               ) : null}
 
