@@ -371,7 +371,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const [activityLog, setActivityLog] = useState<ProjectActivity[]>([]);
   const [snapshots, setSnapshots] = useState<ProjectSnapshot[]>([]);
   const [calculatorType, setCalculatorType] = useState("Fence linear feet");
-  const [shareMessage, setShareMessage] = useState<string | null>(null);
   const dashboardDrawerRef = useRef<HTMLElement | null>(null);
   const previousZoneSnapshotRef = useRef<string>("");
   const lastDraftJsonRef = useRef<string>("");
@@ -1136,11 +1135,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     showToast("✓ Snapshot Restored");
   }
 
-  function handleShareProject() {
-    setShareMessage("Share links coming soon.");
-    showToast("Share links coming soon.");
-  }
-
   return (
     <main className="dashboard-page">
       <div className="toast-stack" aria-live="polite" aria-atomic="true">
@@ -1176,7 +1170,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
           <AppSidebar active={sidebarActiveKey} ariaLabel="Dashboard navigation" />
         </aside>
 
-        <section className="dashboard-main">
+        <section className={`dashboard-main${isInspectorOpen ? " is-inspector-open" : ""}`}>
           <section className="dashboard-map-panel">
             {!selectedZones.length ? (
               <div className="map-measurement-summary" aria-label="Measurement summary">
@@ -1504,9 +1498,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                             <strong>{formatZoneMeasurement(zone)}</strong>
                           </div>
                           <div className="measurement-zone-actions" aria-label={`${zone.name} actions`}>
-                            <button type="button" onClick={() => showToast("Select the zone on the map to edit it")}>Edit</button>
-                            <button type="button" onClick={() => showToast("Use the map layer controls to hide this zone type")}>Hide</button>
-                            <button type="button" onClick={() => showToast("Select the zone on the map, then delete it")}>Delete</button>
                             <Link href={`/quotes?project=${activeProjectId ?? ""}`}>Add to quote</Link>
                           </div>
                         </div>
@@ -1899,8 +1890,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                   <span>Share Project</span>
                   <strong>Read-only share links coming soon.</strong>
                 </div>
-                <button type="button" onClick={handleShareProject}>Share Project</button>
-                {shareMessage ? <p>{shareMessage}</p> : null}
+                <button type="button" disabled title="Project sharing is coming soon">Share Project</button>
               </div>
 
               <div className={getPanelClass(effectivePanel, "settings", "photo-placeholder-panel")}>

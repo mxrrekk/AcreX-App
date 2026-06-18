@@ -526,6 +526,7 @@ export function QuotesPage({
   const [notes, setNotes] = useState<QuoteNotes>(emptyNotes);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveMessage, setSaveMessage] = useState("");
+  const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null);
   const [savedTemplates, setSavedTemplates] = useState<ServiceTemplate[] | null>(null);
   const [savedProfitInputs, setSavedProfitInputs] = useState<Partial<ProfitInputs> | null>(null);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
@@ -1062,55 +1063,98 @@ export function QuotesPage({
         : null
     };
 
-    const { data: quote, error: quoteError } = await supabase
-      .from("quotes")
-      .insert({
-        user_id: userId,
-        project_id: selectedProject?.id ?? null,
-        client_id: selectedClient?.id ?? null,
-        quote_number: quoteNumber,
-        status: mapUiStatusToDatabase(status),
-        project_name: selectedProject?.project_name ?? "",
-        client_name: selectedClient?.name ?? selectedProject?.customer_name ?? "",
-        address: selectedProject?.address ?? selectedClient?.address ?? "",
-        subtotal: serviceSubtotal,
-        total: grandTotal,
-        notes: JSON.stringify(quoteNotesPayload)
-      })
-      .select("*")
-      .single();
+    const quotePayload = {
+      user_id: userId,
+      project_id: selectedProject?.id ?? null,
+      client_id: selectedClient?.id ?? null,
+      quote_number: quoteNumber,
+      status: mapUiStatusToDatabase(status),
+      project_name: selectedProject?.project_name ?? "",
+      client_name: selectedClient?.name ?? selectedProject?.customer_name ?? "",
+      address: selectedProject?.address ?? selectedClient?.address ?? "",
+      subtotal: serviceSubtotal,
+      total: grandTotal,
+      notes: JSON.stringify(quoteNotesPayload)
+    };
+    const quoteResult = savedQuoteId
+      ? await supabase.from("quotes").update(quotePayload).eq("id", savedQuoteId).eq("user_id", userId).select("*").single()
+      : await supabase.from("quotes").insert(quotePayload).select("*").single();
+    const quote = quoteResult.data;
 
-    if (quoteError || !quote) {
+    if (quoteResult.error || !quote) {
       setSaveState("error");
-      setSaveMessage(quoteError?.message ?? "Quote could not be saved.");
+      setSaveMessage(quoteResult.error?.message ?? "Quote could not be saved.");
       return;
     }
 
-    if (lineItems.length > 0) {
-      const { error: itemsError } = await supabase.from("quote_items").insert(
-        lineItems.map((item, index) => ({
-          quote_id: quote.id,
-          user_id: userId,
-          service: item.serviceName || "Custom",
-          description: item.description,
-          quantity: parseAmount(item.quantity),
-          unit: item.unit,
-          unit_price: parseAmount(item.rate),
-          total: lineTotal(item),
-          zone_name: item.sourceMeasurement,
-          zone_type: item.zoneType,
-          notes: item.notes,
-          sort_order: index
-        }))
-      );
+    const quoteItemPayload = lineItems.map((item, index) => ({
+      quote_id: quote.id,
+      user_id: userId,
+      service: item.serviceName || "Custom",
+      description: item.description,
+      quantity: parseAmount(item.quantity),
+      unit: item.unit,
+      unit_price: parseAmount(item.rate),
+      total: lineTotal(item),
+      zone_name: item.sourceMeasurement,
+      zone_type: item.zoneType,
+      notes: item.notes,
+      sort_order: index
+    }));
+    const { data: previousItems, error: previousItemsError } = savedQuoteId
+      ? await supabase.from("quote_items").select("*").eq("quote_id", quote.id).eq("user_id", userId)
+      : { data: [], error: null };
+
+    if (previousItemsError) {
+      setSaveState("error");
+      setSaveMessage("Quote details could not be prepared for update. The previous saved quote was preserved.");
+      return;
+    }
+
+    const { error: deleteItemsError } = await supabase
+      .from("quote_items")
+      .delete()
+      .eq("quote_id", quote.id)
+      .eq("user_id", userId);
+
+    if (deleteItemsError) {
+      if (!savedQuoteId) await supabase.from("quotes").delete().eq("id", quote.id).eq("user_id", userId);
+      setSaveState("error");
+      setSaveMessage("Quote line items could not be updated. The quote was not finalized.");
+      return;
+    }
+
+    if (quoteItemPayload.length > 0) {
+      const { error: itemsError } = await supabase.from("quote_items").insert(quoteItemPayload);
 
       if (itemsError) {
+        if (savedQuoteId && previousItems?.length) {
+          await supabase.from("quote_items").insert(
+            previousItems.map((item) => ({
+              quote_id: item.quote_id,
+              user_id: item.user_id,
+              service: item.service,
+              description: item.description,
+              quantity: item.quantity,
+              unit: item.unit,
+              unit_price: item.unit_price,
+              total: item.total,
+              zone_name: item.zone_name,
+              zone_type: item.zone_type,
+              notes: item.notes,
+              sort_order: item.sort_order
+            }))
+          );
+        } else if (!savedQuoteId) {
+          await supabase.from("quotes").delete().eq("id", quote.id).eq("user_id", userId);
+        }
         setSaveState("error");
-        setSaveMessage(itemsError.message);
+        setSaveMessage("Quote line items could not be saved. Previous saved items were preserved when available.");
         return;
       }
     }
 
+    setSavedQuoteId(quote.id);
     setSaveState("saved");
     setSaveMessage(selectedProject ? "Quote saved to project." : "Quote saved.");
   }

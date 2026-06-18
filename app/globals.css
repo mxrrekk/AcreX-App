@@ -2019,6 +2019,10 @@ img {
   transition: grid-template-columns 220ms ease;
 }
 
+.dashboard-main.is-inspector-open {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+}
+
 .dashboard-map-panel {
   position: relative;
   min-width: 0;
@@ -3573,7 +3577,7 @@ img {
 }
 
 .dashboard-summary-panel {
-  display: none;
+  display: grid;
   gap: 14px;
   min-height: 0;
   max-height: 100%;
@@ -7653,6 +7657,10 @@ img {
     overflow: hidden;
     padding: 0;
     width: 100%;
+  }
+
+  .dashboard-main.is-inspector-open {
+    grid-template-columns: 1fr;
   }
 
   .dashboard-summary-panel {
