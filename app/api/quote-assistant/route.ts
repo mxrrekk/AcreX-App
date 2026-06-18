@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type JsonRecord = Record<string, unknown>;
+const geminiModels = ["gemini-3.5-flash", "gemini-2.5-flash"] as const;
+
+function logDevelopmentError(message: string, details?: Record<string, unknown>) {
+  if (process.env.NODE_ENV !== "development") return;
+  console.error(`[AI quote route] ${message}`, details ?? {});
+}
 
 type QuoteAssistantSuggestion = {
   projectVision: string;
@@ -421,7 +427,11 @@ function parseSuggestion(text: string): QuoteAssistantSuggestion | null {
 export async function POST(request: Request) {
   const supabase = createSupabaseServerClient();
   if (!supabase) {
-    return NextResponse.json({ error: "Supabase is not configured." }, { status: 500 });
+    logDevelopmentError("Supabase server client is not configured.");
+    return NextResponse.json(
+      { error: "AI service unavailable", code: "service_unavailable" },
+      { status: 503 }
+    );
   }
 
   const {
@@ -429,13 +439,15 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    logDevelopmentError("AI quote request was not authenticated.");
     return NextResponse.json({ error: "Log in again to use the AI Estimator." }, { status: 401 });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
+    logDevelopmentError("GEMINI_API_KEY is missing.");
     return NextResponse.json(
-      { error: "AI Estimator is not configured yet", code: "not_configured" },
+      { error: "Missing API key", code: "missing_api_key" },
       { status: 503 }
     );
   }
@@ -443,66 +455,117 @@ export async function POST(request: Request) {
   let rawPayload: unknown;
   try {
     rawPayload = await request.json();
-  } catch {
-    return NextResponse.json({ error: "The estimate context could not be read." }, { status: 400 });
+  } catch (error) {
+    logDevelopmentError("Request body could not be parsed as JSON.", {
+      reason: error instanceof Error ? error.message : "Unknown JSON parsing error"
+    });
+    return NextResponse.json(
+      { error: "Invalid request body", code: "invalid_request" },
+      { status: 400 }
+    );
   }
 
   const context = sanitizeContext(rawPayload);
   if (!context.project.id) {
+    logDevelopmentError("Request body is missing a project ID.");
     return NextResponse.json({ error: "Select a project before building an estimate." }, { status: 400 });
   }
 
   const hasMeasuredWork = context.measurements.available.some((measurement) => measurement.billable && measurement.quantity > 0);
   const hasManualWork = context.quote.lineItems.some((line) => line.quantity > 0);
   if (!hasMeasuredWork && !hasManualWork) {
+    logDevelopmentError("Request body has no usable measurements or manual quote lines.", {
+      projectId: context.project.id
+    });
     return NextResponse.json(
       { error: "Add a valid measurement or manual service line before building an estimate." },
       { status: 400 }
     );
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
+  let response: Response | null = null;
+  let selectedModel: (typeof geminiModels)[number] = geminiModels[0];
+  for (const model of geminiModels) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25_000);
+    selectedModel = model;
+    try {
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey
+        },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: getPrompt(context) }] }],
+          generationConfig: {
+            temperature: 0.25,
+            responseMimeType: "application/json",
+            responseSchema
+          }
+        }),
+        cache: "no-store",
+        signal: controller.signal
+      });
+    } catch (error) {
+      logDevelopmentError("Gemini request failed before a response was received.", {
+        model,
+        reason: error instanceof Error ? error.message : "Unknown connection failure"
+      });
+      response = null;
+    } finally {
+      clearTimeout(timeout);
+    }
 
-  let response: Response;
-  try {
-    response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey
-      },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: getPrompt(context) }] }],
-        generationConfig: {
-          temperature: 0.25,
-          responseMimeType: "application/json",
-          responseSchema
+    if (response?.ok) break;
+
+    let providerMessage = "";
+    if (response) {
+      try {
+        const providerError = (await response.json()) as unknown;
+        if (isRecord(providerError) && isRecord(providerError.error)) {
+          providerMessage = cleanText(providerError.error.message, 500);
         }
-      }),
-      cache: "no-store",
-      signal: controller.signal
+      } catch {
+        providerMessage = "Gemini returned a non-JSON error response.";
+      }
+    }
+    logDevelopmentError("Gemini returned an unsuccessful response.", {
+      model,
+      status: response?.status ?? 0,
+      providerMessage
     });
-  } catch (error) {
-    const message = error instanceof Error && error.name === "AbortError"
-      ? "AI Estimator timed out. Your quote was not changed."
-      : "AI Estimator could not connect. Your quote was not changed.";
-    return NextResponse.json({ error: message }, { status: 502 });
-  } finally {
-    clearTimeout(timeout);
+    response = null;
   }
 
-  if (!response.ok) {
+  if (!response?.ok) {
     return NextResponse.json(
-      { error: "AI Estimator could not generate suggestions. Your quote was not changed." },
+      { error: "AI service unavailable", code: "service_unavailable" },
       { status: 502 }
     );
   }
 
-  const suggestion = parseSuggestion(extractGeminiText(await response.json()));
-  if (!suggestion) {
+  let providerPayload: unknown;
+  try {
+    providerPayload = await response.json();
+  } catch (error) {
+    logDevelopmentError("Gemini success response was not valid JSON.", {
+      model: selectedModel,
+      reason: error instanceof Error ? error.message : "Unknown response parsing error"
+    });
     return NextResponse.json(
-      { error: "AI Estimator returned an invalid response. Your quote was not changed." },
+      { error: "Invalid AI response", code: "invalid_ai_response" },
+      { status: 502 }
+    );
+  }
+
+  const suggestion = parseSuggestion(extractGeminiText(providerPayload));
+  if (!suggestion) {
+    logDevelopmentError("Gemini response did not match the expected quote schema.", {
+      model: selectedModel
+    });
+    return NextResponse.json(
+      { error: "Invalid AI response", code: "invalid_ai_response" },
       { status: 502 }
     );
   }

@@ -120,6 +120,11 @@ type SiteConditions = {
 };
 
 type GuidedQuestionType = "density" | "haulOff" | "access" | "fenceMaterial" | "timeline";
+type AiRouteResponse = {
+  error?: string;
+  code?: string;
+  suggestion?: AiEstimateSuggestion;
+};
 
 type EstimateContext = {
   project: {
@@ -218,6 +223,34 @@ type EstimateContext = {
     global: Partial<ProfitInputs> | null;
   };
 };
+
+async function readAiRouteResponse(response: Response): Promise<AiRouteResponse> {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[AI Estimator] Route returned a non-JSON response.", {
+        status: response.status,
+        routeNotFound: response.status === 404
+      });
+    }
+    return {
+      error: response.status === 404 ? "AI service unavailable" : "Invalid AI response",
+      code: response.status === 404 ? "route_not_found" : "invalid_ai_response"
+    };
+  }
+
+  try {
+    return (await response.json()) as AiRouteResponse;
+  } catch (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[AI Estimator] Route response JSON could not be parsed.", {
+        status: response.status,
+        reason: error instanceof Error ? error.message : "Unknown JSON parsing error"
+      });
+    }
+    return { error: "Invalid AI response", code: "invalid_ai_response" };
+  }
+}
 
 const commonMaterials = [
   "Gravel",
@@ -1009,12 +1042,12 @@ export function QuotesPage({
     setAiBuildMessage("AcreX is analyzing the current quote context.");
 
     try {
-      const response = await fetch("/api/quote-assistant", {
+      const response = await fetch("/api/ai/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(estimateContext)
       });
-      const data = (await response.json()) as { error?: string; suggestion?: AiEstimateSuggestion };
+      const data = await readAiRouteResponse(response);
 
       if (!response.ok || !data.suggestion) {
         setAiBuildState("error");
@@ -1027,9 +1060,14 @@ export function QuotesPage({
       setAiBuildState("success");
       setAiBuildMessage("Estimate suggestions are ready for review. Nothing was applied automatically.");
       markQuoteUnsaved();
-    } catch {
+    } catch (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("[AI Estimator] Request could not reach the AI quote route.", {
+          reason: error instanceof Error ? error.message : "Unknown connection failure"
+        });
+      }
       setAiBuildState("error");
-      setAiBuildMessage("AI Estimator could not connect. Manual quoting is still available.");
+      setAiBuildMessage("AI service unavailable");
     }
   }
 
@@ -1041,7 +1079,7 @@ export function QuotesPage({
     setAiEditMessage("AcreX is reviewing the requested change.");
 
     try {
-      const response = await fetch("/api/quote-assistant", {
+      const response = await fetch("/api/ai/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1050,7 +1088,7 @@ export function QuotesPage({
           currentSuggestion: aiSuggestion
         })
       });
-      const data = (await response.json()) as { error?: string; suggestion?: AiEstimateSuggestion };
+      const data = await readAiRouteResponse(response);
 
       if (!response.ok || !data.suggestion) {
         setAiEditState("error");
@@ -1064,9 +1102,14 @@ export function QuotesPage({
       setAiEditState("success");
       setAiEditMessage("Proposed changes are ready for review. Nothing was applied automatically.");
       markQuoteUnsaved();
-    } catch {
+    } catch (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("[AI Estimator] Edit request could not reach the AI quote route.", {
+          reason: error instanceof Error ? error.message : "Unknown connection failure"
+        });
+      }
       setAiEditState("error");
-      setAiEditMessage("AcreX could not connect. Your quote and current suggestions were preserved.");
+      setAiEditMessage("AI service unavailable");
     }
   }
 
