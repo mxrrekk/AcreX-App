@@ -6867,6 +6867,48 @@ img {
   line-height: 1.45;
 }
 
+.quote-confidence-meter {
+  overflow: hidden;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.quote-confidence-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f6b85d, var(--green));
+  transition: width 180ms ease;
+}
+
+.quote-confidence-preview ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quote-confidence-preview li {
+  position: relative;
+  color: #b9c4bd;
+  padding-left: 16px;
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.quote-confidence-preview li::before {
+  position: absolute;
+  left: 0;
+  color: #f6b85d;
+  content: "•";
+}
+
+.quote-confidence-preview p.ready {
+  color: #dfffd6;
+}
+
 .quote-total-inputs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

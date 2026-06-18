@@ -752,6 +752,73 @@ export function QuotesPage({
     estimateContext.project.id &&
       (estimateContext.measurements.totals.validMeasurementCount > 0 || estimateContext.quote.lineItems.length > 0)
   );
+  const estimateConfidence = useMemo(() => {
+    let score = 0;
+    if (selectedProject) score += 15;
+    if (availableMeasurements.some((measurement) => measurement.billable && measurement.quantity > 0) || lineItems.length > 0) score += 20;
+    if (savedTemplates?.some((template) => template.active !== false)) score += 15;
+    if (materials.some((material) => material.name.trim() && parseAmount(material.quantity) > 0)) score += 10;
+    if (siteConditions.access) score += 10;
+    if (siteConditions.terrain) score += 5;
+    if (siteConditions.density) score += 10;
+    if (siteConditions.haulOff) score += 10;
+    if (siteConditions.timeline) score += 5;
+    return score;
+  }, [availableMeasurements, lineItems.length, materials, savedTemplates, selectedProject, siteConditions]);
+  const estimateWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    const hasPricingDefaults = Boolean(savedTemplates?.some((template) => template.active !== false));
+    const hasMobilization = costLines.some(
+      (line) => line.category === "mobilization" && parseAmount(line.amount) > 0
+    );
+    const hasFenceMeasurement = availableMeasurements.some(
+      (measurement) => measurement.billable && String(measurement.zoneType) === "Fence"
+    );
+    const hasSmallMeasurement = availableMeasurements.some((measurement) => {
+      if (!measurement.billable || measurement.quantity <= 0) return false;
+      if (measurement.unit === "acres") return measurement.quantity < 0.1;
+      if (measurement.unit === "sq ft") return measurement.quantity < 500;
+      if (measurement.unit === "linear feet") return measurement.quantity < 50;
+      return false;
+    });
+    const minimumCharges = (savedTemplates ?? [])
+      .filter(
+        (template) =>
+          template.active !== false &&
+          (lineItems.some((line) => line.serviceName === template.serviceName) ||
+            availableMeasurements.some(
+              (measurement) =>
+                measurement.billable && template.billableZoneTypes.includes(measurement.zoneType as ZoneType)
+            ))
+      )
+      .map((template) => template.minimumCharge)
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const applicableMinimum = minimumCharges.length > 0 ? Math.min(...minimumCharges) : 0;
+
+    if (!selectedProject) warnings.push("Select a project to anchor the estimate.");
+    if (!availableMeasurements.some((measurement) => measurement.billable && measurement.quantity > 0) && lineItems.length === 0) {
+      warnings.push("Add a measurement or manual service line.");
+    }
+    if (!hasPricingDefaults) warnings.push("No pricing default found; verify each rate.");
+    if (!siteConditions.haulOff) warnings.push("Haul-off is not confirmed.");
+    if (hasFenceMeasurement && !siteConditions.fenceMaterial) warnings.push("Fence material is not selected.");
+    if (!hasMobilization) warnings.push("No mobilization cost is included.");
+    if (grandTotal > 0 && applicableMinimum > 0 && grandTotal < applicableMinimum) {
+      warnings.push("Quote is below the saved minimum job charge.");
+    }
+    if (hasSmallMeasurement) warnings.push("A small measurement may need a profitable minimum.");
+
+    return warnings;
+  }, [
+    availableMeasurements,
+    costLines,
+    grandTotal,
+    lineItems,
+    savedTemplates,
+    selectedProject,
+    siteConditions.fenceMaterial,
+    siteConditions.haulOff
+  ]);
 
   function updateLineItem(id: string, patch: Partial<QuoteLineItem>) {
     setLineItems((items) => items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
@@ -1666,10 +1733,27 @@ export function QuotesPage({
 
             <div className="quote-confidence-preview">
               <div>
-                <span>Quote confidence</span>
-                <strong>Not calculated</strong>
+                <span>Estimate Confidence</span>
+                <strong>{estimateConfidence}%</strong>
               </div>
-              <p>Confidence and uncertainty warnings will appear after the AI estimate is reviewed.</p>
+              <div
+                className="quote-confidence-meter"
+                role="progressbar"
+                aria-label="Estimate confidence"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={estimateConfidence}
+              >
+                <span style={{ width: `${estimateConfidence}%` }} />
+              </div>
+              <p>Confidence improves as measurements, pricing, materials, and job conditions are confirmed.</p>
+              {estimateWarnings.length > 0 ? (
+                <ul>
+                  {estimateWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+                </ul>
+              ) : (
+                <p className="ready">Core estimate context is confirmed.</p>
+              )}
             </div>
 
             <div className="quote-total-inputs">
