@@ -6219,6 +6219,60 @@ img {
   outline: 0;
 }
 
+.quote-guided-questions {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+}
+
+.quote-guided-question-list {
+  display: grid;
+  gap: 8px;
+}
+
+.quote-guided-question {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(246, 184, 93, 0.17);
+  border-radius: 11px;
+  background: rgba(246, 184, 93, 0.04);
+  padding: 10px 11px;
+}
+
+.quote-guided-question p {
+  margin: 0;
+  color: #dce5df;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.quote-guided-question > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.quote-guided-question button {
+  min-height: 34px;
+  border: 1px solid rgba(127, 217, 87, 0.2);
+  border-radius: 9px;
+  color: #dfffd6;
+  background: rgba(127, 217, 87, 0.07);
+  padding: 0 10px;
+  font-size: 0.74rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.quote-guided-question button:hover {
+  border-color: rgba(127, 217, 87, 0.4);
+  background: rgba(127, 217, 87, 0.12);
+}
+
 .quote-ai-composer {
   position: relative;
   z-index: 1;
@@ -8111,6 +8165,14 @@ img {
 
   .quote-condition-grid {
     grid-template-columns: 1fr;
+  }
+
+  .quote-guided-question {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-guided-question > div {
+    justify-content: flex-start;
   }
 
   .quote-ai-review-empty {

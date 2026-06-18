@@ -297,6 +297,7 @@ function sanitizeContext(value: unknown) {
       density: cleanText(siteConditions.density, 30),
       haulOff: cleanText(siteConditions.haulOff, 30),
       timeline: cleanText(siteConditions.timeline, 30),
+      fenceMaterial: cleanText(siteConditions.fenceMaterial, 40),
       notes: cleanText(siteConditions.notes, 2000)
     },
     pricingDefaults: {

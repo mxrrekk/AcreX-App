@@ -90,8 +90,11 @@ type SiteConditions = {
   density: "" | "Light" | "Medium" | "Heavy";
   haulOff: "" | "None" | "Partial" | "Full";
   timeline: "" | "Flexible" | "Normal" | "Rush";
+  fenceMaterial: "" | "Wood" | "Vinyl" | "Chain Link" | "Aluminum";
   notes: string;
 };
+
+type GuidedQuestionType = "density" | "haulOff" | "access" | "fenceMaterial" | "timeline";
 
 type EstimateContext = {
   project: {
@@ -219,6 +222,7 @@ const emptySiteConditions: SiteConditions = {
   density: "",
   haulOff: "",
   timeline: "",
+  fenceMaterial: "",
   notes: ""
 };
 
@@ -465,6 +469,24 @@ function normalizeCostCategory(value: string | undefined): CostLine["category"] 
   return "other";
 }
 
+function getGuidedQuestionType(question: string): GuidedQuestionType | null {
+  const normalized = question.toLowerCase();
+  if (normalized.includes("density") || normalized.includes("brush") || normalized.includes("vegetation")) return "density";
+  if (normalized.includes("haul") || normalized.includes("debris") || normalized.includes("disposal")) return "haulOff";
+  if (normalized.includes("access") || normalized.includes("gate") || normalized.includes("equipment reach")) return "access";
+  if (normalized.includes("fence") && normalized.includes("material")) return "fenceMaterial";
+  if (normalized.includes("timeline") || normalized.includes("schedule") || normalized.includes("rush")) return "timeline";
+  return null;
+}
+
+const guidedQuestionOptions: Record<GuidedQuestionType, string[]> = {
+  density: ["Light", "Medium", "Heavy"],
+  haulOff: ["None", "Partial", "Full"],
+  access: ["Easy", "Moderate", "Difficult"],
+  fenceMaterial: ["Wood", "Vinyl", "Chain Link", "Aluminum"],
+  timeline: ["Flexible", "Normal", "Rush"]
+};
+
 function getProjectStatus(project: ProjectRecord | null) {
   const mapData = project?.polygon_geojson;
   if (mapData?.type === "FeatureCollection" && mapData.properties?.status) return mapData.properties.status;
@@ -707,9 +729,22 @@ export function QuotesPage({
     taxAmount,
     taxPercent
   ]);
-  const completedConditionCount = Object.entries(siteConditions)
-    .filter(([key, value]) => key !== "notes" && Boolean(value))
-    .length;
+  const completedConditionCount = [
+    siteConditions.access,
+    siteConditions.terrain,
+    siteConditions.density,
+    siteConditions.haulOff,
+    siteConditions.timeline
+  ].filter(Boolean).length;
+  const guidedQuestions = useMemo(() => {
+    if (!aiSuggestion) return [];
+    const questionsByType = new Map<GuidedQuestionType, string>();
+    aiSuggestion.missingQuestions.forEach((question) => {
+      const type = getGuidedQuestionType(question);
+      if (type && !questionsByType.has(type)) questionsByType.set(type, question);
+    });
+    return Array.from(questionsByType, ([type, question]) => ({ type, question }));
+  }, [aiSuggestion]);
   const estimateContextReady = Boolean(
     estimateContext.project.id &&
       (estimateContext.measurements.totals.validMeasurementCount > 0 || estimateContext.quote.lineItems.length > 0)
@@ -748,6 +783,21 @@ export function QuotesPage({
   function updateAiSuggestion(suggestion: AiEstimateSuggestion) {
     setAiSuggestion(suggestion);
     markQuoteUnsaved();
+  }
+
+  function answerGuidedQuestion(type: GuidedQuestionType, question: string, answer: string) {
+    updateSiteCondition(type, answer as SiteConditions[GuidedQuestionType]);
+    setAiSuggestion((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        missingQuestions: current.missingQuestions.filter((item) => item !== question),
+        confidenceScore:
+          typeof current.confidenceScore === "number" ? Math.min(100, current.confidenceScore + 5) : current.confidenceScore
+      };
+    });
+    setAiBuildState("idle");
+    setAiBuildMessage("Context updated. Build Estimate again when you want refreshed recommendations.");
   }
 
   async function buildEstimate() {
@@ -1195,6 +1245,35 @@ export function QuotesPage({
                     onChange={(event) => updateSiteCondition("notes", event.target.value)}
                   />
                 </label>
+                {guidedQuestions.length > 0 ? (
+                  <div className="quote-guided-questions">
+                    <div className="quote-ai-section-heading">
+                      <div>
+                        <span>AI Follow-up</span>
+                        <strong>Answer the remaining estimate questions</strong>
+                      </div>
+                      <small>{guidedQuestions.length} remaining</small>
+                    </div>
+                    <div className="quote-guided-question-list">
+                      {guidedQuestions.map(({ type, question }) => (
+                        <div className="quote-guided-question" key={type}>
+                          <p>{question}</p>
+                          <div>
+                            {guidedQuestionOptions[type].map((option) => (
+                              <button
+                                type="button"
+                                key={option}
+                                onClick={() => answerGuidedQuestion(type, question, option)}
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="quote-ai-composer">
