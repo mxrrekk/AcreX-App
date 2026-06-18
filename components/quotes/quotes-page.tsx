@@ -39,6 +39,7 @@ type QuotesPageProps = {
 };
 
 type QuoteUiStatus = "Draft" | "Sent" | "Approved" | "Declined";
+type QuoteWorkspaceTab = "estimate" | "line-items" | "materials" | "labor" | "scope" | "review";
 
 type MeasurementRow = {
   id: string;
@@ -575,6 +576,44 @@ const guidedQuestionOptions: Record<GuidedQuestionType, string[]> = {
   timeline: ["Flexible", "Normal", "Rush"]
 };
 
+const quoteWorkspaceTabs: Array<{ id: QuoteWorkspaceTab; label: string }> = [
+  { id: "estimate", label: "Estimate" },
+  { id: "line-items", label: "Line Items" },
+  { id: "materials", label: "Materials" },
+  { id: "labor", label: "Labor / Equipment" },
+  { id: "scope", label: "Scope / Terms" },
+  { id: "review", label: "Review" }
+];
+
+function detectProjectType(
+  project: ProjectRecord | null,
+  measurements: MeasurementRow[],
+  notes: QuoteNotes,
+  siteNotes: string
+) {
+  const context = [
+    project?.service_type,
+    project?.project_name,
+    ...measurements.flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, measurement.label]),
+    notes.scopeOfWork,
+    notes.customerNotes,
+    siteNotes
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (/\b(forestry mulch|mulching|timber mulch)\b/.test(context)) return "Forestry Mulching";
+  if (/\b(fence|fencing|chain link|vinyl|aluminum)\b/.test(context)) return "Fence Installation";
+  if (/\b(driveway|gravel|culvert)\b/.test(context)) return "Gravel Driveway";
+  if (/\b(house pad|building pad|site pad)\b/.test(context)) return "House Pad";
+  if (/\b(sod|irrigation|sprinkler)\b/.test(context)) return "Sod / Irrigation";
+  if (/\b(brush|underbrush|vegetation clearing)\b/.test(context)) return "Brush Clearing";
+  if (/\b(land clearing|clear lot|clearing)\b/.test(context)) return "Land Clearing";
+  if (/\b(mow|mowing|grass|lawn)\b/.test(context)) return "Mowing";
+  return project?.service_type || "Not detected";
+}
+
 function getProjectStatus(project: ProjectRecord | null) {
   const mapData = project?.polygon_geojson;
   if (mapData?.type === "FeatureCollection" && mapData.properties?.status) return mapData.properties.status;
@@ -638,12 +677,12 @@ export function QuotesPage({
     ...(initialSavedPayload.siteConditions ?? {})
   }));
   const [aiSuggestion, setAiSuggestion] = useState<AiEstimateSuggestion | null>(null);
-  const [appliedSuggestionKeys, setAppliedSuggestionKeys] = useState<Set<string>>(() => new Set());
   const [aiBuildState, setAiBuildState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [aiBuildMessage, setAiBuildMessage] = useState("");
   const [aiEditCommand, setAiEditCommand] = useState("");
   const [aiEditState, setAiEditState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [aiEditMessage, setAiEditMessage] = useState("");
+  const [activeTab, setActiveTab] = useState<QuoteWorkspaceTab>("estimate");
 
   useEffect(() => {
     if (!initialProjectId || initialProjectId === selectedProjectId) return;
@@ -696,7 +735,6 @@ export function QuotesPage({
     setSaveState(savedQuote ? "saved" : "idle");
     setSaveMessage("");
     setAiSuggestion(null);
-    setAppliedSuggestionKeys(new Set());
   }, [savedQuotes, selectedProject]);
 
   const availableMeasurements = useMemo(() => getFeatureMeasurements(selectedProject), [selectedProject]);
@@ -730,6 +768,11 @@ export function QuotesPage({
   const taxAmount = taxableSubtotal * (parseAmount(taxPercent) / 100);
   const grandTotal = taxableSubtotal + taxAmount;
   const depositRequired = grandTotal * (parseAmount(depositPercent) / 100);
+  const detectedProjectType = useMemo(
+    () => detectProjectType(selectedProject, availableMeasurements, notes, siteConditions.notes),
+    [availableMeasurements, notes, selectedProject, siteConditions.notes]
+  );
+  const hasPricingDefaults = Boolean(savedTemplates?.some((template) => template.active !== false));
   const estimateContext = useMemo<EstimateContext>(() => {
     const selectedMeasurements = availableMeasurements
       .filter((measurement) => addedSourceIds.has(measurement.sourceId))
@@ -766,7 +809,7 @@ export function QuotesPage({
         id: selectedProject?.id ?? null,
         name: selectedProject?.project_name ?? "",
         address: selectedProject?.address ?? "",
-        primaryServiceType: selectedProject?.service_type ?? "",
+        primaryServiceType: detectedProjectType === "Not detected" ? "" : detectedProjectType,
         status: getProjectStatus(selectedProject)
       },
       customer: selectedClient
@@ -863,6 +906,7 @@ export function QuotesPage({
     costLines,
     depositPercent,
     depositRequired,
+    detectedProjectType,
     discountAmount,
     grandTotal,
     laborEquipmentSubtotal,
@@ -917,7 +961,6 @@ export function QuotesPage({
   }, [availableMeasurements, lineItems.length, materials, savedTemplates, selectedProject, siteConditions]);
   const estimateWarnings = useMemo(() => {
     const warnings: string[] = [];
-    const hasPricingDefaults = Boolean(savedTemplates?.some((template) => template.active !== false));
     const hasMobilization = costLines.some(
       (line) => line.category === "mobilization" && parseAmount(line.amount) > 0
     );
@@ -963,6 +1006,7 @@ export function QuotesPage({
     availableMeasurements,
     costLines,
     grandTotal,
+    hasPricingDefaults,
     lineItems,
     savedTemplates,
     selectedProject,
@@ -1062,7 +1106,6 @@ export function QuotesPage({
       }
 
       setAiSuggestion(data.suggestion);
-      setAppliedSuggestionKeys(new Set());
       setAiBuildState("success");
       setAiBuildMessage("Estimate suggestions are ready for review. Nothing was applied automatically.");
       markQuoteUnsaved();
@@ -1103,7 +1146,6 @@ export function QuotesPage({
       }
 
       setAiSuggestion(data.suggestion);
-      setAppliedSuggestionKeys(new Set());
       setAiEditCommand("");
       setAiEditState("success");
       setAiEditMessage("Proposed changes are ready for review. Nothing was applied automatically.");
@@ -1119,11 +1161,28 @@ export function QuotesPage({
     }
   }
 
-  function markSuggestionApplied(key: string) {
-    setAppliedSuggestionKeys((keys) => {
-      const nextKeys = new Set(keys);
-      nextKeys.add(key);
-      return nextKeys;
+  function removeAppliedSuggestion(key: string) {
+    setAiSuggestion((current) => {
+      if (!current) return current;
+      if (key.startsWith("line-")) {
+        const index = Number(key.replace("line-", ""));
+        return { ...current, suggestedLineItems: current.suggestedLineItems.filter((_, itemIndex) => itemIndex !== index) };
+      }
+      if (key.startsWith("material-")) {
+        const index = Number(key.replace("material-", ""));
+        return { ...current, suggestedMaterials: current.suggestedMaterials.filter((_, itemIndex) => itemIndex !== index) };
+      }
+      if (key.startsWith("cost-")) {
+        const index = Number(key.replace("cost-", ""));
+        return {
+          ...current,
+          suggestedLaborEquipment: current.suggestedLaborEquipment.filter((_, itemIndex) => itemIndex !== index)
+        };
+      }
+      if (key === "text-scope") return { ...current, suggestedScopeOfWork: "" };
+      if (key === "text-exclusions") return { ...current, suggestedExclusions: [] };
+      if (key === "text-terms") return { ...current, suggestedTerms: "" };
+      return current;
     });
     setSaveState("idle");
   }
@@ -1144,7 +1203,7 @@ export function QuotesPage({
         notes: item.notes ?? item.explanation ?? ""
       }
     ]);
-    markSuggestionApplied(key);
+    removeAppliedSuggestion(key);
   }
 
   function applySuggestedMaterial(item: AiSuggestedMaterial, key: string) {
@@ -1159,7 +1218,7 @@ export function QuotesPage({
         notes: item.notes ?? ""
       }
     ]);
-    markSuggestionApplied(key);
+    removeAppliedSuggestion(key);
   }
 
   function applySuggestedCost(item: AiSuggestedCost, key: string) {
@@ -1173,7 +1232,7 @@ export function QuotesPage({
         notes: item.notes ?? item.explanation ?? ""
       }
     ]);
-    markSuggestionApplied(key);
+    removeAppliedSuggestion(key);
   }
 
   function applySuggestedText(field: "scope" | "exclusions" | "terms", value: string, key: string) {
@@ -1182,7 +1241,7 @@ export function QuotesPage({
       if (field === "exclusions") return { ...current, exclusions: appendText(current.exclusions, value) };
       return { ...current, paymentTerms: appendText(current.paymentTerms, value) };
     });
-    markSuggestionApplied(key);
+    removeAppliedSuggestion(key);
   }
 
   function addMeasurementToQuote(measurement: MeasurementRow) {
@@ -1458,7 +1517,27 @@ export function QuotesPage({
               </div>
             </section>
 
-            <section className="quote-ai-workspace" aria-label="AI estimator">
+            <nav className="quote-detail-tabs" aria-label="Quote details">
+              {quoteWorkspaceTabs.map((tab) => (
+                <button
+                  type="button"
+                  key={tab.id}
+                  className={activeTab === tab.id ? "active" : ""}
+                  aria-current={activeTab === tab.id ? "page" : undefined}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {tab.label}
+                  {tab.id === "line-items" && lineItems.length > 0 ? <span>{lineItems.length}</span> : null}
+                  {tab.id === "materials" && materials.length > 0 ? <span>{materials.length}</span> : null}
+                  {tab.id === "labor" && costLines.length > 0 ? <span>{costLines.length}</span> : null}
+                </button>
+              ))}
+            </nav>
+
+            <div className="quote-tab-panel" role="tabpanel" aria-label={quoteWorkspaceTabs.find((tab) => tab.id === activeTab)?.label}>
+            {activeTab === "estimate" ? (
+              <>
+            <section className="quote-ai-workspace quote-ai-workspace-primary" aria-label="AI estimator">
               <div className="quote-ai-orbit" aria-hidden="true">
                 <span />
                 <span />
@@ -1467,28 +1546,43 @@ export function QuotesPage({
               <div className="quote-ai-heading">
                 <div className="quote-ai-mark" aria-hidden="true">A</div>
                 <div>
-                  <span>AI Estimator</span>
-                  <strong>Turn project context into a reviewed estimate</strong>
+                  <span>AcreX AI Estimator</span>
+                  <strong>Build a project-specific estimate from the facts already in AcreX</strong>
                   <p>
-                    AcreX will analyze measurements, services, site conditions, materials, and pricing defaults while
-                    keeping every suggestion under your control.
+                    Measurements and your pricing defaults lead. AI organizes the job-specific breakdown and flags
+                    what still needs confirmation.
                   </p>
                 </div>
-                <span className="quote-ai-status">Context builder ready</span>
+                <span className="quote-ai-status">{aiSuggestion ? "Suggestions ready" : "Estimator ready"}</span>
               </div>
 
-              <div className="quote-ai-context">
-                <span className={selectedProject ? "ready" : ""}>
-                  <strong>{selectedProject ? "Project connected" : "Project needed"}</strong>
+              <div className="quote-ai-context quote-ai-context-overview">
+                <span className={detectedProjectType !== "Not detected" ? "ready" : ""}>
+                  <small>Project type</small>
+                  <strong>{detectedProjectType}</strong>
                   {selectedProject?.address || "Select a saved project"}
                 </span>
                 <span className={availableMeasurements.length > 0 ? "ready" : ""}>
+                  <small>Measurements detected</small>
                   <strong>{availableMeasurements.length} measurements</strong>
-                  {availableMeasurements.length > 0 ? "Ready for estimate context" : "Draw work areas on the map"}
+                  {estimateContext.measurements.totals.validMeasurementCount > 0
+                    ? `${estimateContext.measurements.totals.validMeasurementCount} usable quantities`
+                    : "Draw work areas on the map"}
                 </span>
-                <span className={savedTemplates ? "ready" : ""}>
-                  <strong>{savedTemplates ? "Pricing defaults found" : "Pricing defaults optional"}</strong>
-                  {savedTemplates ? "Saved settings will be included" : "Rates can remain blank"}
+                <span className={hasPricingDefaults ? "ready" : ""}>
+                  <small>Pricing defaults</small>
+                  <strong>{hasPricingDefaults ? "Pricing defaults found" : "No pricing default set"}</strong>
+                  {hasPricingDefaults ? "Settings rates take priority" : "Set one or enter rates manually"}
+                </span>
+                <span className={estimateWarnings.length === 0 ? "ready" : ""}>
+                  <small>Missing information</small>
+                  <strong>{estimateWarnings.length === 0 ? "Core context complete" : `${estimateWarnings.length} items to review`}</strong>
+                  {estimateWarnings[0] || "Ready for review"}
+                </span>
+                <span className={estimateConfidence >= 70 ? "ready" : ""}>
+                  <small>Confidence score</small>
+                  <strong>{estimateConfidence}%</strong>
+                  Improves as job conditions are confirmed
                 </span>
               </div>
 
@@ -1671,7 +1765,6 @@ export function QuotesPage({
 
               <AiEstimateReview
                 suggestion={aiSuggestion}
-                appliedKeys={appliedSuggestionKeys}
                 onChange={updateAiSuggestion}
                 onApplyLineItem={applySuggestedLineItem}
                 onApplyMaterial={applySuggestedMaterial}
@@ -1679,7 +1772,6 @@ export function QuotesPage({
                 onApplyText={applySuggestedText}
                 onClear={() => {
                   setAiSuggestion(null);
-                  setAppliedSuggestionKeys(new Set());
                   markQuoteUnsaved();
                 }}
               />
@@ -1741,7 +1833,10 @@ export function QuotesPage({
                 )}
               </div>
             </section>
+              </>
+            ) : null}
 
+            {activeTab === "line-items" ? (
             <section className="quote-items-card" aria-label="Quote line items">
               <div className="quote-card-heading">
                 <div>
@@ -1804,7 +1899,9 @@ export function QuotesPage({
                 )}
               </div>
             </section>
+            ) : null}
 
+            {activeTab === "materials" ? (
             <section className="quote-items-card" aria-label="Materials">
               <div className="quote-card-heading">
                 <div>
@@ -1867,7 +1964,9 @@ export function QuotesPage({
                 )}
               </div>
             </section>
+            ) : null}
 
+            {activeTab === "labor" ? (
             <section className="quote-items-card" aria-label="Labor equipment and other costs">
               <div className="quote-card-heading">
                 <div>
@@ -1922,7 +2021,9 @@ export function QuotesPage({
                 )}
               </div>
             </section>
+            ) : null}
 
+            {activeTab === "scope" ? (
             <section className="quote-builder-card" aria-label="Notes and terms">
               <div className="quote-card-heading">
                 <div>
@@ -1968,6 +2069,67 @@ export function QuotesPage({
                 </label>
               </div>
             </section>
+            ) : null}
+
+            {activeTab === "review" ? (
+              <section className="quote-review-workspace" aria-label="Quote review">
+                <div className="quote-review-heading">
+                  <div>
+                    <span>Quote Review</span>
+                    <strong>{selectedProject?.project_name || "Untitled quote"}</strong>
+                    <p>{selectedProject?.address || "No project address selected"}</p>
+                  </div>
+                  <span className={`quote-save-state quote-save-state-${saveState}`}>
+                    {saveState === "saved" ? "Saved" : saveState === "saving" ? "Saving" : "Unsaved draft"}
+                  </span>
+                </div>
+                <div className="quote-review-grid">
+                  <article>
+                    <span>Services</span>
+                    <strong>{lineItems.length}</strong>
+                    <small>{formatCurrency(serviceSubtotal)}</small>
+                  </article>
+                  <article>
+                    <span>Materials</span>
+                    <strong>{materials.length}</strong>
+                    <small>{formatCurrency(materialsSubtotal)}</small>
+                  </article>
+                  <article>
+                    <span>Labor / Equipment</span>
+                    <strong>{costLines.length}</strong>
+                    <small>{formatCurrency(laborEquipmentSubtotal + mobilization)}</small>
+                  </article>
+                  <article>
+                    <span>Estimate confidence</span>
+                    <strong>{estimateConfidence}%</strong>
+                    <small>{estimateWarnings.length} warnings</small>
+                  </article>
+                </div>
+                <div className="quote-review-sections">
+                  <article>
+                    <strong>Scope of work</strong>
+                    <p>{notes.scopeOfWork || "No scope has been added yet."}</p>
+                  </article>
+                  <article>
+                    <strong>Exclusions</strong>
+                    <p>{notes.exclusions || "No exclusions have been added yet."}</p>
+                  </article>
+                  <article>
+                    <strong>Payment terms</strong>
+                    <p>{notes.paymentTerms || "No payment terms have been added yet."}</p>
+                  </article>
+                  <article>
+                    <strong>AI assumptions and warnings</strong>
+                    <p>
+                      {aiSuggestion
+                        ? [...aiSuggestion.pricingAssumptions, ...aiSuggestion.warnings].join(" · ") || "No active AI advisories."
+                        : "Build an estimate to review AI assumptions."}
+                    </p>
+                  </article>
+                </div>
+              </section>
+            ) : null}
+            </div>
 
           </div>
 
@@ -2089,15 +2251,6 @@ export function QuotesPage({
                 >
                   Convert to Invoice
                   <small>{saveState === "saved" ? "Coming soon" : "Requires saved quote"}</small>
-                </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled
-                  title={selectedProject ? "The selected project is included when Save Quote runs" : "Select a project first"}
-                >
-                  Save to Project
-                  <small>{selectedProject ? "Included in Save Quote" : "Select project first"}</small>
                 </button>
               </div>
             </div>

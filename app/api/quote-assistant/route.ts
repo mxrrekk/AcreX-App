@@ -339,11 +339,13 @@ ${editInstruction}
 Rules:
 - AI suggestions are optional and will never be applied automatically.
 - Do not overwrite or duplicate existing quote lines without a clear reason.
+- Identify the project type from the primary service, drawings, measurements, and user notes before suggesting work.
+- Make the estimate specific to that project type. A mowing estimate should focus on acreage, frequency, access, trimming, and production. A fence estimate should consider material, height, gates, posts, concrete, and linear footage. Brush clearing should consider density, haul-off, stumps, terrain, and access. Driveways should consider gravel type, depth, base preparation, delivery, grading, drainage, and culverts.
 - Use known measurement quantities and units. Do not invent geometry.
 - Suggest pricing ranges and a recommended starting rate only when context supports it.
 - Contractor pricing defaults outrank generic market assumptions.
 - If no pricing default exists, state the assumption and warn the user to verify local pricing.
-- Include labor, equipment, mobilization, haul-off, disposal, materials, scope, exclusions, and terms only when relevant.
+- Return a useful cost breakdown across service lines, materials, labor, equipment, fuel, mobilization, haul-off, disposal, scope, exclusions, assumptions, warnings, and terms, but include only categories relevant to this project type.
 - Ask simple missing-information questions when uncertainty materially affects the estimate.
 - Confidence is context completeness, not a guarantee of price accuracy.
 - Never claim measurements, prices, permits, utilities, taxes, dump fees, or local requirements are guaranteed.

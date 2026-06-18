@@ -46,7 +46,6 @@ export type AiEstimateSuggestion = {
 
 type AiEstimateReviewProps = {
   suggestion: AiEstimateSuggestion | null;
-  appliedKeys: Set<string>;
   onChange: (suggestion: AiEstimateSuggestion) => void;
   onApplyLineItem: (item: AiSuggestedLineItem, key: string) => void;
   onApplyMaterial: (item: AiSuggestedMaterial, key: string) => void;
@@ -67,7 +66,6 @@ function exclusionsToText(value: string | string[] | undefined) {
 
 export function AiEstimateReview({
   suggestion,
-  appliedKeys,
   onChange,
   onApplyLineItem,
   onApplyMaterial,
@@ -119,7 +117,6 @@ export function AiEstimateReview({
           <div className="quote-ai-suggestion-list">
             {suggestion.suggestedLineItems.map((item, index) => {
               const key = `line-${index}`;
-              const applied = appliedKeys.has(key);
               return (
                 <article className="quote-ai-suggestion-card" key={key}>
                   <div className="quote-ai-suggestion-fields line">
@@ -200,8 +197,8 @@ export function AiEstimateReview({
                     />
                   </label>
                   <div className="quote-ai-suggestion-actions">
-                    <button type="button" onClick={() => onApplyLineItem(item, key)} disabled={applied}>
-                      {applied ? "Applied" : "Apply Line Item"}
+                    <button type="button" onClick={() => onApplyLineItem(item, key)}>
+                      Apply Line Item
                     </button>
                     <button
                       type="button"
@@ -232,7 +229,6 @@ export function AiEstimateReview({
           <div className="quote-ai-suggestion-list">
             {suggestion.suggestedMaterials.map((item, index) => {
               const key = `material-${index}`;
-              const applied = appliedKeys.has(key);
               return (
                 <article className="quote-ai-suggestion-card" key={key}>
                   <div className="quote-ai-suggestion-fields material">
@@ -286,8 +282,8 @@ export function AiEstimateReview({
                     />
                   </label>
                   <div className="quote-ai-suggestion-actions">
-                    <button type="button" onClick={() => onApplyMaterial(item, key)} disabled={applied}>
-                      {applied ? "Applied" : "Apply Material"}
+                    <button type="button" onClick={() => onApplyMaterial(item, key)}>
+                      Apply Material
                     </button>
                     <button
                       type="button"
@@ -318,7 +314,6 @@ export function AiEstimateReview({
           <div className="quote-ai-suggestion-list">
             {suggestion.suggestedLaborEquipment.map((item, index) => {
               const key = `cost-${index}`;
-              const applied = appliedKeys.has(key);
               return (
                 <article className="quote-ai-suggestion-card" key={key}>
                   <div className="quote-ai-suggestion-fields cost">
@@ -369,8 +364,8 @@ export function AiEstimateReview({
                     />
                   </label>
                   <div className="quote-ai-suggestion-actions">
-                    <button type="button" onClick={() => onApplyCost(item, key)} disabled={applied}>
-                      {applied ? "Applied" : "Apply Cost"}
+                    <button type="button" onClick={() => onApplyCost(item, key)}>
+                      Apply Cost
                     </button>
                     <button
                       type="button"
@@ -408,9 +403,8 @@ export function AiEstimateReview({
                 <button
                   type="button"
                   onClick={() => onApplyText("scope", suggestion.suggestedScopeOfWork ?? "", "text-scope")}
-                  disabled={appliedKeys.has("text-scope")}
                 >
-                  {appliedKeys.has("text-scope") ? "Applied" : "Apply Scope"}
+                  Apply Scope
                 </button>
               </label>
             ) : null}
@@ -424,9 +418,8 @@ export function AiEstimateReview({
                 <button
                   type="button"
                   onClick={() => onApplyText("exclusions", exclusions, "text-exclusions")}
-                  disabled={appliedKeys.has("text-exclusions")}
                 >
-                  {appliedKeys.has("text-exclusions") ? "Applied" : "Apply Exclusions"}
+                  Apply Exclusions
                 </button>
               </label>
             ) : null}
@@ -440,9 +433,8 @@ export function AiEstimateReview({
                 <button
                   type="button"
                   onClick={() => onApplyText("terms", suggestion.suggestedTerms ?? "", "text-terms")}
-                  disabled={appliedKeys.has("text-terms")}
                 >
-                  {appliedKeys.has("text-terms") ? "Applied" : "Apply Terms"}
+                  Apply Terms
                 </button>
               </label>
             ) : null}
