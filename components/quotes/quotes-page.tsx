@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AiEstimateReview,
+  type AiEstimateSuggestion,
+  type AiSuggestedCost,
+  type AiSuggestedLineItem,
+  type AiSuggestedMaterial
+} from "@/components/quotes/ai-estimate-review";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import {
   getTemplateForZone,
@@ -449,6 +456,25 @@ function materialTotal(item: MaterialItem) {
   return parseAmount(item.quantity) * parseAmount(item.unitCost);
 }
 
+function appendText(current: string, suggestion: string) {
+  const cleanSuggestion = suggestion.trim();
+  if (!cleanSuggestion) return current;
+  if (!current.trim()) return cleanSuggestion;
+  return `${current.trim()}\n\n${cleanSuggestion}`;
+}
+
+function normalizeCostCategory(value: string | undefined): CostLine["category"] {
+  const category = value?.toLowerCase().trim();
+  if (category === "labor") return "labor";
+  if (category === "equipment") return "equipment";
+  if (category === "fuel" || category === "fuel surcharge") return "fuel";
+  if (category === "mobilization") return "mobilization";
+  if (category === "haul-off" || category === "haul off") return "haul-off";
+  if (category === "disposal") return "disposal";
+  if (category === "minimum" || category === "minimum job charge") return "minimum";
+  return "other";
+}
+
 function getProjectStatus(project: ProjectRecord | null) {
   const mapData = project?.polygon_geojson;
   if (mapData?.type === "FeatureCollection" && mapData.properties?.status) return mapData.properties.status;
@@ -492,6 +518,8 @@ export function QuotesPage({
   const [savedProfitInputs, setSavedProfitInputs] = useState<Partial<ProfitInputs> | null>(null);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
   const [siteConditions, setSiteConditions] = useState<SiteConditions>(emptySiteConditions);
+  const [aiSuggestion, setAiSuggestion] = useState<AiEstimateSuggestion | null>(null);
+  const [appliedSuggestionKeys, setAppliedSuggestionKeys] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     setSavedTemplates(loadSavedServiceTemplates());
@@ -712,6 +740,72 @@ export function QuotesPage({
 
   function updateSiteCondition<Key extends keyof SiteConditions>(key: Key, value: SiteConditions[Key]) {
     setSiteConditions((conditions) => ({ ...conditions, [key]: value }));
+  }
+
+  function markSuggestionApplied(key: string) {
+    setAppliedSuggestionKeys((keys) => {
+      const nextKeys = new Set(keys);
+      nextKeys.add(key);
+      return nextKeys;
+    });
+    setSaveState("idle");
+  }
+
+  function applySuggestedLineItem(item: AiSuggestedLineItem, key: string) {
+    setLineItems((items) => [
+      ...items,
+      {
+        id: createId("line"),
+        serviceName: item.serviceName,
+        description: item.description ?? item.explanation ?? "",
+        sourceMeasurement: item.sourceMeasurement ?? "AI suggestion",
+        sourceId: item.sourceMeasurementId ?? null,
+        zoneType: item.zoneType ?? "Custom",
+        quantity: String(item.quantity),
+        unit: item.unit,
+        rate: typeof item.recommendedRate === "number" ? String(item.recommendedRate) : "",
+        notes: item.notes ?? item.explanation ?? ""
+      }
+    ]);
+    markSuggestionApplied(key);
+  }
+
+  function applySuggestedMaterial(item: AiSuggestedMaterial, key: string) {
+    setMaterials((items) => [
+      ...items,
+      {
+        id: createId("material"),
+        name: item.name,
+        quantity: typeof item.quantity === "number" ? String(item.quantity) : "",
+        unit: item.unit ?? "",
+        unitCost: "",
+        notes: item.notes ?? ""
+      }
+    ]);
+    markSuggestionApplied(key);
+  }
+
+  function applySuggestedCost(item: AiSuggestedCost, key: string) {
+    setCostLines((items) => [
+      ...items,
+      {
+        id: createId("cost"),
+        category: normalizeCostCategory(item.category),
+        name: item.name,
+        amount: typeof item.amount === "number" ? String(item.amount) : "",
+        notes: item.notes ?? item.explanation ?? ""
+      }
+    ]);
+    markSuggestionApplied(key);
+  }
+
+  function applySuggestedText(field: "scope" | "exclusions" | "terms", value: string, key: string) {
+    setNotes((current) => {
+      if (field === "scope") return { ...current, scopeOfWork: appendText(current.scopeOfWork, value) };
+      if (field === "exclusions") return { ...current, exclusions: appendText(current.exclusions, value) };
+      return { ...current, paymentTerms: appendText(current.paymentTerms, value) };
+    });
+    markSuggestionApplied(key);
   }
 
   function addMeasurementToQuote(measurement: MeasurementRow) {
@@ -1026,10 +1120,19 @@ export function QuotesPage({
                 </button>
               </div>
 
-              <div className="quote-ai-review-empty">
-                <span>Recommendation review</span>
-                <p>Suggested services, materials, costs, scope, and terms will appear here for approval—never automatically.</p>
-              </div>
+              <AiEstimateReview
+                suggestion={aiSuggestion}
+                appliedKeys={appliedSuggestionKeys}
+                onChange={setAiSuggestion}
+                onApplyLineItem={applySuggestedLineItem}
+                onApplyMaterial={applySuggestedMaterial}
+                onApplyCost={applySuggestedCost}
+                onApplyText={applySuggestedText}
+                onClear={() => {
+                  setAiSuggestion(null);
+                  setAppliedSuggestionKeys(new Set());
+                }}
+              />
             </section>
 
             <section className="quote-builder-card" aria-label="Available measurements">

@@ -6281,6 +6281,262 @@ img {
   text-align: right;
 }
 
+.quote-ai-review {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 15px;
+}
+
+.quote-ai-review-heading,
+.quote-ai-review-section-heading,
+.quote-ai-suggestion-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quote-ai-review-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.quote-ai-review-heading span {
+  color: var(--green);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.quote-ai-review-heading strong,
+.quote-ai-review-section-heading strong {
+  color: #f3fbf5;
+}
+
+.quote-ai-review-heading button,
+.quote-ai-suggestion-actions button,
+.quote-ai-text-suggestions button {
+  min-height: 38px;
+  border: 1px solid rgba(127, 217, 87, 0.24);
+  border-radius: 9px;
+  color: #071007;
+  background: linear-gradient(180deg, var(--green), var(--green-2));
+  padding: 0 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.quote-ai-review-heading button {
+  color: #c8d3cb;
+  border-color: rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.quote-ai-review-section {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  background: rgba(2, 8, 6, 0.38);
+  padding: 13px;
+}
+
+.quote-ai-review-section-heading span {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  border: 1px solid rgba(127, 217, 87, 0.17);
+  border-radius: 999px;
+  color: #dfffd6;
+  background: rgba(127, 217, 87, 0.06);
+  padding: 0 8px;
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.quote-ai-review-section-heading {
+  cursor: pointer;
+  list-style: none;
+}
+
+.quote-ai-review-section-heading::-webkit-details-marker {
+  display: none;
+}
+
+.quote-ai-review-section-heading::after {
+  color: #8f9c94;
+  content: "−";
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.quote-ai-review-section:not([open]) .quote-ai-review-section-heading::after {
+  content: "+";
+}
+
+.quote-ai-review-section > textarea,
+.quote-ai-suggestion-fields input,
+.quote-ai-wide-field textarea,
+.quote-ai-text-suggestions textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 9px;
+  color: #eff8f1;
+  background: rgba(255, 255, 255, 0.045);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.quote-ai-review-section > textarea,
+.quote-ai-wide-field textarea,
+.quote-ai-text-suggestions textarea {
+  min-height: 72px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.quote-ai-suggestion-list {
+  display: grid;
+  gap: 9px;
+}
+
+.quote-ai-suggestion-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 11px;
+}
+
+.quote-ai-suggestion-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.quote-ai-suggestion-fields.line {
+  grid-template-columns: minmax(130px, 1.2fr) 78px 92px minmax(120px, 1fr) 110px 105px;
+}
+
+.quote-ai-suggestion-fields.material,
+.quote-ai-suggestion-fields.cost {
+  grid-template-columns: minmax(150px, 1fr) 110px 110px;
+}
+
+.quote-ai-suggestion-fields label,
+.quote-ai-wide-field,
+.quote-ai-text-suggestions label {
+  display: grid;
+  gap: 5px;
+  color: #8f9c94;
+  font-size: 0.66rem;
+  font-weight: 850;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.quote-ai-suggestion-fields input {
+  min-height: 38px;
+  padding: 0 9px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.quote-ai-suggestion-total {
+  display: grid;
+  align-content: center;
+  justify-items: end;
+  gap: 3px;
+  border: 1px solid rgba(127, 217, 87, 0.14);
+  border-radius: 9px;
+  background: rgba(127, 217, 87, 0.05);
+  padding: 7px 9px;
+}
+
+.quote-ai-suggestion-total span {
+  color: #8f9c94;
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.quote-ai-suggestion-total strong {
+  color: #dfffd6;
+  font-size: 0.88rem;
+}
+
+.quote-ai-suggestion-actions {
+  justify-content: flex-end;
+}
+
+.quote-ai-suggestion-actions button.secondary {
+  color: #c6d0c9;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.quote-ai-suggestion-actions button:disabled,
+.quote-ai-text-suggestions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.quote-ai-text-suggestions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.quote-ai-text-suggestions label {
+  align-content: start;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 10px;
+}
+
+.quote-ai-text-suggestions button {
+  margin-top: 3px;
+}
+
+.quote-ai-advisories {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quote-ai-advisories > div {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+}
+
+.quote-ai-advisories strong,
+.quote-ai-questions strong {
+  color: #f3fbf5;
+}
+
+.quote-ai-advisories ul,
+.quote-ai-questions ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  color: #aab6ae;
+  padding-left: 18px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.quote-ai-questions {
+  border-color: rgba(246, 184, 93, 0.18);
+  background: rgba(246, 184, 93, 0.04);
+}
+
 .zone-measurements-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -7774,6 +8030,29 @@ img {
 
   .quote-ai-review-empty p {
     text-align: left;
+  }
+
+  .quote-ai-review-heading,
+  .quote-ai-review-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .quote-ai-suggestion-fields.line,
+  .quote-ai-suggestion-fields.material,
+  .quote-ai-suggestion-fields.cost,
+  .quote-ai-text-suggestions,
+  .quote-ai-advisories {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-ai-suggestion-total {
+    justify-items: start;
+  }
+
+  .quote-ai-suggestion-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .quote-ai-mark {
