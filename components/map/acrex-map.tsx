@@ -1636,6 +1636,9 @@ export function AcrexMap({
     const draw = drawRef.current;
     if (!draw || zone.locked) return;
     const serviceType = getServiceTypeById(serviceTypeId);
+    draw.setFeatureProperty(zone.id, "previousServiceTypeLabel", zone.serviceTypeLabel ?? zoneLabels[zone.type]);
+    draw.setFeatureProperty(zone.id, "previousQuoteCategory", zone.quoteCategory ?? zone.serviceTypeLabel ?? zoneLabels[zone.type]);
+    draw.setFeatureProperty(zone.id, "serviceTypeChangedAt", new Date().toISOString());
 
     draw.setFeatureProperty(zone.id, "zoneType", serviceType.zoneType);
     draw.setFeatureProperty(zone.id, "zoneVisible", layerVisibilityRef.current[serviceType.zoneType]);
@@ -1739,6 +1742,9 @@ export function AcrexMap({
     const draw = drawRef.current;
     if (!draw || !selectedZone || selectedZone.locked) return false;
 
+    draw.setFeatureProperty(selectedZone.id, "previousServiceTypeLabel", selectedZone.serviceTypeLabel ?? zoneLabels[selectedZone.type]);
+    draw.setFeatureProperty(selectedZone.id, "previousQuoteCategory", selectedZone.quoteCategory ?? selectedZone.serviceTypeLabel ?? zoneLabels[selectedZone.type]);
+    draw.setFeatureProperty(selectedZone.id, "serviceTypeChangedAt", new Date().toISOString());
     draw.setFeatureProperty(selectedZone.id, "zoneType", serviceType.zoneType);
     draw.setFeatureProperty(selectedZone.id, "zoneVisible", layerVisibilityRef.current[serviceType.zoneType]);
     draw.setFeatureProperty(selectedZone.id, "serviceTypeId", serviceType.id);

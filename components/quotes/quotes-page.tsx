@@ -17,7 +17,7 @@ import {
   type ProfitInputs,
   type ServiceTemplate
 } from "@/lib/projects/pricing";
-import type { ClientRecord, ProjectRecord, QuoteStatus, SavedZoneProperties, ZoneType } from "@/lib/projects/types";
+import type { ClientRecord, ProjectRecord, QuoteRecord, QuoteStatus, SavedZoneProperties, ZoneType } from "@/lib/projects/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type QuotesPageProps = {
@@ -25,6 +25,7 @@ type QuotesPageProps = {
   userEmail: string;
   projects: ProjectRecord[];
   clients: ClientRecord[];
+  savedQuotes: QuoteRecord[];
   initialProjectId?: string | null;
   initialMeasurementId?: string | null;
   errorMessage?: string | null;
@@ -44,6 +45,8 @@ type MeasurementRow = {
   unit: string;
   color: string;
   billable: boolean;
+  serviceTypeChangedAt: string | null;
+  previousQuoteCategory: string | null;
 };
 
 type QuoteLineItem = {
@@ -82,6 +85,21 @@ type QuoteNotes = {
   exclusions: string;
   paymentTerms: string;
   estimatedTimeline: string;
+};
+
+type SavedQuotePayload = {
+  lineItems?: QuoteLineItem[];
+  materials?: MaterialItem[];
+  costLines?: CostLine[];
+  siteConditions?: SiteConditions;
+  discount?: number;
+  taxPercent?: number;
+  depositPercent?: number;
+  scopeOfWork?: string;
+  customerNotes?: string;
+  exclusions?: string;
+  paymentTerms?: string;
+  estimatedTimeline?: string;
 };
 
 type SiteConditions = {
@@ -284,15 +302,15 @@ function normalizeZoneType(value: unknown): ZoneType | string {
 }
 
 function normalizeQuoteCategory(properties: SavedZoneProperties) {
-  if (properties.quoteCategory) return String(properties.quoteCategory);
-  if (properties.serviceTypeLabel) return properties.serviceTypeLabel;
-  if (properties.zoneType === "Brush") return "Forestry Mulching";
+  if (properties.zoneType === "Brush") return "Forestry Mulching / Brush Clearing";
   if (properties.zoneType === "Grass") return "Mowing";
   if (properties.zoneType === "Fence") return "Fence Installation";
   if (properties.zoneType === "Driveway") return "Gravel Driveway";
   if (properties.zoneType === "HousePad") return "House Pad Prep";
   if (properties.zoneType === "Woods") return "Land Clearing";
   if (properties.zoneType === "Excluded") return "Non-billable";
+  if (properties.quoteCategory) return String(properties.quoteCategory);
+  if (properties.serviceTypeLabel) return properties.serviceTypeLabel;
   return "Custom";
 }
 
@@ -336,7 +354,9 @@ function getFeatureMeasurements(project: ProjectRecord | null): MeasurementRow[]
       quantity,
       unit,
       color,
-      billable
+      billable,
+      serviceTypeChangedAt: properties.serviceTypeChangedAt ?? null,
+      previousQuoteCategory: properties.previousQuoteCategory ?? null
     };
   });
 }
@@ -450,6 +470,19 @@ function materialTotal(item: MaterialItem) {
   return parseAmount(item.quantity) * parseAmount(item.unitCost);
 }
 
+function parseSavedQuotePayload(quote: QuoteRecord | null): SavedQuotePayload {
+  if (!quote?.notes) return {};
+  try {
+    return JSON.parse(quote.notes) as SavedQuotePayload;
+  } catch {
+    return {};
+  }
+}
+
+function uiStatusFromQuote(status: QuoteStatus): QuoteUiStatus {
+  return status === "Accepted" ? "Approved" : status;
+}
+
 function appendText(current: string, suggestion: string) {
   const cleanSuggestion = suggestion.trim();
   if (!cleanSuggestion) return current;
@@ -498,11 +531,14 @@ export function QuotesPage({
   userEmail,
   projects,
   clients,
+  savedQuotes,
   initialProjectId,
   initialMeasurementId,
   errorMessage
 }: QuotesPageProps) {
   const initialProject = projects.find((project) => project.id === initialProjectId) ?? projects[0] ?? null;
+  const initialSavedQuote = savedQuotes.find((quote) => quote.project_id === initialProject?.id) ?? null;
+  const initialSavedPayload = parseSavedQuotePayload(initialSavedQuote);
   const autoAddedMeasurementRef = useRef<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState(initialProject?.id ?? "");
   const selectedProject = useMemo(
@@ -515,22 +551,31 @@ export function QuotesPage({
   );
   const [selectedClientId, setSelectedClientId] = useState(projectClient?.id ?? "");
   const selectedClient = clients.find((client) => client.id === selectedClientId) ?? projectClient ?? null;
-  const [quoteNumber, setQuoteNumber] = useState(() => `Q-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`);
-  const [status, setStatus] = useState<QuoteUiStatus>("Draft");
-  const [lineItems, setLineItems] = useState<QuoteLineItem[]>([]);
-  const [materials, setMaterials] = useState<MaterialItem[]>([]);
-  const [costLines, setCostLines] = useState<CostLine[]>([]);
-  const [discount, setDiscount] = useState("");
-  const [taxPercent, setTaxPercent] = useState("");
-  const [depositPercent, setDepositPercent] = useState("");
-  const [notes, setNotes] = useState<QuoteNotes>(emptyNotes);
+  const [quoteNumber, setQuoteNumber] = useState(() => initialSavedQuote?.quote_number ?? `Q-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`);
+  const [status, setStatus] = useState<QuoteUiStatus>(() => initialSavedQuote ? uiStatusFromQuote(initialSavedQuote.status) : "Draft");
+  const [lineItems, setLineItems] = useState<QuoteLineItem[]>(() => initialSavedPayload.lineItems ?? []);
+  const [materials, setMaterials] = useState<MaterialItem[]>(() => initialSavedPayload.materials ?? []);
+  const [costLines, setCostLines] = useState<CostLine[]>(() => initialSavedPayload.costLines ?? []);
+  const [discount, setDiscount] = useState(() => initialSavedPayload.discount ? String(initialSavedPayload.discount) : "");
+  const [taxPercent, setTaxPercent] = useState(() => initialSavedPayload.taxPercent ? String(initialSavedPayload.taxPercent) : "");
+  const [depositPercent, setDepositPercent] = useState(() => initialSavedPayload.depositPercent ? String(initialSavedPayload.depositPercent) : "");
+  const [notes, setNotes] = useState<QuoteNotes>(() => ({
+    scopeOfWork: initialSavedPayload.scopeOfWork ?? "",
+    customerNotes: initialSavedPayload.customerNotes ?? "",
+    exclusions: initialSavedPayload.exclusions ?? "",
+    paymentTerms: initialSavedPayload.paymentTerms ?? "",
+    estimatedTimeline: initialSavedPayload.estimatedTimeline ?? ""
+  }));
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveMessage, setSaveMessage] = useState("");
-  const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null);
+  const [savedQuoteId, setSavedQuoteId] = useState<string | null>(initialSavedQuote?.id ?? null);
   const [savedTemplates, setSavedTemplates] = useState<ServiceTemplate[] | null>(null);
   const [savedProfitInputs, setSavedProfitInputs] = useState<Partial<ProfitInputs> | null>(null);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
-  const [siteConditions, setSiteConditions] = useState<SiteConditions>(emptySiteConditions);
+  const [siteConditions, setSiteConditions] = useState<SiteConditions>(() => ({
+    ...emptySiteConditions,
+    ...(initialSavedPayload.siteConditions ?? {})
+  }));
   const [aiSuggestion, setAiSuggestion] = useState<AiEstimateSuggestion | null>(null);
   const [appliedSuggestionKeys, setAppliedSuggestionKeys] = useState<Set<string>>(() => new Set());
   const [aiBuildState, setAiBuildState] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -549,6 +594,33 @@ export function QuotesPage({
     const clientId = selectedProject?.client_id ?? "";
     setSelectedClientId(clientId);
   }, [selectedProject?.client_id]);
+
+  useEffect(() => {
+    if (!selectedProject) return;
+    const savedQuote = savedQuotes.find((quote) => quote.project_id === selectedProject.id) ?? null;
+    const payload = parseSavedQuotePayload(savedQuote);
+    setSavedQuoteId(savedQuote?.id ?? null);
+    setQuoteNumber(savedQuote?.quote_number ?? `Q-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`);
+    setStatus(savedQuote ? uiStatusFromQuote(savedQuote.status) : "Draft");
+    setLineItems(payload.lineItems ?? []);
+    setMaterials(payload.materials ?? []);
+    setCostLines(payload.costLines ?? []);
+    setDiscount(payload.discount ? String(payload.discount) : "");
+    setTaxPercent(payload.taxPercent ? String(payload.taxPercent) : "");
+    setDepositPercent(payload.depositPercent ? String(payload.depositPercent) : "");
+    setNotes({
+      scopeOfWork: payload.scopeOfWork ?? "",
+      customerNotes: payload.customerNotes ?? "",
+      exclusions: payload.exclusions ?? "",
+      paymentTerms: payload.paymentTerms ?? "",
+      estimatedTimeline: payload.estimatedTimeline ?? ""
+    });
+    setSiteConditions({ ...emptySiteConditions, ...(payload.siteConditions ?? {}) });
+    setSaveState(savedQuote ? "saved" : "idle");
+    setSaveMessage("");
+    setAiSuggestion(null);
+    setAppliedSuggestionKeys(new Set());
+  }, [savedQuotes, selectedProject]);
 
   const availableMeasurements = useMemo(() => getFeatureMeasurements(selectedProject), [selectedProject]);
   const addedSourceIds = useMemo(() => new Set(lineItems.map((item) => item.sourceId).filter(Boolean)), [lineItems]);
@@ -844,6 +916,27 @@ export function QuotesPage({
   function duplicateLineItem(item: QuoteLineItem) {
     setLineItems((items) => [...items, { ...item, id: createId("line") }]);
     setSaveState("idle");
+  }
+
+  function updateLineFromMeasurement(measurement: MeasurementRow) {
+    const replacement = createLineItemFromMeasurement(measurement, savedTemplates);
+    setLineItems((items) =>
+      items.map((item) =>
+        item.sourceId === measurement.sourceId
+          ? {
+              ...item,
+              serviceName: replacement.serviceName,
+              description: measurement.label,
+              zoneType: String(measurement.zoneType),
+              quantity: replacement.quantity,
+              unit: replacement.unit,
+              rate: replacement.rate,
+              notes: replacement.notes
+            }
+          : item
+      )
+    );
+    markQuoteUnsaved();
   }
 
   function markQuoteUnsaved() {
@@ -1517,22 +1610,42 @@ export function QuotesPage({
                 {availableMeasurements.length > 0 ? (
                   availableMeasurements.map((measurement) => {
                     const isAdded = addedSourceIds.has(measurement.sourceId);
+                    const existingLine = lineItems.find((item) => item.sourceId === measurement.sourceId);
+                    const pricingTemplate = findRateTemplate(measurement, savedTemplates);
+                    const hasPricingDefault =
+                      Boolean(pricingTemplate) &&
+                      normalizePricingUnit(pricingTemplate?.unitType ?? "") === measurement.unit &&
+                      Number(pricingTemplate?.defaultUnitPrice ?? 0) > 0;
+                    const serviceChanged =
+                      Boolean(existingLine && measurement.serviceTypeChangedAt) &&
+                      existingLine?.serviceName !== measurement.quoteCategory;
                     return (
-                      <div className="available-measurement-row quote-measurement-row" key={measurement.id}>
+                      <div className={`available-measurement-row quote-measurement-row${serviceChanged ? " service-changed" : ""}`} key={measurement.id}>
                         <i style={{ background: measurement.color }} aria-hidden="true" />
                         <span>
                           <strong>{measurement.label}</strong>
                           <small>
                             {measurement.serviceType} · {formatMeasurement(measurement.quantity, measurement.unit)}
                           </small>
+                          {serviceChanged ? (
+                            <small className="measurement-change-warning">
+                              Service changed from {measurement.previousQuoteCategory || "the prior category"}. Review the quote line.
+                            </small>
+                          ) : !hasPricingDefault && measurement.billable ? (
+                            <small className="measurement-pricing-warning">No pricing default configured</small>
+                          ) : null}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => addMeasurementToQuote(measurement)}
-                          disabled={!measurement.billable || isAdded}
-                        >
-                          {!measurement.billable ? "Non-billable" : isAdded ? "Added" : "Add to Quote"}
-                        </button>
+                        {serviceChanged ? (
+                          <button type="button" onClick={() => updateLineFromMeasurement(measurement)}>Update Quote Line</button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => addMeasurementToQuote(measurement)}
+                            disabled={!measurement.billable || isAdded}
+                          >
+                            {!measurement.billable ? "Non-billable" : isAdded ? "Added" : "Add to Quote"}
+                          </button>
+                        )}
                       </div>
                     );
                   })

@@ -46,7 +46,7 @@ export const serviceTypes: ActiveServiceType[] = [
     geometry: "polygon",
     color: "#f97316",
     unit: "acre",
-    quoteCategory: "Forestry Mulching",
+    quoteCategory: "Forestry Mulching / Brush Clearing",
     defaultRateType: "per_acre",
     description: "Brush, undergrowth, and small-tree clearing."
   },

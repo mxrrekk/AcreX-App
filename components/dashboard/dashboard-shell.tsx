@@ -453,56 +453,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     { label: "Excluded total", value: excludedAcres ? `${formatAcres(excludedAcres)} ac` : "--" },
     { label: "Net billable total", value: netBillableAcres ? `${formatAcres(netBillableAcres)} ac` : "--" }
   ];
-  const mapSummaryGroups: Array<{ label: string; value: string; type: ZoneType; count: number }> = [
-    {
-      label: "Parcel",
-      value: summaryRows[0].value,
-      type: "Property",
-      count: workZones.filter((zone) => zone.type === "Property").length
-    },
-    {
-      label: "Brush",
-      value: brushAcres ? `${formatAcres(brushAcres)} ac` : "--",
-      type: "Brush",
-      count: workZones.filter((zone) => zone.type === "Brush").length
-    },
-    {
-      label: "Grass",
-      value: grassAcres ? `${formatAcres(grassAcres)} ac` : "--",
-      type: "Grass",
-      count: workZones.filter((zone) => zone.type === "Grass").length
-    },
-    {
-      label: "Woods",
-      value: woodsAcres ? `${formatAcres(woodsAcres)} ac` : "--",
-      type: "Woods",
-      count: workZones.filter((zone) => zone.type === "Woods").length
-    },
-    {
-      label: "Fence",
-      value: fenceLinearFt ? `${formatFeet(fenceLinearFt)} ft` : "--",
-      type: "Fence",
-      count: workZones.filter((zone) => zone.type === "Fence").length
-    },
-    {
-      label: "Driveway",
-      value: summaryRows[4].value,
-      type: "Driveway",
-      count: workZones.filter((zone) => zone.type === "Driveway").length
-    },
-    {
-      label: "House Pad",
-      value: summaryRows[5].value,
-      type: "HousePad",
-      count: workZones.filter((zone) => zone.type === "HousePad" || zone.type === "Building").length
-    },
-    {
-      label: "Exclusions",
-      value: excludedAcres ? `${formatAcres(excludedAcres)} ac` : "--",
-      type: "Excluded",
-      count: workZones.filter((zone) => zone.type === "Excluded").length
-    }
-  ];
   const estimateLines = useMemo<ServiceEstimateLine[]>(() => {
     return workZones
       .filter((zone) => !["Excluded", "Building"].includes(zone.type))
@@ -864,7 +814,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       return;
     }
 
-    if (requestedPanel === "measurements" || requestedPanel === "project" || requestedPanel === "settings") {
+    if (requestedPanel === "measurements" || requestedPanel === "settings") {
       setActivePanel(requestedPanel);
     }
   }, [requestedPanel]);
@@ -911,15 +861,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     setActivePanel(null);
   }, []);
 
-  function openProjectExplorer(type: ZoneType | null = null) {
-    setSelectedZones([]);
-    setActivePanel(null);
-    setExplorerRequest((current) => ({
-      id: current.id + 1,
-      type
-    }));
-  }
-
   function handleNewProject() {
     setActiveProjectId(null);
     setProjectForm(emptyProjectForm);
@@ -955,12 +896,12 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   async function handleSaveProject() {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
-      setProjectMessage("Supabase is not configured yet. Add your Supabase environment variables to save projects.");
+      setProjectMessage("Save Failed: project storage is not configured.");
       return;
     }
 
     if (!workZones.length || !measurements) {
-      setProjectMessage("Draw at least one work zone before saving this project.");
+      setProjectMessage("Save Failed: draw at least one work zone first.");
       return;
     }
 
@@ -970,7 +911,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
 
     if (!currentUserId) {
       setIsSavingProject(false);
-      setProjectMessage("Your session expired. Log in again before saving this project.");
+      setProjectMessage("Save Failed: your session expired. Log in again.");
       return;
     }
 
@@ -978,7 +919,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
 
     if (profileError) {
       setIsSavingProject(false);
-      setProjectMessage(profileError.message);
+      setProjectMessage(`Save Failed: ${profileError.message}`);
       return;
     }
 
@@ -1001,11 +942,13 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       estimated_total: recommendedQuote || (normalizedPricePerAcre ? estimatedTotal : null)
     };
 
-    const query = activeProjectId
+    const existingProjectId =
+      activeProjectId && projects.some((project) => project.id === activeProjectId) ? activeProjectId : null;
+    const query = existingProjectId
       ? supabase
           .from("projects")
           .update(payload)
-          .eq("id", activeProjectId)
+          .eq("id", existingProjectId)
           .eq("user_id", currentUserId)
           .select("*")
           .single()
@@ -1015,7 +958,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     setIsSavingProject(false);
 
     if (error) {
-      setProjectMessage(error.message);
+      setProjectMessage(`Save Failed: ${error.message}`);
       return;
     }
 
@@ -1025,11 +968,11 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       const withoutSaved = current.filter((project) => project.id !== savedProject.id);
       return [savedProject, ...withoutSaved];
     });
-    setProjectMessage("✓ Project Saved");
-    showToast("✓ Project Saved");
-    addActivity(activeProjectId ? "Project updated" : "Project created", `${projectName} saved with ${workZones.length} zone${workZones.length === 1 ? "" : "s"}.`, "Project");
+    setProjectMessage("Saved to Project");
+    showToast("Saved to Project");
+    addActivity(existingProjectId ? "Project updated" : "Project created", `${projectName} saved with ${workZones.length} zone${workZones.length === 1 ? "" : "s"}.`, "Project");
     window.setTimeout(() => {
-      setProjectMessage((current) => (current === "✓ Project Saved" ? null : current));
+      setProjectMessage((current) => (current === "Saved to Project" ? null : current));
     }, 3200);
   }
 
@@ -1172,38 +1115,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
 
         <section className={`dashboard-main${isInspectorOpen ? " is-inspector-open" : ""}`}>
           <section className="dashboard-map-panel">
-            {!selectedZones.length ? (
-              <div className="map-measurement-summary" aria-label="Measurement summary">
-                <span>Measurements</span>
-                {workZones.length || measurements ? (
-                  <>
-                    <strong>{workZones.length} saved</strong>
-                    <div className="map-measurement-summary-grid">
-                      {mapSummaryGroups.map((group) => (
-                        <div className="map-measurement-summary-row" key={group.label}>
-                          <small>
-                            {group.label} <b>{group.value}</b>
-                          </small>
-                          {group.count ? (
-                            <button type="button" onClick={() => openProjectExplorer(group.type)}>
-                              View
-                            </button>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p>No measurements yet. Tap Draw to start.</p>
-                )}
-                <div className="map-measurement-summary-actions">
-                  <button type="button" onClick={() => openProjectExplorer(null)}>
-                    Open Drawings
-                  </button>
-                  <Link href={`/quotes${activeProjectId ? `?project=${activeProjectId}` : ""}`}>Open Quote</Link>
-                </div>
-              </div>
-            ) : null}
             <AcrexMap
               activeProjectId={activeProjectId}
               activeProjectName={activeProject?.project_name ?? projectForm.projectName}
@@ -1232,8 +1143,20 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
             <div className="dashboard-summary-card">
               <div className="dashboard-summary-heading">
                 <div>
-                  <span>Project Summary</span>
-                  <strong>{activeProject?.project_name ?? projectForm.projectName}</strong>
+                  <span>
+                    {effectivePanel === "measurements"
+                      ? "Drawing Inspector"
+                      : effectivePanel === "settings"
+                        ? "Map Preferences"
+                        : effectivePanel === "quote"
+                          ? "Map Estimate Reference"
+                          : effectivePanel === "search"
+                            ? "Property Search"
+                            : effectivePanel === "layers"
+                              ? "Map Layers"
+                              : "Map Inspector"}
+                  </span>
+                  <strong>{activeProject?.address ?? projectForm.address ?? address}</strong>
                 </div>
                 <div className="dashboard-summary-actions">
                   <button className="summary-light-button" type="button" onClick={handleNewProject}>

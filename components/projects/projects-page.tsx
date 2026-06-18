@@ -6,13 +6,15 @@ import { AppSidebar } from "@/components/ui/app-sidebar";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatAcres } from "@/lib/geo/format";
 import { defaultProjectTags, getGlobalStorageKey, readStoredValue, writeStoredValue, type ProjectTagStore } from "@/lib/projects/operations";
-import type { ClientRecord, ProjectRecord, ProjectStatus, SavedProjectMapData } from "@/lib/projects/types";
+import type { ClientRecord, InvoiceRecord, ProjectRecord, ProjectStatus, QuoteRecord, SavedProjectMapData } from "@/lib/projects/types";
 
 type ProjectsPageProps = {
   userId: string;
   userEmail: string;
   projects: ProjectRecord[];
   clients: ClientRecord[];
+  quotes: QuoteRecord[];
+  invoices: InvoiceRecord[];
   errorMessage: string | null;
 };
 
@@ -52,7 +54,11 @@ function getReadableProjectError(message: string) {
   return message;
 }
 
-export function ProjectsPage({ userId, userEmail, projects, clients, errorMessage }: ProjectsPageProps) {
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
+}
+
+export function ProjectsPage({ userId, userEmail, projects, clients, quotes, invoices, errorMessage }: ProjectsPageProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "All">("All");
   const [projectRows, setProjectRows] = useState<ProjectRecord[]>(projects);
@@ -63,6 +69,20 @@ export function ProjectsPage({ userId, userEmail, projects, clients, errorMessag
   const [tagStore, setTagStore] = useState<ProjectTagStore>(() => readStoredValue<ProjectTagStore>(getGlobalStorageKey(userEmail, "project-tags"), {}));
 
   const clientById = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
+  const quoteSummaryByProject = useMemo(() => {
+    const summary = new Map<string, number>();
+    quotes.forEach((quote) => {
+      if (quote.project_id) summary.set(quote.project_id, (summary.get(quote.project_id) ?? 0) + Number(quote.total ?? 0));
+    });
+    return summary;
+  }, [quotes]);
+  const invoiceStatusByProject = useMemo(() => {
+    const summary = new Map<string, string>();
+    invoices.forEach((invoice) => {
+      if (invoice.project_id && !summary.has(invoice.project_id)) summary.set(invoice.project_id, invoice.status);
+    });
+    return summary;
+  }, [invoices]);
   const recentProjects = projectRows.slice(0, 3);
 
   const filteredProjects = useMemo(() => {
@@ -179,7 +199,7 @@ export function ProjectsPage({ userId, userEmail, projects, clients, errorMessag
               <strong>Recently updated work</strong>
             </div>
             {recentProjects.map((project) => (
-              <Link href={`/dashboard?project=${project.id}`} key={project.id}>
+              <Link href={`/projects/${project.id}`} key={project.id}>
                 <strong>{project.project_name}</strong>
                 <span>{project.address || project.service_type || "No address saved"}</span>
               </Link>
@@ -190,11 +210,12 @@ export function ProjectsPage({ userId, userEmail, projects, clients, errorMessag
         <section className="projects-table" aria-label="Saved projects">
           <div className="projects-table-header">
             <span>Project</span>
+            <span>Customer</span>
             <span>Status</span>
-            <span>Acreage</span>
-            <span>Zones</span>
+            <span>Drawings</span>
+            <span>Quote Total</span>
+            <span>Invoice</span>
             <span>Updated</span>
-            <span>Tags</span>
             <span />
             <span />
           </div>
@@ -206,25 +227,15 @@ export function ProjectsPage({ userId, userEmail, projects, clients, errorMessag
                   <strong>{project.project_name}</strong>
                   <span>{project.address || "No address saved"}</span>
                 </div>
+                <span>{project.client_id ? clientById.get(project.client_id)?.name ?? project.customer_name ?? "Unassigned" : project.customer_name ?? "Unassigned"}</span>
                 <span className={`project-status-pill status-${getProjectStatus(project).toLowerCase()}`}>
                   {getProjectStatus(project)}
                 </span>
-                <span>{formatAcres(project.acres ?? null)} ac</span>
                 <span>{getZoneCount(project)}</span>
+                <span>{formatCurrency(quoteSummaryByProject.get(project.id) ?? 0)}</span>
+                <span>{invoiceStatusByProject.get(project.id) ?? "No invoice"}</span>
                 <span>{formatDate(project.updated_at)}</span>
-                <div className="project-row-tags">
-                  {defaultProjectTags.slice(0, 4).map((tag) => (
-                    <button
-                      className={(tagStore[project.id] ?? []).includes(tag) ? "active" : ""}
-                      key={tag}
-                      type="button"
-                      onClick={() => toggleProjectTag(project.id, tag)}
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-                <Link href={`/dashboard?project=${project.id}`}>Open</Link>
+                <Link href={`/projects/${project.id}`}>Open Detail</Link>
                 <button
                   className={deletingProjectId === project.id ? "is-processing" : ""}
                   type="button"

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { QuotesPage } from "@/components/quotes/quotes-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { ClientRecord, ProjectRecord } from "@/lib/projects/types";
+import type { ClientRecord, ProjectRecord, QuoteRecord } from "@/lib/projects/types";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +35,14 @@ export default async function QuotesRoute({ searchParams }: QuotesRouteProps) {
     redirect("/login");
   }
 
-  const [{ data: projects, error: projectsError }, { data: clients, error: clientsError }] = await Promise.all([
+  const [
+    { data: projects, error: projectsError },
+    { data: clients, error: clientsError },
+    { data: quotes, error: quotesError }
+  ] = await Promise.all([
     supabase.from("projects").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }),
-    supabase.from("clients").select("*").eq("user_id", user.id).order("updated_at", { ascending: false })
+    supabase.from("clients").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }),
+    supabase.from("quotes").select("*").eq("user_id", user.id).order("updated_at", { ascending: false })
   ]);
 
   return (
@@ -46,9 +51,10 @@ export default async function QuotesRoute({ searchParams }: QuotesRouteProps) {
       userEmail={user.email ?? "Contractor"}
       projects={(projects ?? []).map(normalizeProject)}
       clients={(clients ?? []).map(normalizeClient)}
+      savedQuotes={(quotes ?? []) as QuoteRecord[]}
       initialProjectId={searchParams?.project ?? null}
       initialMeasurementId={searchParams?.measurement ?? null}
-      errorMessage={projectsError?.message ?? clientsError?.message ?? null}
+      errorMessage={projectsError?.message ?? clientsError?.message ?? quotesError?.message ?? null}
     />
   );
 }

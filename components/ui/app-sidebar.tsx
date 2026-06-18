@@ -27,7 +27,7 @@ const appSidebarItems: Array<{
   { key: "projects", label: "Projects", href: "/projects", icon: "folder" },
   { key: "quotes", label: "Quotes", href: "/quotes", icon: "file" },
   { key: "clients", label: "Clients", href: "/clients", icon: "users" },
-  { key: "drawings", label: "Drawings", href: "/dashboard?panel=measurements", icon: "draw" },
+  { key: "drawings", label: "Drawings", href: "/drawings", icon: "draw" },
   { key: "invoices", label: "Invoices", href: "/invoices", icon: "receipt" },
   { key: "settings", label: "Settings", href: "/dashboard?panel=settings", icon: "gear" }
 ];

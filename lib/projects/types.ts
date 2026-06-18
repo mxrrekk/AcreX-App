@@ -75,6 +75,9 @@ export type SavedZoneProperties = {
   defaultRateType?: QuoteRateType;
   visible?: boolean;
   createdAt?: string;
+  serviceTypeChangedAt?: string;
+  previousServiceTypeLabel?: string;
+  previousQuoteCategory?: string;
 };
 
 export type SavedProjectMapData =

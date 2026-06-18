@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { ProjectsPage } from "@/components/projects/projects-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { ClientRecord, ProjectRecord } from "@/lib/projects/types";
+import type { ClientRecord, InvoiceRecord, ProjectRecord, QuoteRecord } from "@/lib/projects/types";
 
 export const dynamic = "force-dynamic";
 
@@ -28,13 +28,20 @@ export default async function ProjectsRoute() {
     redirect("/login");
   }
 
-  const [{ data, error }, { data: clients, error: clientsError }] = await Promise.all([
+  const [
+    { data, error },
+    { data: clients, error: clientsError },
+    { data: quotes, error: quotesError },
+    { data: invoices, error: invoicesError }
+  ] = await Promise.all([
     supabase
       .from("projects")
       .select("*")
       .eq("user_id", user.id)
       .order("updated_at", { ascending: false }),
-    supabase.from("clients").select("*").eq("user_id", user.id).order("updated_at", { ascending: false })
+    supabase.from("clients").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }),
+    supabase.from("quotes").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }),
+    supabase.from("invoices").select("*").eq("user_id", user.id).order("updated_at", { ascending: false })
   ]);
 
   return (
@@ -43,7 +50,9 @@ export default async function ProjectsRoute() {
       userEmail={user.email ?? "Contractor"}
       projects={(data ?? []).map(normalizeProject)}
       clients={(clients ?? []).map(normalizeClient)}
-      errorMessage={error?.message ?? clientsError?.message ?? null}
+      quotes={(quotes ?? []) as QuoteRecord[]}
+      invoices={(invoices ?? []) as InvoiceRecord[]}
+      errorMessage={error?.message ?? clientsError?.message ?? quotesError?.message ?? invoicesError?.message ?? null}
     />
   );
 }
