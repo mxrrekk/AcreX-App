@@ -510,6 +510,8 @@ export function QuotesPage({
   const [siteConditions, setSiteConditions] = useState<SiteConditions>(emptySiteConditions);
   const [aiSuggestion, setAiSuggestion] = useState<AiEstimateSuggestion | null>(null);
   const [appliedSuggestionKeys, setAppliedSuggestionKeys] = useState<Set<string>>(() => new Set());
+  const [aiBuildState, setAiBuildState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [aiBuildMessage, setAiBuildMessage] = useState("");
 
   useEffect(() => {
     setSavedTemplates(loadSavedServiceTemplates());
@@ -746,6 +748,37 @@ export function QuotesPage({
   function updateAiSuggestion(suggestion: AiEstimateSuggestion) {
     setAiSuggestion(suggestion);
     markQuoteUnsaved();
+  }
+
+  async function buildEstimate() {
+    if (!estimateContextReady || aiBuildState === "loading") return;
+
+    setAiBuildState("loading");
+    setAiBuildMessage("AcreX is analyzing the current quote context.");
+
+    try {
+      const response = await fetch("/api/quote-assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(estimateContext)
+      });
+      const data = (await response.json()) as { error?: string; suggestion?: AiEstimateSuggestion };
+
+      if (!response.ok || !data.suggestion) {
+        setAiBuildState("error");
+        setAiBuildMessage(data.error || "AI Estimator could not build suggestions. Your quote was not changed.");
+        return;
+      }
+
+      setAiSuggestion(data.suggestion);
+      setAppliedSuggestionKeys(new Set());
+      setAiBuildState("success");
+      setAiBuildMessage("Estimate suggestions are ready for review. Nothing was applied automatically.");
+      markQuoteUnsaved();
+    } catch {
+      setAiBuildState("error");
+      setAiBuildMessage("AI Estimator could not connect. Manual quoting is still available.");
+    }
   }
 
   function markSuggestionApplied(key: string) {
@@ -1173,10 +1206,21 @@ export function QuotesPage({
                       : "Select a project and add a valid measurement or manual service line before building an estimate."}
                   </p>
                 </div>
-                <button type="button" disabled title="Gemini connection is scheduled for the Build Estimate phase">
-                  Build Estimate
+                <button
+                  type="button"
+                  onClick={buildEstimate}
+                  disabled={!estimateContextReady || aiBuildState === "loading"}
+                  title={estimateContextReady ? "Build AI estimate suggestions" : "Select a project and add measured or manual work first"}
+                >
+                  {aiBuildState === "loading" ? "Building Estimate..." : "Build Estimate"}
                 </button>
               </div>
+
+              {aiBuildMessage ? (
+                <p className={`quote-ai-build-message ${aiBuildState}`} role={aiBuildState === "error" ? "alert" : "status"}>
+                  {aiBuildMessage}
+                </p>
+              ) : null}
 
               <AiEstimateReview
                 suggestion={aiSuggestion}

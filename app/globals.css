@@ -6253,6 +6253,38 @@ img {
   cursor: not-allowed;
 }
 
+.quote-ai-composer button:not(:disabled) {
+  border-color: rgba(127, 217, 87, 0.28);
+  color: #071007;
+  background: linear-gradient(180deg, var(--green), var(--green-2));
+  cursor: pointer;
+}
+
+.quote-ai-build-message {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  border: 1px solid rgba(127, 217, 87, 0.16);
+  border-radius: 10px;
+  color: #cfe4d3;
+  background: rgba(127, 217, 87, 0.055);
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.quote-ai-build-message.loading {
+  color: #f7d79b;
+  border-color: rgba(246, 184, 93, 0.2);
+  background: rgba(246, 184, 93, 0.055);
+}
+
+.quote-ai-build-message.error {
+  color: #ffd6ce;
+  border-color: rgba(255, 120, 91, 0.24);
+  background: rgba(255, 120, 91, 0.06);
+}
+
 .quote-ai-review-empty {
   position: relative;
   z-index: 1;
