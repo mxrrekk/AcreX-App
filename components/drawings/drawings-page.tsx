@@ -30,6 +30,21 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
         .includes(term)
     );
   }, [drawings, search]);
+  const groupedDrawings = useMemo(() => {
+    const groups = new Map<string, typeof filtered>();
+    filtered.forEach((drawing) => {
+      const label =
+        drawing.zoneType === "Brush" ? "Brush" :
+        drawing.zoneType === "Grass" ? "Grass" :
+        drawing.zoneType === "Fence" ? "Fence" :
+        drawing.zoneType === "Driveway" ? "Driveway" :
+        drawing.zoneType === "HousePad" || drawing.zoneType === "Building" ? "House Pad" :
+        drawing.zoneType === "Excluded" ? "Exclusion" :
+        drawing.serviceType || "Other";
+      groups.set(label, [...(groups.get(label) ?? []), drawing]);
+    });
+    return Array.from(groups.entries());
+  }, [filtered]);
 
   async function deleteDrawing(projectId: string, drawingId: string) {
     const project = projectRows.find((item) => item.id === projectId);
@@ -117,7 +132,13 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
 
         <section className="drawings-list" aria-label="Saved drawings">
           {filtered.length ? (
-            filtered.map((drawing) => (
+            groupedDrawings.map(([group, groupDrawings]) => (
+              <section className="drawing-service-group" key={group}>
+                <header>
+                  <div><span>{group}</span><strong>{groupDrawings.length} saved</strong></div>
+                </header>
+                <div>
+                {groupDrawings.map((drawing) => (
               <article className="drawing-row" key={`${drawing.projectId}-${drawing.id}`}>
                 <i style={{ background: drawing.color }} aria-hidden="true" />
                 <div>
@@ -143,6 +164,9 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
                   </button>
                 </div>
               </article>
+                ))}
+                </div>
+              </section>
             ))
           ) : (
             <div className="projects-empty-state">

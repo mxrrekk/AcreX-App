@@ -33,6 +33,7 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
   const notesKey = getProjectStorageKey(userEmail, project.id, "notes");
   const [notes, setNotes] = useState<ProjectNote[]>(() => readStoredValue<ProjectNote[]>(notesKey, []));
   const [noteText, setNoteText] = useState("");
+  const [activeTab, setActiveTab] = useState<"overview" | "drawings" | "quotes" | "invoices" | "notes">("overview");
 
   function addNote() {
     const text = noteText.trim();
@@ -79,6 +80,28 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
           <div><span>Last Updated</span><strong>{formatDate(project.updated_at)}</strong></div>
         </section>
 
+        <nav className="premium-tabs project-detail-tabs" aria-label="Project detail sections">
+          {[
+            ["overview", "Overview"],
+            ["drawings", `Drawings ${drawings.length}`],
+            ["quotes", `Quotes ${quotes.length}`],
+            ["invoices", `Invoices ${invoices.length}`],
+            ["notes", `Notes ${notes.length}`]
+          ].map(([id, label]) => (
+            <button
+              type="button"
+              key={id}
+              className={activeTab === id ? "active" : ""}
+              aria-current={activeTab === id ? "page" : undefined}
+              onClick={() => setActiveTab(id as typeof activeTab)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="project-detail-tab-panel" role="tabpanel">
+        {activeTab === "overview" ? (
         <section className="project-detail-section">
           <div className="project-detail-section-heading">
             <div><span>Map Reference</span><strong>Property and saved geometry</strong></div>
@@ -86,7 +109,9 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
           </div>
           <p>{project.address || "No property address saved."} · {project.acres?.toFixed(2) ?? "0.00"} acres · {Math.round(project.square_feet ?? 0).toLocaleString()} sq ft</p>
         </section>
+        ) : null}
 
+        {activeTab === "drawings" ? (
         <section className="project-detail-section">
           <div className="project-detail-section-heading">
             <div><span>Drawings & Measurements</span><strong>{drawings.length} saved</strong></div>
@@ -105,7 +130,9 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
             )) : <p>No drawings saved to this project yet.</p>}
           </div>
         </section>
+        ) : null}
 
+        {activeTab === "quotes" ? (
         <section className="project-detail-section">
           <div className="project-detail-section-heading">
             <div><span>Quotes</span><strong>{quotes.length}</strong></div>
@@ -117,7 +144,9 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
             )) : <p>No quotes saved yet.</p>}
           </div>
         </section>
+        ) : null}
 
+        {activeTab === "invoices" ? (
         <section className="project-detail-section">
           <div className="project-detail-section-heading">
             <div><span>Invoices</span><strong>{invoices.length}</strong></div>
@@ -129,7 +158,9 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
             )) : <p>No invoices linked to this project.</p>}
           </div>
         </section>
+        ) : null}
 
+        {activeTab === "notes" ? (
         <section className="project-detail-section">
           <div className="project-detail-section-heading">
             <div><span>Notes</span><strong>{notes.length}</strong></div>
@@ -143,6 +174,8 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
             {!notes.length ? <p>No project notes yet.</p> : null}
           </div>
         </section>
+        ) : null}
+        </div>
       </section>
     </main>
   );

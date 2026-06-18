@@ -44,6 +44,7 @@ export function SettingsPage({ account }: SettingsPageProps) {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveMessage, setSaveMessage] = useState("");
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [activeTab, setActiveTab] = useState<"account" | "company" | "pricing" | "quote" | "drawing" | "map">("company");
 
   useEffect(() => {
     setSettings(loadUserSettings(account.id));
@@ -124,6 +125,29 @@ export function SettingsPage({ account }: SettingsPageProps) {
           </div>
         </header>
 
+        <nav className="premium-tabs settings-tabs" aria-label="Settings sections">
+          {[
+            ["company", "Company"],
+            ["pricing", "Pricing"],
+            ["quote", "Quote Defaults"],
+            ["drawing", "Drawing Colors"],
+            ["map", "Map Preferences"],
+            ["account", "Account"]
+          ].map(([id, label]) => (
+            <button
+              type="button"
+              key={id}
+              className={activeTab === id ? "active" : ""}
+              aria-current={activeTab === id ? "page" : undefined}
+              onClick={() => setActiveTab(id as typeof activeTab)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="settings-tab-panel" role="tabpanel">
+        {activeTab === "account" ? (
         <section className="settings-card account-settings-card" aria-labelledby="account-heading">
           <div className="settings-section-heading">
             <div>
@@ -154,7 +178,9 @@ export function SettingsPage({ account }: SettingsPageProps) {
             </button>
           </div>
         </section>
+        ) : null}
 
+        {activeTab === "company" ? (
         <section className="settings-card" aria-labelledby="company-heading">
           <div className="settings-section-heading">
             <div><span>Company Profile</span><h2 id="company-heading">Business information</h2></div>
@@ -171,7 +197,9 @@ export function SettingsPage({ account }: SettingsPageProps) {
             </div>
           </div>
         </section>
+        ) : null}
 
+        {activeTab === "quote" ? (
         <section className="settings-card" aria-labelledby="quote-defaults-heading">
           <div className="settings-section-heading">
             <div><span>Quote Defaults</span><h2 id="quote-defaults-heading">Customer-facing defaults</h2></div>
@@ -184,7 +212,9 @@ export function SettingsPage({ account }: SettingsPageProps) {
             <label>Tax %<input type="number" min="0" value={settings.quoteDefaults.taxPercent} onChange={(event) => updateSection("quoteDefaults", "taxPercent", numberValue(event.target.value))} /></label>
           </div>
         </section>
+        ) : null}
 
+        {activeTab === "pricing" ? (
         <section className="settings-card" aria-labelledby="pricing-heading">
           <div className="settings-section-heading">
             <div><span>Pricing Defaults</span><h2 id="pricing-heading">Starting prices and costs</h2></div>
@@ -215,7 +245,9 @@ export function SettingsPage({ account }: SettingsPageProps) {
             ))}
           </div>
         </section>
+        ) : null}
 
+        {activeTab === "drawing" ? (
         <section className="settings-card" aria-labelledby="drawing-heading">
           <div className="settings-section-heading">
             <div><span>Drawing Defaults</span><h2 id="drawing-heading">Service colors</h2></div>
@@ -242,7 +274,9 @@ export function SettingsPage({ account }: SettingsPageProps) {
             ))}
           </div>
         </section>
+        ) : null}
 
+        {activeTab === "map" ? (
         <section className="settings-card" aria-labelledby="map-heading">
           <div className="settings-section-heading">
             <div><span>Map Defaults</span><h2 id="map-heading">Map preferences</h2></div>
@@ -266,6 +300,8 @@ export function SettingsPage({ account }: SettingsPageProps) {
             <label className="settings-toggle"><input type="checkbox" checked={settings.map.showParcelBoundary} onChange={(event) => updateSection("map", "showParcelBoundary", event.target.checked)} /><span>Show parcel boundary by default</span></label>
           </div>
         </section>
+        ) : null}
+        </div>
 
         <footer className="settings-save-bar">
           <div>

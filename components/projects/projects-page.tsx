@@ -65,7 +65,7 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 }
 
-export function ProjectsPage({ userId, userEmail, projects, clients, quotes, invoices, errorMessage }: ProjectsPageProps) {
+export function ProjectsPage({ userId, userEmail, projects, clients, quotes, errorMessage }: ProjectsPageProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "All">("All");
   const [projectRows, setProjectRows] = useState<ProjectRecord[]>(projects);
@@ -83,13 +83,6 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
     });
     return summary;
   }, [quotes]);
-  const invoiceStatusByProject = useMemo(() => {
-    const summary = new Map<string, string>();
-    invoices.forEach((invoice) => {
-      if (invoice.project_id && !summary.has(invoice.project_id)) summary.set(invoice.project_id, invoice.status);
-    });
-    return summary;
-  }, [invoices]);
   const recentProjects = projectRows.slice(0, 3);
 
   const filteredProjects = useMemo(() => {
@@ -241,11 +234,9 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
         <section className="projects-table" aria-label="Saved projects">
           <div className="projects-table-header">
             <span>Project</span>
-            <span>Customer</span>
             <span>Status</span>
             <span>Drawings</span>
             <span>Quote Total</span>
-            <span>Invoice</span>
             <span>Updated</span>
             <span />
             <span />
@@ -258,13 +249,11 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
                   <strong>{project.project_name}</strong>
                   <span>{project.address || "No address saved"}</span>
                 </div>
-                <span>{project.client_id ? clientById.get(project.client_id)?.name ?? project.customer_name ?? "Unassigned" : project.customer_name ?? "Unassigned"}</span>
                 <span className={`project-status-pill status-${getProjectStatus(project).toLowerCase()}`}>
                   {getProjectStatus(project)}
                 </span>
                 <span>{getZoneCount(project)}</span>
                 <span>{formatCurrency(quoteSummaryByProject.get(project.id) ?? 0)}</span>
-                <span>{invoiceStatusByProject.get(project.id) ?? "No invoice"}</span>
                 <span>{formatDate(project.updated_at)}</span>
                 <Link href={`/projects/${project.id}`}>Open Detail</Link>
                 <button

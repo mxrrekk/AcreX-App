@@ -1518,20 +1518,6 @@ export function QuotesPage({
                 </label>
               </div>
 
-              <div className="quote-pulled-data">
-                <div>
-                  <span>Project</span>
-                  <strong>{selectedProject?.project_name || "No project selected"}</strong>
-                </div>
-                <div>
-                  <span>Customer</span>
-                  <strong>{selectedClient?.name || selectedProject?.customer_name || "Unassigned"}</strong>
-                </div>
-                <div>
-                  <span>Property Address</span>
-                  <strong>{selectedProject?.address || selectedClient?.address || "No address yet"}</strong>
-                </div>
-              </div>
             </section>
 
             <nav className="quote-detail-tabs" aria-label="Quote details">
