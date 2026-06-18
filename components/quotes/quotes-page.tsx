@@ -646,6 +646,12 @@ export function QuotesPage({
   const [aiEditMessage, setAiEditMessage] = useState("");
 
   useEffect(() => {
+    if (!initialProjectId || initialProjectId === selectedProjectId) return;
+    if (!projects.some((project) => project.id === initialProjectId)) return;
+    setSelectedProjectId(initialProjectId);
+  }, [initialProjectId, projects, selectedProjectId]);
+
+  useEffect(() => {
     const userSettings = loadSavedUserSettings(userId);
     setSavedTemplates(loadSavedServiceTemplates(userId));
     setSavedProfitInputs(loadSavedProfitInputs(userId));

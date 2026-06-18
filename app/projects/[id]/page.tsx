@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { ProjectDetailPage } from "@/components/projects/project-detail-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { withResolvedProjectLocation } from "@/lib/projects/project-location";
 import type { ClientRecord, InvoiceRecord, ProjectRecord, QuoteRecord } from "@/lib/projects/types";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export default async function ProjectDetailRoute({ params }: { params: { id: str
 
   return (
     <ProjectDetailPage
-      project={project as ProjectRecord}
+      project={withResolvedProjectLocation(project as ProjectRecord)}
       client={(clients ?? []).find((client) => client.id === project.client_id) as ClientRecord | undefined}
       quotes={(quotes ?? []) as QuoteRecord[]}
       invoices={(invoices ?? []) as InvoiceRecord[]}

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { ClientsPage } from "@/components/clients/clients-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { withResolvedProjectLocation } from "@/lib/projects/project-location";
 import type { ClientRecord, InvoiceRecord, ProjectRecord, QuoteRecord } from "@/lib/projects/types";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ function normalizeClient(row: unknown): ClientRecord {
 }
 
 function normalizeProject(row: unknown): ProjectRecord {
-  return row as ProjectRecord;
+  return withResolvedProjectLocation(row as ProjectRecord);
 }
 
 function normalizeQuote(row: unknown): QuoteRecord {

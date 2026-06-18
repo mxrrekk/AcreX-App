@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type JsonRecord = Record<string, unknown>;
-const geminiModels = ["gemini-3.5-flash", "gemini-2.5-flash"] as const;
+const geminiModels = ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3.5-flash"] as const;
 
 function logDevelopmentError(message: string, details?: Record<string, unknown>) {
   if (process.env.NODE_ENV !== "development") return;

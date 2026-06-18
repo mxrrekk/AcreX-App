@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { DrawingsPage } from "@/components/drawings/drawings-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { withResolvedProjectLocation } from "@/lib/projects/project-location";
 import type { ProjectRecord } from "@/lib/projects/types";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export default async function DrawingsRoute() {
   return (
     <DrawingsPage
       userEmail={user.email ?? "Contractor"}
-      projects={(data ?? []) as ProjectRecord[]}
+      projects={((data ?? []) as ProjectRecord[]).map(withResolvedProjectLocation)}
       errorMessage={error?.message ?? null}
     />
   );

@@ -27,6 +27,7 @@ import {
   type ProjectTagStore
 } from "@/lib/projects/operations";
 import type { ParcelLookupState } from "@/lib/projects/parcels";
+import { withResolvedProjectLocation } from "@/lib/projects/project-location";
 import {
   calculateProjectEstimate,
   calculateTemplateLineTotal,
@@ -340,7 +341,7 @@ function getSavedTitleManualState(project: ProjectRecord) {
 }
 
 function normalizeProject(row: unknown): ProjectRecord {
-  return row as ProjectRecord;
+  return withResolvedProjectLocation(row as ProjectRecord);
 }
 
 function normalizeClient(row: unknown): ClientRecord {
