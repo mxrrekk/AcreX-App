@@ -492,7 +492,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     if (!activeProjectId) return { step: "Save", message: "Save this property to keep measurements, notes, and quotes together." };
     return { step: "Export", message: "Project is ready to share or export when needed." };
   }, [activeProjectId, address, quotes, workZones.length]);
-  const effectivePanel = activePanel ?? (selectedZones.length ? "measurements" : null);
+  const effectivePanel = activePanel;
   const isInspectorOpen = effectivePanel !== null;
   const draftSavedTime = draftSavedAt
     ? new Date(draftSavedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
@@ -941,10 +941,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
 
   const handleSelectedZonesChange = useCallback((zones: WorkZone[]) => {
     setSelectedZones(zones);
-    setActivePanel((current) => {
-      if (zones.length) return "measurements";
-      return current === "measurements" ? null : current;
-    });
   }, []);
 
   const handleMapToolPanelChange = useCallback((panel: "draw" | "layers" | "explorer" | null) => {
@@ -958,7 +954,9 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       const currentProject = activeProjectId
         ? projects.find((project) => project.id === activeProjectId) ?? null
         : null;
-      if (activeProjectId && !currentProject) return false;
+      if (activeProjectId && !currentProject) {
+        setActiveProjectId(null);
+      }
 
       const projectName = projectForm.projectName.trim() || currentProject?.project_name || "Untitled Project";
       const projectAddress =
@@ -1025,7 +1023,15 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
           })
           .eq("id", currentProject.id)
           .eq("user_id", currentUserId);
-        if (error) persisted = false;
+        if (error) {
+          persisted = false;
+          if (process.env.NODE_ENV === "development") {
+            console.error("[Drawing delete] Project update failed.", {
+              projectId: currentProject.id,
+              message: error.message
+            });
+          }
+        }
       };
 
       const queuedOperation = drawingPersistenceQueueRef.current.then(operation, operation);
@@ -1350,8 +1356,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
           <section className="dashboard-map-panel">
             <AcrexMap
               activeProjectId={activeProjectId}
-              activeProjectName={projectForm.projectName || activeProject?.project_name}
-              quotedZoneNames={quotedZoneNames}
               onSaveProject={handleSaveProject}
               isSavingProject={isSavingProject}
               resetKey={mapResetKey}
@@ -1647,209 +1651,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </select>
               </label>
 
-              <div className={getPanelClass(effectivePanel, "measurements", "dashboard-summary-metrics measurement-totals-pin")}>
-                {summaryRows.map((row) => (
-                  <div className="summary-metric-row" key={row.label}>
-                    <span>{row.label}</span>
-                    <strong className="animated-value" key={`${row.label}-${row.value}`}>{row.value}</strong>
-                  </div>
-                ))}
-              </div>
-
-              <div className={getPanelClass(effectivePanel, "measurements", "measurements-by-service-panel")}>
-                <div className="selected-areas-heading">
-                  <span>Measurements by Service</span>
-                  <strong>{workZones.length ? `${workZones.length} saved` : "Empty"}</strong>
-                </div>
-                {groupedMeasurements.length ? (
-                  groupedMeasurements.map((group) => (
-                    <div className="measurement-service-group" key={group.key}>
-                      <div>
-                        <span style={{ "--zone-color": group.color } as CSSProperties} />
-                        <strong>{group.key}</strong>
-                        <small>{group.total}</small>
-                      </div>
-                      {group.zones.map((zone) => (
-                        <div className="measurement-zone-row" key={zone.id}>
-                          <i style={{ background: zone.color ?? zoneColors[zone.type] }} />
-                          <div className="measurement-zone-main">
-                            <span>{zone.name}</span>
-                            <strong>{formatZoneMeasurement(zone)}</strong>
-                          </div>
-                          <div className="measurement-zone-actions" aria-label={`${zone.name} actions`}>
-                            <Link href={`/quotes?project=${activeProjectId ?? ""}`}>Add to quote</Link>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ))
-                ) : (
-                  <p>No measurements yet. Select Grass, Brush, Fence, Driveway, or another service and draw on the map.</p>
-                )}
-              </div>
-
-              <div className={getPanelClass(effectivePanel, "measurements", "selected-areas-panel")} aria-live="polite">
-                <div className="selected-areas-heading">
-                  <span>Selected Areas</span>
-                  <strong>{selectedZones.length ? `${selectedZones.length} selected` : "None selected"}</strong>
-                </div>
-                {selectedZones.length ? (
-                  <>
-                    <div className="selected-areas-list">
-                      {selectedZones.map((zone) => (
-                        <div className="selected-area-row" key={zone.id}>
-                          <div>
-                            <strong>{zone.name}</strong>
-                            <span className="zone-color-badge" style={{ "--zone-color": zone.color ?? zoneColors[zone.type] } as CSSProperties}>
-                              {zone.locked ? "Locked " : ""}{zone.serviceTypeLabel ?? zoneLabels[zone.type]}
-                            </span>
-                          </div>
-                          <dl>
-                            <div>
-                              <dt>Acres</dt>
-                              <dd>{formatAcres(zone.acres)} ac</dd>
-                            </div>
-                            <div>
-                              <dt>Square feet</dt>
-                              <dd>{formatSquareFeet(zone.squareFeet)} sq ft</dd>
-                            </div>
-                            <div>
-                              <dt>Perimeter</dt>
-                              <dd>{formatFeet(zone.lengthFt ?? zone.perimeterFeet)} linear ft</dd>
-                            </div>
-                            {zone.notes ? (
-                              <div>
-                                <dt>Notes</dt>
-                                <dd>{zone.notes}</dd>
-                              </div>
-                            ) : null}
-                          </dl>
-                        </div>
-                      ))}
-                    </div>
-                    {selectedZones.length > 1 ? (
-                      <div className="selected-areas-total">
-                        <span>Combined Selected Total</span>
-                        <strong>{formatAcres(selectedTotals.acres)} ac / {formatSquareFeet(selectedTotals.squareFeet)} sq ft</strong>
-                        <small>{formatFeet(selectedTotals.perimeterFeet)} linear ft</small>
-                      </div>
-                    ) : null}
-                  </>
-                ) : (
-                  <p>Select one or more drawn areas to review acreage, square footage, perimeter, and notes here.</p>
-                )}
-              </div>
-
-              <div className={getPanelClass(effectivePanel, "quote", "estimator-panel")}>
-                <div className="selected-areas-heading">
-                  <span>Project Estimator</span>
-                  <strong>{formatCurrency(recommendedQuote)}</strong>
-                </div>
-                <Link className="summary-light-button quote-measurements-link" href={`/quotes${activeProjectId ? `?project=${activeProjectId}` : ""}`}>
-                  Add measurements to quote
-                </Link>
-                <div className="live-estimator-grid">
-                  <span>Parcel acreage <strong>{formatAcres(propertyAcres || measurements?.acres || 0)} ac</strong></span>
-                  <span>Grass acreage <strong>{formatAcres(grassAcres)} ac</strong></span>
-                  <span>Brush acreage <strong>{formatAcres(brushAcres)} ac</strong></span>
-                  <span>Driveway <strong>{formatSquareFeet(drivewaySqFt)} sq ft</strong></span>
-                  <span>Fence <strong>{formatFeet(fenceLinearFt)} ft</strong></span>
-                  <span>Building/excluded <strong>{formatAcres(buildingAcres + excludedAcres)} ac</strong></span>
-                  <span>Net billable <strong>{formatAcres(netBillableAcres)} ac</strong></span>
-                  <span>Estimated revenue <strong>{formatCurrency(projectEstimate.estimatedRevenue)}</strong></span>
-                  <span>Estimated cost <strong>{formatCurrency(projectEstimate.estimatedCost)}</strong></span>
-                  <span>Estimated profit <strong>{formatCurrency(projectEstimate.estimatedProfit)}</strong></span>
-                  <span>Recommended quote <strong>{formatCurrency(recommendedQuote)}</strong></span>
-                </div>
-                <div className="estimator-context-grid">
-                  <span>
-                    Address
-                    <strong>{projectForm.address || address}</strong>
-                  </span>
-                  <span>
-                    Client
-                    <strong>{selectedClient?.name || projectForm.customerName || "No client linked"}</strong>
-                  </span>
-                  <span>
-                    Service
-                    <strong>{projectForm.serviceType}</strong>
-                  </span>
-                </div>
-                {projectEstimate.lines.length ? (
-                  <>
-                    <div className="estimate-lines">
-                      {projectEstimate.lines.map((line) => (
-                        <div key={line.id}>
-                          <span>{line.serviceName} - {line.zoneName}</span>
-                          <strong>{formatCurrency(line.recommendedRevenue)}</strong>
-                          <small>
-                            {formatNumber(line.quantity)} {line.unit} · {formatNumber(line.productionRate)} {line.unit}/hr · {formatNumber(line.estimatedHours, 1)} hr
-                          </small>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="estimator-breakdown-grid">
-                      <span>Estimated production rate <strong>{formatNumber(projectEstimate.estimatedProductionRate, 2)} units/hr</strong></span>
-                      <span>Estimated labor hours <strong>{formatNumber(projectEstimate.estimatedLaborHours, 1)} hr</strong></span>
-                      <span>Labor cost <strong>{formatCurrency(projectEstimate.laborCost)}</strong></span>
-                      <span>Equipment cost <strong>{formatCurrency(projectEstimate.equipmentCost)}</strong></span>
-                      <span>Fuel cost <strong>{formatCurrency(projectEstimate.fuelCost)}</strong></span>
-                      <span>Material cost <strong>{formatCurrency(projectEstimate.materialCost)}</strong></span>
-                      <span>Dump/disposal cost <strong>{formatCurrency(projectEstimate.disposalCost)}</strong></span>
-                      <span>Travel charge <strong>{formatCurrency(projectEstimate.travelCharge)}</strong></span>
-                      <span>Other costs <strong>{formatCurrency(projectEstimate.otherCost)}</strong></span>
-                      <span>Recommended markup <strong>{formatNumber(projectEstimate.recommendedMarkup, 1)}%</strong></span>
-                      <span>Estimated revenue <strong>{formatCurrency(projectEstimate.estimatedRevenue)}</strong></span>
-                      <span>Estimated cost <strong>{formatCurrency(projectEstimate.estimatedCost)}</strong></span>
-                      <span>Estimated profit <strong>{formatCurrency(projectEstimate.estimatedProfit)}</strong></span>
-                      <span>Profit margin <strong>{formatNumber(projectEstimate.profitMargin, 1)}%</strong></span>
-                    </div>
-                    <p>Estimator updates from zone measurements, production rates, cost inputs, and service templates.</p>
-                  </>
-                ) : (
-                  <p>Draw Grass, Brush, Driveway, Property, or Custom zones to generate a live close estimate.</p>
-                )}
-              </div>
-
-              <div className={getPanelClass(effectivePanel, "quote", "profit-panel")}>
-                <div className="selected-areas-heading">
-                  <span>Pricing Inputs</span>
-                  <strong>{formatCurrency(projectEstimate.estimatedProfit)}</strong>
-                </div>
-                <div className="profit-input-grid">
-                  {[
-                    ["laborRate", "Labor $/hr"],
-                    ["estimatedHours", "Extra Hours"],
-                    ["fuelCost", "Fuel"],
-                    ["equipmentCost", "Equipment"],
-                    ["materialCost", "Materials"],
-                    ["disposalCost", "Dump"],
-                    ["travelCharge", "Travel"],
-                    ["otherCost", "Other"],
-                    ["markupPercent", "Markup %"]
-                  ].map(([field, label]) => (
-                    <label key={field}>
-                      {label}
-                      <input
-                        value={String(profitInputs[field as keyof ProfitInputs])}
-                        inputMode="decimal"
-                        onChange={(event) =>
-                          setProfitInputs((current) => ({
-                            ...current,
-                            [field]: Number(event.target.value) || 0
-                          }))
-                        }
-                      />
-                    </label>
-                  ))}
-                </div>
-                <div className="profit-output-grid">
-                  <span>Revenue <strong>{formatCurrency(projectEstimate.estimatedRevenue)}</strong></span>
-                  <span>Cost <strong>{formatCurrency(projectEstimate.estimatedCost)}</strong></span>
-                  <span>Margin <strong>{formatNumber(projectEstimate.profitMargin, 1)}%</strong></span>
-                </div>
-              </div>
-
               <div className={getPanelClass(effectivePanel, "project", "workflow-panel")}>
                 <span>Workflow</span>
                 <div>
@@ -1994,9 +1795,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 >
                   {isSavingProject ? "Saving..." : "Save Project"}
                 </button>
-                <Link className="generate-quote-button" href={`/quotes${activeProjectId ? `?project=${activeProjectId}` : ""}`}>
-                  Generate Quote
-                </Link>
                 {projectMessage ? <p className="project-message">{projectMessage}</p> : null}
               </div>
             </div>

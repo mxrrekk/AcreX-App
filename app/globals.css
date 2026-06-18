@@ -2368,6 +2368,23 @@ img {
   padding: 12px;
 }
 
+.project-explorer-selected {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.project-explorer-selected .zone-inspector-details {
+  margin: 0;
+}
+
+.project-explorer-selected .project-explorer-inline-field input[type="color"] {
+  width: 100%;
+  min-height: 42px;
+  padding: 4px;
+}
+
 .project-explorer-group {
   display: grid;
   gap: 7px;

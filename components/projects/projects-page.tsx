@@ -140,15 +140,31 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
 
     setDeletingProjectId(pendingDeleteProject.id);
     setMessage(null);
-    const { error } = await supabase.from("projects").delete().eq("id", pendingDeleteProject.id).eq("user_id", userId);
+    const projectId = pendingDeleteProject.id;
+    const { error: invoiceError } = await supabase
+      .from("invoices")
+      .delete()
+      .eq("project_id", projectId)
+      .eq("user_id", userId);
+    const { error: quoteError } = invoiceError
+      ? { error: null }
+      : await supabase
+          .from("quotes")
+          .delete()
+          .eq("project_id", projectId)
+          .eq("user_id", userId);
+    const { error: projectError } = invoiceError || quoteError
+      ? { error: null }
+      : await supabase.from("projects").delete().eq("id", projectId).eq("user_id", userId);
     setDeletingProjectId(null);
 
-    if (error) {
-      setMessage(getReadableProjectError(error.message));
+    const deleteError = invoiceError || quoteError || projectError;
+    if (deleteError) {
+      setMessage(getReadableProjectError(deleteError.message));
       return;
     }
 
-    const deletedProjectId = pendingDeleteProject.id;
+    const deletedProjectId = projectId;
     setProjectRows((current) => current.filter((row) => row.id !== deletedProjectId));
     setTagStore((current) => {
       if (!Object.prototype.hasOwnProperty.call(current, deletedProjectId)) return current;
@@ -276,7 +292,8 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
             <span className="modal-icon">!</span>
             <h2 id="delete-project-title">Delete project?</h2>
             <p>
-              This removes <strong>{pendingDeleteProject.project_name}</strong> from your projects. Quotes and invoices linked to it will remain.
+              This permanently removes <strong>{pendingDeleteProject.project_name}</strong>, its drawings, quotes, quote
+              items, and invoices.
             </p>
             <div className="modal-actions">
               <button type="button" onClick={() => setPendingDeleteProject(null)} disabled={deletingProjectId === pendingDeleteProject.id}>
