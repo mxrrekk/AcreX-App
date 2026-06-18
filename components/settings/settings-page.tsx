@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
@@ -40,6 +40,7 @@ function numberValue(value: string) {
 
 export function SettingsPage({ account }: SettingsPageProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [settings, setSettings] = useState<AcrexUserSettings>(defaultUserSettings);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveMessage, setSaveMessage] = useState("");
@@ -49,6 +50,10 @@ export function SettingsPage({ account }: SettingsPageProps) {
   useEffect(() => {
     setSettings(loadUserSettings(account.id));
   }, [account.id]);
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "account") setActiveTab("account");
+  }, [searchParams]);
 
   type EditableSettingsSection = "company" | "quoteDefaults" | "pricing" | "drawing" | "map";
 

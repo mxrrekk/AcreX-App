@@ -46,6 +46,21 @@ type AcrexMapProps = {
     id: number;
     type: ZoneType | null;
   };
+  mobileCommand?: {
+    id: number;
+    action:
+      | "draw-service"
+      | "layers"
+      | "locate"
+      | "rename-selected"
+      | "service-selected"
+      | "color-selected"
+      | "toggle-selected"
+      | "zoom-selected"
+      | "delete-selected"
+      | "clear-selection";
+    value?: string;
+  };
 };
 
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -443,7 +458,8 @@ export function AcrexMap({
   searchMountId,
   useParcelRequestKey = 0,
   onToolPanelChange,
-  explorerRequest
+  explorerRequest,
+  mobileCommand
 }: AcrexMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
@@ -2164,6 +2180,64 @@ export function AcrexMap({
     if (!selectedZone) return;
     deleteExplorerZone(selectedZone);
   }
+
+  useEffect(() => {
+    if (!mobileCommand?.id) return;
+
+    if (mobileCommand.action === "draw-service" && mobileCommand.value) {
+      handleServiceTypeSelect(getServiceTypeById(mobileCommand.value));
+      return;
+    }
+    if (mobileCommand.action === "layers") {
+      toggleParcelLines();
+      return;
+    }
+    if (mobileCommand.action === "locate") {
+      if (!navigator.geolocation || !mapRef.current) return;
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          mapRef.current?.flyTo({
+            center: [position.coords.longitude, position.coords.latitude],
+            zoom: Math.max(mapRef.current?.getZoom() ?? 14, 15),
+            essential: true
+          });
+        },
+        () => undefined,
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+      return;
+    }
+    if (mobileCommand.action === "rename-selected" && typeof mobileCommand.value === "string") {
+      updateSelectedZoneProperty("zoneName", mobileCommand.value);
+      return;
+    }
+    if (mobileCommand.action === "service-selected" && mobileCommand.value) {
+      handleSelectedZoneServiceTypeChange(mobileCommand.value);
+      return;
+    }
+    if (mobileCommand.action === "color-selected" && mobileCommand.value) {
+      updateSelectedZoneColor(mobileCommand.value);
+      return;
+    }
+    if (mobileCommand.action === "toggle-selected") {
+      toggleSelectedZoneVisibility();
+      return;
+    }
+    if (mobileCommand.action === "zoom-selected") {
+      zoomToSelectedZone();
+      return;
+    }
+    if (mobileCommand.action === "delete-selected") {
+      deleteSelectedZone();
+      return;
+    }
+    if (mobileCommand.action === "clear-selection") {
+      clearSelectedZone();
+      setMapPanel(null);
+    }
+  // Command IDs intentionally trigger imperative Mapbox actions.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobileCommand?.id]);
 
   function toggleLayer(type: ZoneType) {
     setLayerVisibility((current) => {
