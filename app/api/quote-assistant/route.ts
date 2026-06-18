@@ -171,6 +171,35 @@ function sanitizeContext(value: unknown) {
   const quote = isRecord(payload.quote) ? payload.quote : {};
   const siteConditions = isRecord(payload.siteConditions) ? payload.siteConditions : {};
   const pricingDefaults = isRecord(payload.pricingDefaults) ? payload.pricingDefaults : {};
+  const questionGroups = Array.isArray(siteConditions.questionGroups)
+    ? siteConditions.questionGroups.slice(0, 10).map((item) => {
+        const group = isRecord(item) ? item : {};
+        return {
+          service: cleanText(group.service, 100),
+          answers: Array.isArray(group.answers)
+            ? group.answers.slice(0, 20).map((answerItem) => {
+                const answer = isRecord(answerItem) ? answerItem : {};
+                return {
+                  id: cleanText(answer.id, 80),
+                  question: cleanText(answer.question, 300),
+                  answer: cleanText(answer.answer, 300)
+                };
+              })
+            : []
+        };
+      })
+    : [];
+  const unansweredQuestions = Array.isArray(siteConditions.unansweredQuestions)
+    ? siteConditions.unansweredQuestions.slice(0, 40).map((item) => {
+        const question = isRecord(item) ? item : {};
+        return {
+          service: cleanText(question.service, 100),
+          id: cleanText(question.id, 80),
+          question: cleanText(question.question, 300),
+          options: cleanStringList(question.options, 12, 100)
+        };
+      })
+    : [];
 
   const availableMeasurements = Array.isArray(measurements.available)
     ? measurements.available.slice(0, 75).map((item) => {
@@ -335,7 +364,9 @@ function sanitizeContext(value: unknown) {
       haulOff: cleanText(siteConditions.haulOff, 30),
       timeline: cleanText(siteConditions.timeline, 30),
       fenceMaterial: cleanText(siteConditions.fenceMaterial, 40),
-      notes: cleanText(siteConditions.notes, 2000)
+      notes: cleanText(siteConditions.notes, 2000),
+      questionGroups,
+      unansweredQuestions
     },
     pricingDefaults: {
       serviceTemplates: templates,
@@ -366,6 +397,13 @@ Rules:
 - Available measurements that are not selected are reference-only. Do not generate service lines, materials, costs, scope, or questions for them unless the user's notes explicitly include them.
 - Do not suggest a service line when the same sourceMeasurementId already exists in current quote lines. Suggest supporting job costs or assumptions instead.
 - Make the estimate specific to that project type. A mowing estimate should focus on acreage, frequency, access, trimming, and production. A fence estimate should consider material, height, gates, posts, concrete, and linear footage. Brush clearing should consider density, haul-off, stumps, terrain, and access. Driveways should consider gravel type, depth, base preparation, delivery, grading, drainage, and culverts.
+- The client has already detected the active service types and supplied service-specific questionGroups and unansweredQuestions.
+- Ask only questions listed in siteConditions.unansweredQuestions. Never invent a cross-service or generic questionnaire.
+- Never ask a mowing project about brush density, tree haul-off, stump grinding, gravel depth, or fence material.
+- Never ask brush clearing about mowing frequency, mowing height, or edging.
+- Never ask fence installation about brush density or mowing frequency.
+- For multi-service jobs, keep missing questions grouped mentally by their service and ask only the unanswered questions for each active service.
+- If siteConditions.unansweredQuestions is empty, return no missingQuestions and build the draft estimate immediately from the known context.
 - Use known measurement quantities and units. Do not invent geometry.
 - Suggest pricing ranges and a recommended starting rate only when context supports it.
 - Contractor pricing defaults outrank generic market assumptions.
@@ -451,6 +489,32 @@ function parseSuggestion(text: string): QuoteAssistantSuggestion | null {
   } catch {
     return null;
   }
+}
+
+function restrictMissingQuestions(
+  suggestion: QuoteAssistantSuggestion,
+  context: ReturnType<typeof sanitizeContext>
+) {
+  const allowed = context.siteConditions.unansweredQuestions;
+  if (!allowed.length) {
+    suggestion.missingQuestions = [];
+    suggestion.confidenceScore = Math.max(suggestion.confidenceScore, 85);
+    return suggestion;
+  }
+
+  suggestion.missingQuestions = allowed.map((item) => `${item.service}: ${item.question}`);
+
+  const totalQuestions = context.siteConditions.questionGroups.reduce(
+    (total, group) => total + group.answers.length,
+    0
+  );
+  const answeredQuestions = context.siteConditions.questionGroups.reduce(
+    (total, group) => total + group.answers.filter((answer) => Boolean(answer.answer)).length,
+    0
+  );
+  const contextQuestionScore = totalQuestions > 0 ? Math.round((answeredQuestions / totalQuestions) * 25) : 25;
+  suggestion.confidenceScore = Math.min(100, Math.max(0, 60 + contextQuestionScore));
+  return suggestion;
 }
 
 function normalizeMatchText(value: string) {
@@ -647,6 +711,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const suggestion = removeDuplicateOrOutOfScopeLines(parsedSuggestion, context);
+  const suggestion = restrictMissingQuestions(
+    removeDuplicateOrOutOfScopeLines(parsedSuggestion, context),
+    context
+  );
   return NextResponse.json({ suggestion });
 }

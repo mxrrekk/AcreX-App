@@ -10,6 +10,12 @@ import {
 } from "@/components/quotes/ai-estimate-review";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import {
+  detectEstimateServices,
+  estimateQuestionCatalog,
+  estimateQuestionKey,
+  type EstimateServiceType
+} from "@/lib/ai/estimate-questions";
+import {
   getTemplateForZone,
   mergeServiceTemplates,
   profitInputsStorageKey,
@@ -118,9 +124,8 @@ type SiteConditions = {
   timeline: "" | "Flexible" | "Normal" | "Rush";
   fenceMaterial: "" | "Wood" | "Vinyl" | "Chain Link" | "Aluminum";
   notes: string;
+  serviceAnswers: Record<string, string>;
 };
-
-type GuidedQuestionType = "density" | "haulOff" | "access" | "fenceMaterial" | "timeline";
 type AiRouteResponse = {
   error?: string;
   code?: string;
@@ -219,7 +224,18 @@ type EstimateContext = {
       grandTotal: number;
     };
   };
-  siteConditions: SiteConditions;
+  siteConditions: SiteConditions & {
+    questionGroups: Array<{
+      service: EstimateServiceType;
+      answers: Array<{ id: string; question: string; answer: string }>;
+    }>;
+    unansweredQuestions: Array<{
+      service: EstimateServiceType;
+      id: string;
+      question: string;
+      options: string[];
+    }>;
+  };
   pricingDefaults: {
     serviceTemplates: ServiceTemplate[];
     global: Partial<ProfitInputs> | null;
@@ -283,7 +299,8 @@ const emptySiteConditions: SiteConditions = {
   haulOff: "",
   timeline: "",
   fenceMaterial: "",
-  notes: ""
+  notes: "",
+  serviceAnswers: {}
 };
 
 const zoneFallbackColors: Record<string, string> = {
@@ -559,24 +576,6 @@ function normalizeCostCategory(value: string | undefined): CostLine["category"] 
   return "other";
 }
 
-function getGuidedQuestionType(question: string): GuidedQuestionType | null {
-  const normalized = question.toLowerCase();
-  if (normalized.includes("density") || normalized.includes("brush") || normalized.includes("vegetation")) return "density";
-  if (normalized.includes("haul") || normalized.includes("debris") || normalized.includes("disposal")) return "haulOff";
-  if (normalized.includes("access") || normalized.includes("gate") || normalized.includes("equipment reach")) return "access";
-  if (normalized.includes("fence") && normalized.includes("material")) return "fenceMaterial";
-  if (normalized.includes("timeline") || normalized.includes("schedule") || normalized.includes("rush")) return "timeline";
-  return null;
-}
-
-const guidedQuestionOptions: Record<GuidedQuestionType, string[]> = {
-  density: ["Light", "Medium", "Heavy"],
-  haulOff: ["None", "Partial", "Full"],
-  access: ["Easy", "Moderate", "Difficult"],
-  fenceMaterial: ["Wood", "Vinyl", "Chain Link", "Aluminum"],
-  timeline: ["Flexible", "Normal", "Rush"]
-};
-
 const quoteWorkspaceTabs: Array<{ id: QuoteWorkspaceTab; label: string }> = [
   { id: "estimate", label: "Estimate" },
   { id: "line-items", label: "Line Items" },
@@ -586,48 +585,60 @@ const quoteWorkspaceTabs: Array<{ id: QuoteWorkspaceTab; label: string }> = [
   { id: "review", label: "Review" }
 ];
 
-function detectProjectType(
+function detectProjectServices(
   project: ProjectRecord | null,
   measurements: MeasurementRow[],
   lineItems: QuoteLineItem[],
   notes: QuoteNotes,
   siteNotes: string
 ) {
-  const selectedContext = [
+  const selectedServices = detectEstimateServices([
     ...lineItems.flatMap((item) => [item.serviceName, item.description, item.zoneType, item.notes]),
-    project?.service_type,
+    ...measurements
+      .filter((measurement) => lineItems.some((item) => item.sourceId === measurement.sourceId))
+      .flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, String(measurement.zoneType)]),
     notes.scopeOfWork,
     notes.customerNotes,
     siteNotes
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  const availableContext = [
+  ]);
+  if (selectedServices.length) return selectedServices;
+
+  const measuredServices = detectEstimateServices([
     project?.project_name,
-    ...measurements.flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, measurement.label])
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+    ...measurements.flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, measurement.label]),
+    notes.scopeOfWork,
+    notes.customerNotes,
+    siteNotes
+  ]);
+  if (measuredServices.length) return measuredServices;
 
-  function matchType(context: string) {
-    if (/\b(mow|mowing|grass|lawn)\b/.test(context)) return "Mowing";
-    if (/\b(forestry mulch|mulching|timber mulch)\b/.test(context)) return "Forestry Mulching";
-    if (/\b(fence|fencing|chain link|vinyl|aluminum)\b/.test(context)) return "Fence Installation";
-    if (/\b(driveway|gravel|culvert)\b/.test(context)) return "Gravel Driveway";
-    if (/\b(house pad|building pad|site pad)\b/.test(context)) return "House Pad";
-    if (/\b(sod|irrigation|sprinkler)\b/.test(context)) return "Sod / Irrigation";
-    if (/\b(brush|underbrush|vegetation clearing)\b/.test(context)) return "Brush Clearing";
-    if (/\b(land clearing|clear lot|clearing)\b/.test(context)) return "Land Clearing";
-    return null;
-  }
+  return detectEstimateServices([project?.service_type]);
+}
 
-  const selectedType = matchType(selectedContext);
-  if (selectedType) return selectedType;
-  const availableType = matchType(availableContext);
-  if (availableType) return availableType;
-  return project?.service_type || "Not detected";
+function inferServiceQuestionAnswer(
+  service: EstimateServiceType,
+  questionId: string,
+  options: string[],
+  siteConditions: SiteConditions,
+  contextText: string
+) {
+  const legacyAnswers: Partial<Record<string, string>> = {
+    "Brush Clearing / Forestry Mulching:density": siteConditions.density,
+    "Brush Clearing / Forestry Mulching:haulOff": siteConditions.haulOff,
+    "Brush Clearing / Forestry Mulching:equipmentAccess": siteConditions.access,
+    "Fence Installation:fenceMaterial": siteConditions.fenceMaterial,
+    "Fence Installation:terrainIssues": siteConditions.terrain,
+    "Land Clearing:haulOff": siteConditions.haulOff
+  };
+  const legacyAnswer = legacyAnswers[estimateQuestionKey(service, questionId)];
+  if (legacyAnswer && options.includes(legacyAnswer)) return legacyAnswer;
+
+  const normalizedContext = contextText.toLowerCase();
+  return options.find((option) => {
+    const normalizedOption = option.toLowerCase();
+    if (["yes", "no", "none", "not confirmed"].includes(normalizedOption)) return false;
+    return normalizedContext.includes(normalizedOption);
+  }) ?? "";
 }
 
 function getProjectStatus(project: ProjectRecord | null) {
@@ -784,10 +795,66 @@ export function QuotesPage({
   const taxAmount = taxableSubtotal * (parseAmount(taxPercent) / 100);
   const grandTotal = taxableSubtotal + taxAmount;
   const depositRequired = grandTotal * (parseAmount(depositPercent) / 100);
-  const detectedProjectType = useMemo(
-    () => detectProjectType(selectedProject, availableMeasurements, lineItems, notes, siteConditions.notes),
+  const detectedServices = useMemo(
+    () => detectProjectServices(selectedProject, availableMeasurements, lineItems, notes, siteConditions.notes),
     [availableMeasurements, lineItems, notes, selectedProject, siteConditions.notes]
   );
+  const detectedProjectType = detectedServices.length ? detectedServices.join(" + ") : "Not detected";
+  const serviceQuestionGroups = useMemo(() => {
+    const knownContext = [
+      selectedProject?.project_name,
+      selectedProject?.service_type,
+      notes.scopeOfWork,
+      notes.customerNotes,
+      siteConditions.notes,
+      ...lineItems.flatMap((item) => [item.serviceName, item.description, item.notes])
+    ].filter(Boolean).join(" ");
+    return detectedServices.map((service) => {
+      const questions = estimateQuestionCatalog[service]
+        .filter((question) => {
+          if (
+            service === "House Pad" &&
+            question.id === "finishedDimensions" &&
+            availableMeasurements.some(
+              (measurement) =>
+                measurement.billable &&
+                (String(measurement.zoneType) === "HousePad" || String(measurement.zoneType) === "Building") &&
+                measurement.quantity > 0
+            )
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .map((question) => ({
+          ...question,
+          answer:
+            siteConditions.serviceAnswers[estimateQuestionKey(service, question.id)] ||
+            inferServiceQuestionAnswer(service, question.id, question.options, siteConditions, knownContext)
+        }));
+      return {
+        service,
+        questions,
+        unanswered: questions.filter((question) => !question.answer)
+      };
+    });
+  }, [availableMeasurements, detectedServices, lineItems, notes, selectedProject, siteConditions]);
+  const relevantQuestionCount = useMemo(
+    () => serviceQuestionGroups.reduce((total, group) => total + group.questions.length, 0),
+    [serviceQuestionGroups]
+  );
+  const unansweredRelevantQuestions = useMemo(
+    () => serviceQuestionGroups.flatMap((group) =>
+      group.unanswered.map((question) => ({
+        service: group.service,
+        id: question.id,
+        question: question.label,
+        options: question.options
+      }))
+    ),
+    [serviceQuestionGroups]
+  );
+  const answeredRelevantQuestionCount = relevantQuestionCount - unansweredRelevantQuestions.length;
   const hasPricingDefaults = Boolean(savedTemplates?.some((template) => template.active !== false));
   const estimateContext = useMemo<EstimateContext>(() => {
     const selectedMeasurements = availableMeasurements
@@ -911,7 +978,19 @@ export function QuotesPage({
           grandTotal
         }
       },
-      siteConditions,
+      siteConditions: {
+        ...siteConditions,
+        questionGroups: serviceQuestionGroups.map((group) => ({
+          service: group.service,
+          answers: group.questions
+            .map((question) => ({
+              id: question.id,
+              question: question.label,
+              answer: question.answer
+            }))
+        })),
+        unansweredQuestions: unansweredRelevantQuestions
+      },
       pricingDefaults: {
         serviceTemplates: (savedTemplates ?? []).filter((template) => template.active !== false),
         global: savedProfitInputs
@@ -938,27 +1017,14 @@ export function QuotesPage({
     selectedClient,
     selectedProject,
     serviceSubtotal,
+    serviceQuestionGroups,
     siteConditions,
     status,
     taxAmount,
-    taxPercent
+    taxPercent,
+    unansweredRelevantQuestions
   ]);
-  const completedConditionCount = [
-    siteConditions.access,
-    siteConditions.terrain,
-    siteConditions.density,
-    siteConditions.haulOff,
-    siteConditions.timeline
-  ].filter(Boolean).length;
-  const guidedQuestions = useMemo(() => {
-    if (!aiSuggestion) return [];
-    const questionsByType = new Map<GuidedQuestionType, string>();
-    aiSuggestion.missingQuestions.forEach((question) => {
-      const type = getGuidedQuestionType(question);
-      if (type && !questionsByType.has(type)) questionsByType.set(type, question);
-    });
-    return Array.from(questionsByType, ([type, question]) => ({ type, question }));
-  }, [aiSuggestion]);
+  const completedConditionCount = answeredRelevantQuestionCount;
   const estimateContextReady = Boolean(
     estimateContext.project.id &&
       (estimateContext.measurements.totals.validMeasurementCount > 0 || estimateContext.quote.lineItems.length > 0)
@@ -966,23 +1032,28 @@ export function QuotesPage({
   const estimateConfidence = useMemo(() => {
     let score = 0;
     if (selectedProject) score += 15;
-    if (availableMeasurements.some((measurement) => measurement.billable && measurement.quantity > 0) || lineItems.length > 0) score += 20;
-    if (savedTemplates?.some((template) => template.active !== false)) score += 15;
-    if (materials.some((material) => material.name.trim() && parseAmount(material.quantity) > 0)) score += 10;
-    if (siteConditions.access) score += 10;
-    if (siteConditions.terrain) score += 5;
-    if (siteConditions.density) score += 10;
-    if (siteConditions.haulOff) score += 10;
-    if (siteConditions.timeline) score += 5;
-    return score;
-  }, [availableMeasurements, lineItems.length, materials, savedTemplates, selectedProject, siteConditions]);
+    if (detectedServices.length > 0) score += 10;
+    if (availableMeasurements.some((measurement) => measurement.billable && measurement.quantity > 0) || lineItems.length > 0) score += 25;
+    if (savedTemplates?.some((template) => template.active !== false)) score += 20;
+    if (materials.some((material) => material.name.trim() && parseAmount(material.quantity) > 0)) score += 5;
+    const questionScore = relevantQuestionCount === 0
+      ? 25
+      : Math.round((answeredRelevantQuestionCount / relevantQuestionCount) * 25);
+    return Math.min(100, score + questionScore);
+  }, [
+    answeredRelevantQuestionCount,
+    availableMeasurements,
+    detectedServices.length,
+    lineItems.length,
+    materials,
+    relevantQuestionCount,
+    savedTemplates,
+    selectedProject
+  ]);
   const estimateWarnings = useMemo(() => {
     const warnings: string[] = [];
     const hasMobilization = costLines.some(
       (line) => line.category === "mobilization" && parseAmount(line.amount) > 0
-    );
-    const hasFenceMeasurement = availableMeasurements.some(
-      (measurement) => measurement.billable && String(measurement.zoneType) === "Fence"
     );
     const hasSmallMeasurement = availableMeasurements.some((measurement) => {
       if (!measurement.billable || measurement.quantity <= 0) return false;
@@ -1010,8 +1081,7 @@ export function QuotesPage({
       warnings.push("Add a measurement or manual service line.");
     }
     if (!hasPricingDefaults) warnings.push("No pricing default found; verify each rate.");
-    if (!siteConditions.haulOff) warnings.push("Haul-off is not confirmed.");
-    if (hasFenceMeasurement && !siteConditions.fenceMaterial) warnings.push("Fence material is not selected.");
+    unansweredRelevantQuestions.slice(0, 3).forEach((item) => warnings.push(`${item.service}: ${item.question}`));
     if (!hasMobilization) warnings.push("No mobilization cost is included.");
     if (grandTotal > 0 && applicableMinimum > 0 && grandTotal < applicableMinimum) {
       warnings.push("Quote is below the saved minimum job charge.");
@@ -1027,8 +1097,7 @@ export function QuotesPage({
     lineItems,
     savedTemplates,
     selectedProject,
-    siteConditions.fenceMaterial,
-    siteConditions.haulOff
+    unansweredRelevantQuestions
   ]);
 
   function updateLineItem(id: string, patch: Partial<QuoteLineItem>) {
@@ -1087,15 +1156,25 @@ export function QuotesPage({
     markQuoteUnsaved();
   }
 
-  function answerGuidedQuestion(type: GuidedQuestionType, question: string, answer: string) {
-    updateSiteCondition(type, answer as SiteConditions[GuidedQuestionType]);
+  function answerServiceQuestion(service: EstimateServiceType, questionId: string, question: string, answer: string) {
+    const key = estimateQuestionKey(service, questionId);
+    setSiteConditions((conditions) => ({
+      ...conditions,
+      serviceAnswers: {
+        ...conditions.serviceAnswers,
+        [key]: answer
+      }
+    }));
+    markQuoteUnsaved();
     setAiSuggestion((current) => {
       if (!current) return current;
       return {
         ...current,
-        missingQuestions: current.missingQuestions.filter((item) => item !== question),
+        missingQuestions: current.missingQuestions.filter(
+          (item) => item.toLowerCase() !== question.toLowerCase() && !item.toLowerCase().includes(question.toLowerCase())
+        ),
         confidenceScore:
-          typeof current.confidenceScore === "number" ? Math.min(100, current.confidenceScore + 5) : current.confidenceScore
+          typeof current.confidenceScore === "number" ? Math.min(100, current.confidenceScore + 3) : current.confidenceScore
       };
     });
     setAiBuildState("idle");
@@ -1592,78 +1671,59 @@ export function QuotesPage({
               <div className="quote-ai-conditions">
                 <div className="quote-ai-section-heading">
                   <div>
-                    <span>Job Conditions</span>
-                    <strong>Confirm what changes production and price</strong>
+                    <span>Project Questions</span>
+                    <strong>Only questions relevant to the detected work</strong>
                   </div>
-                  <small>{completedConditionCount}/5 confirmed</small>
+                  <small>
+                    {relevantQuestionCount
+                      ? `${completedConditionCount}/${relevantQuestionCount} confirmed`
+                      : "No questions needed"}
+                  </small>
                 </div>
-                <div className="quote-condition-grid">
-                  <label>
-                    Access
-                    <select
-                      name="access"
-                      value={siteConditions.access}
-                      onChange={(event) => updateSiteCondition("access", event.target.value as SiteConditions["access"])}
-                    >
-                      <option value="">Not confirmed</option>
-                      <option>Easy</option>
-                      <option>Moderate</option>
-                      <option>Difficult</option>
-                    </select>
-                  </label>
-                  <label>
-                    Terrain
-                    <select
-                      name="terrain"
-                      value={siteConditions.terrain}
-                      onChange={(event) => updateSiteCondition("terrain", event.target.value as SiteConditions["terrain"])}
-                    >
-                      <option value="">Not confirmed</option>
-                      <option>Flat</option>
-                      <option>Sloped</option>
-                      <option>Rough</option>
-                    </select>
-                  </label>
-                  <label>
-                    Density
-                    <select
-                      name="density"
-                      value={siteConditions.density}
-                      onChange={(event) => updateSiteCondition("density", event.target.value as SiteConditions["density"])}
-                    >
-                      <option value="">Not confirmed</option>
-                      <option>Light</option>
-                      <option>Medium</option>
-                      <option>Heavy</option>
-                    </select>
-                  </label>
-                  <label>
-                    Haul-off
-                    <select
-                      name="haulOff"
-                      value={siteConditions.haulOff}
-                      onChange={(event) => updateSiteCondition("haulOff", event.target.value as SiteConditions["haulOff"])}
-                    >
-                      <option value="">Not confirmed</option>
-                      <option>None</option>
-                      <option>Partial</option>
-                      <option>Full</option>
-                    </select>
-                  </label>
-                  <label>
-                    Timeline
-                    <select
-                      name="timeline"
-                      value={siteConditions.timeline}
-                      onChange={(event) => updateSiteCondition("timeline", event.target.value as SiteConditions["timeline"])}
-                    >
-                      <option value="">Not confirmed</option>
-                      <option>Flexible</option>
-                      <option>Normal</option>
-                      <option>Rush</option>
-                    </select>
-                  </label>
-                </div>
+                {unansweredRelevantQuestions.length > 0 ? (
+                  <div className="quote-service-question-groups">
+                    {serviceQuestionGroups.filter((group) => group.unanswered.length > 0).map((group) => (
+                      <section className="quote-service-question-group" key={group.service}>
+                        <header>
+                          <strong>{group.service}</strong>
+                          <small>{group.unanswered.length} unanswered</small>
+                        </header>
+                        <div className="quote-guided-question-list">
+                          {group.unanswered.map((question) => {
+                            const answerKey = estimateQuestionKey(group.service, question.id);
+                            const currentAnswer = question.answer;
+                            return (
+                              <div className={`quote-guided-question${currentAnswer ? " answered" : ""}`} key={answerKey}>
+                                <p>{question.label}</p>
+                                <div>
+                                  {question.options.map((option) => (
+                                    <button
+                                      type="button"
+                                      className={currentAnswer === option ? "active" : ""}
+                                      key={option}
+                                      onClick={() => answerServiceQuestion(group.service, question.id, question.label, option)}
+                                    >
+                                      {option}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="quote-ai-empty-review">
+                    <strong>{detectedServices.length ? "No follow-up questions needed" : "No project type detected yet"}</strong>
+                    <p>
+                      {detectedServices.length
+                        ? "AcreX already has the relevant project details and can build a draft estimate."
+                        : "Add a service measurement or line item so AcreX can detect the project type."}
+                    </p>
+                  </div>
+                )}
                 <label className="quote-condition-notes">
                   Site notes
                   <textarea
@@ -1673,35 +1733,6 @@ export function QuotesPage({
                     onChange={(event) => updateSiteCondition("notes", event.target.value)}
                   />
                 </label>
-                {guidedQuestions.length > 0 ? (
-                  <div className="quote-guided-questions">
-                    <div className="quote-ai-section-heading">
-                      <div>
-                        <span>AI Follow-up</span>
-                        <strong>Answer the remaining estimate questions</strong>
-                      </div>
-                      <small>{guidedQuestions.length} remaining</small>
-                    </div>
-                    <div className="quote-guided-question-list">
-                      {guidedQuestions.map(({ type, question }) => (
-                        <div className="quote-guided-question" key={type}>
-                          <p>{question}</p>
-                          <div>
-                            {guidedQuestionOptions[type].map((option) => (
-                              <button
-                                type="button"
-                                key={option}
-                                onClick={() => answerGuidedQuestion(type, question, option)}
-                              >
-                                {option}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </div>
 
               <div className="quote-ai-composer">
@@ -1709,7 +1740,7 @@ export function QuotesPage({
                   <strong>{estimateContextReady ? "Estimate context assembled" : "Complete the estimate context"}</strong>
                   <p>
                     {estimateContextReady
-                      ? `${estimateContext.measurements.totals.validMeasurementCount} measurements, ${estimateContext.quote.lineItems.length} current lines, and ${completedConditionCount} confirmed job conditions are ready.`
+                      ? `${estimateContext.measurements.totals.validMeasurementCount} measurements, ${estimateContext.quote.lineItems.length} current lines, and ${completedConditionCount} of ${relevantQuestionCount} relevant questions are confirmed.`
                       : "Select a project and add a valid measurement or manual service line before building an estimate."}
                   </p>
                 </div>
