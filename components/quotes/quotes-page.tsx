@@ -536,7 +536,9 @@ export function QuotesPage({
   initialMeasurementId,
   errorMessage
 }: QuotesPageProps) {
-  const initialProject = projects.find((project) => project.id === initialProjectId) ?? projects[0] ?? null;
+  const initialProject = initialProjectId
+    ? projects.find((project) => project.id === initialProjectId) ?? null
+    : projects[0] ?? null;
   const initialSavedQuote = savedQuotes.find((quote) => quote.project_id === initialProject?.id) ?? null;
   const initialSavedPayload = parseSavedQuotePayload(initialSavedQuote);
   const autoAddedMeasurementRef = useRef<string | null>(null);
@@ -544,6 +546,10 @@ export function QuotesPage({
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId]
+  );
+  const availableSourceIds = useMemo(
+    () => new Set(getFeatureMeasurements(selectedProject).map((measurement) => measurement.sourceId)),
+    [selectedProject]
   );
   const projectClient = useMemo(
     () => clients.find((client) => client.id === selectedProject?.client_id) ?? null,
@@ -1689,7 +1695,10 @@ export function QuotesPage({
                     <div className="quote-editor-row quote-editor-line-grid" key={item.id}>
                       <input aria-label="Service name" value={item.serviceName} onChange={(event) => updateLineItem(item.id, { serviceName: event.target.value })} />
                       <input aria-label="Description" value={item.description} onChange={(event) => updateLineItem(item.id, { description: event.target.value })} />
-                      <span className="quote-source-measurement">{item.sourceMeasurement}</span>
+                      <span className={`quote-source-measurement${item.sourceId && !availableSourceIds.has(item.sourceId) ? " is-deleted" : ""}`}>
+                        {item.sourceMeasurement}
+                        {item.sourceId && !availableSourceIds.has(item.sourceId) ? " · Drawing deleted" : ""}
+                      </span>
                       <input aria-label="Quantity" value={item.quantity} inputMode="decimal" onChange={(event) => updateLineItem(item.id, { quantity: event.target.value })} />
                       <input aria-label="Unit" value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} />
                       <input aria-label="Rate" value={item.rate} inputMode="decimal" placeholder="0.00" onChange={(event) => updateLineItem(item.id, { rate: event.target.value })} />

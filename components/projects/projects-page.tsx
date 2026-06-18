@@ -5,7 +5,14 @@ import { useMemo, useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatAcres } from "@/lib/geo/format";
-import { defaultProjectTags, getGlobalStorageKey, readStoredValue, writeStoredValue, type ProjectTagStore } from "@/lib/projects/operations";
+import {
+  clearDeletedProjectLocalState,
+  defaultProjectTags,
+  getGlobalStorageKey,
+  readStoredValue,
+  writeStoredValue,
+  type ProjectTagStore
+} from "@/lib/projects/operations";
 import type { ClientRecord, InvoiceRecord, ProjectRecord, ProjectStatus, QuoteRecord, SavedProjectMapData } from "@/lib/projects/types";
 
 type ProjectsPageProps = {
@@ -141,7 +148,15 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
       return;
     }
 
-    setProjectRows((current) => current.filter((row) => row.id !== pendingDeleteProject.id));
+    const deletedProjectId = pendingDeleteProject.id;
+    setProjectRows((current) => current.filter((row) => row.id !== deletedProjectId));
+    setTagStore((current) => {
+      if (!Object.prototype.hasOwnProperty.call(current, deletedProjectId)) return current;
+      const next = { ...current };
+      delete next[deletedProjectId];
+      return next;
+    });
+    clearDeletedProjectLocalState(userEmail, deletedProjectId);
     setPendingDeleteProject(null);
     setMessage("Project deleted.");
   }

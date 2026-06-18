@@ -98,6 +98,51 @@ export function getGlobalStorageKey(userEmail: string, kind: string) {
   return `acrex:${kind}:${userEmail}`;
 }
 
+export function getDashboardDraftKey(userEmail: string) {
+  return `acrex-dashboard-draft:${userEmail}`;
+}
+
+export function clearDeletedProjectLocalState(userEmail: string, projectId: string) {
+  if (typeof window === "undefined") return;
+
+  const projectKeys = ["checklist", "notes", "activity", "snapshots"].map((kind) =>
+    getProjectStorageKey(userEmail, projectId, kind)
+  );
+  projectKeys.forEach((key) => {
+    window.localStorage.removeItem(key);
+    window.sessionStorage.removeItem(key);
+  });
+
+  const draftKey = getDashboardDraftKey(userEmail);
+  try {
+    const storedDraft = window.localStorage.getItem(draftKey);
+    if (storedDraft) {
+      const draft = JSON.parse(storedDraft) as { activeProjectId?: string | null };
+      if (draft.activeProjectId === projectId) {
+        window.localStorage.removeItem(draftKey);
+        window.sessionStorage.removeItem(draftKey);
+      }
+    }
+  } catch {
+    window.localStorage.removeItem(draftKey);
+    window.sessionStorage.removeItem(draftKey);
+  }
+
+  const tagKey = getGlobalStorageKey(userEmail, "project-tags");
+  try {
+    const storedTags = window.localStorage.getItem(tagKey);
+    if (storedTags) {
+      const tags = JSON.parse(storedTags) as ProjectTagStore;
+      if (Object.prototype.hasOwnProperty.call(tags, projectId)) {
+        delete tags[projectId];
+        window.localStorage.setItem(tagKey, JSON.stringify(tags));
+      }
+    }
+  } catch {
+    // Ignore malformed optional project metadata.
+  }
+}
+
 export function readStoredValue<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {

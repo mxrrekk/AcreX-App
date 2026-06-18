@@ -13,6 +13,7 @@ import type { ProjectMeasurements } from "@/lib/geo/measurements";
 import {
   createChecklistFromService,
   defaultProjectTags,
+  getDashboardDraftKey,
   getGlobalStorageKey,
   getProjectStorageKey,
   noteTypes,
@@ -99,10 +100,6 @@ const emptyProjectForm: ProjectFormState = {
 
 const projectStatuses: ProjectStatus[] = ["Draft", "Estimating", "Quoted", "Won", "Lost", "Completed", "Archived"];
 type DashboardPanelKey = "search" | "layers" | "measurements" | "quote" | "project" | "settings";
-
-function getDraftKey(userEmail: string) {
-  return `acrex-dashboard-draft:${userEmail}`;
-}
 
 function formatCurrency(value: number | null) {
   if (value === null || Number.isNaN(value)) return "$0.00";
@@ -374,6 +371,8 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const dashboardDrawerRef = useRef<HTMLElement | null>(null);
   const previousZoneSnapshotRef = useRef<string>("");
   const lastDraftJsonRef = useRef<string>("");
+  const drawingPersistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const loadedRequestedProjectIdRef = useRef<string | null>(null);
 
   const showToast = useCallback((message: string) => {
     const id = crypto.randomUUID();
@@ -626,7 +625,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     }
 
     try {
-      const storedDraft = window.localStorage.getItem(getDraftKey(userEmail));
+      const storedDraft = window.localStorage.getItem(getDashboardDraftKey(userEmail));
       if (!storedDraft) {
         setHasRestoredDraft(true);
         return;
@@ -659,13 +658,20 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
 
   useEffect(() => {
     if (!hasRestoredDraft) return;
-    const hasDraftContent = workZones.length > 0 || address !== "No address selected" || projectForm.projectName !== emptyProjectForm.projectName;
+    const hasDraftContent =
+      Boolean(activeProjectId) ||
+      workZones.length > 0 ||
+      address !== "No address selected" ||
+      projectForm.projectName !== emptyProjectForm.projectName;
     if (!hasDraftContent) return;
 
     const timeout = window.setTimeout(() => {
       const projectName = projectForm.projectName.trim() || "Untitled Project";
       const projectAddress = projectForm.address.trim() || address;
-      const mapData = workZones.length ? createSavedProjectMapData(workZones, projectForm.status, projectAddress, projectName) : draftMapData;
+      const mapData =
+        activeProjectId || workZones.length
+          ? createSavedProjectMapData(workZones, projectForm.status, projectAddress, projectName)
+          : draftMapData;
       const draft: DashboardDraft = {
         activeProjectId,
         address,
@@ -678,7 +684,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       const nextDraftJson = JSON.stringify(draft);
       if (nextDraftJson === lastDraftJsonRef.current) return;
 
-      window.localStorage.setItem(getDraftKey(userEmail), nextDraftJson);
+      window.localStorage.setItem(getDashboardDraftKey(userEmail), nextDraftJson);
       lastDraftJsonRef.current = nextDraftJson;
       setDraftSavedAt(draft.savedAt);
       showToast("✓ Draft Saved");
@@ -787,7 +793,8 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   }, [loadFinancialRecords]);
 
   useEffect(() => {
-    if (!requestedProjectId || !projects.length) return;
+    if (!requestedProjectId || isLoadingProjects || loadedRequestedProjectIdRef.current === requestedProjectId) return;
+    loadedRequestedProjectIdRef.current = requestedProjectId;
 
     const requestedProject = projects.find((project) => project.id === requestedProjectId);
     if (!requestedProject) return;
@@ -806,7 +813,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       status: getProjectStatus(requestedProject)
     });
     setProjectMessage("Project loaded.");
-  }, [projects, requestedProjectId]);
+  }, [isLoadingProjects, projects, requestedProjectId]);
 
   useEffect(() => {
     if (!requestedPanel) {
@@ -828,6 +835,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       if (dashboardDrawerRef.current?.contains(target)) return;
       if (target.closest(".dashboard-sidebar")) return;
       if (target.closest(".map-tool-controls")) return;
+      if (target.closest(".zone-editor")) return;
       setSelectedZones([]);
       setActivePanel(null);
     }
@@ -860,6 +868,113 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     setSelectedZones([]);
     setActivePanel(null);
   }, []);
+
+  const handleDrawingStateCommit = useCallback(
+    async (zones: WorkZone[], deletedZones: WorkZone[], reason: "delete" | "undo") => {
+      const currentProject = activeProjectId
+        ? projects.find((project) => project.id === activeProjectId) ?? null
+        : null;
+      if (activeProjectId && !currentProject) return false;
+
+      const projectName = projectForm.projectName.trim() || currentProject?.project_name || "Untitled Project";
+      const projectAddress = projectForm.address.trim() || address;
+      const mapData = createSavedProjectMapData(zones, projectForm.status, projectAddress, projectName);
+      const totals = sumSelectedMeasurements(zones);
+      if (currentProject) {
+        const optimisticProject: ProjectRecord = {
+          ...currentProject,
+          polygon_geojson: mapData,
+          acres: totals.acres,
+          square_feet: totals.squareFeet,
+          updated_at: new Date().toISOString()
+        };
+        setProjects((current) =>
+          current.map((project) => (project.id === currentProject.id ? optimisticProject : project))
+        );
+      }
+      setDraftMapData(mapData);
+
+      const draft: DashboardDraft = {
+        activeProjectId: currentProject?.id ?? null,
+        address,
+        addressDetails,
+        projectForm,
+        mapData,
+        measurements: zones.length ? totals : null,
+        savedAt: new Date().toISOString()
+      };
+      const draftJson = JSON.stringify(draft);
+      window.localStorage.setItem(getDashboardDraftKey(userEmail), draftJson);
+      lastDraftJsonRef.current = draftJson;
+      setDraftSavedAt(draft.savedAt);
+
+      if (!currentProject) return true;
+
+      let persisted = true;
+      const operation = async () => {
+        const supabase = createSupabaseBrowserClient();
+        if (!supabase) {
+          persisted = false;
+          return;
+        }
+        const currentUserId = await getCurrentUserId(supabase);
+        if (!currentUserId) {
+          persisted = false;
+          return;
+        }
+        const { error } = await supabase
+          .from("projects")
+          .update({
+            polygon_geojson: mapData,
+            acres: totals.acres,
+            square_feet: totals.squareFeet,
+            estimated_total: zones.length ? calculateProjectEstimate(zones, serviceTemplates, profitInputs).estimatedRevenue : 0
+          })
+          .eq("id", currentProject.id)
+          .eq("user_id", currentUserId);
+        if (error) persisted = false;
+      };
+
+      const queuedOperation = drawingPersistenceQueueRef.current.then(operation, operation);
+      drawingPersistenceQueueRef.current = queuedOperation.then(() => undefined, () => undefined);
+      await queuedOperation;
+
+      if (!persisted) {
+        setProjects((current) =>
+          current.map((project) => (project.id === currentProject.id ? currentProject : project))
+        );
+        setDraftMapData(currentProject.polygon_geojson);
+        setProjectMessage("Save Failed: drawing changes could not be saved. The prior drawing state was restored.");
+        return false;
+      }
+
+      setProjectMessage(reason === "delete" ? "Drawing deleted" : "Drawing restored");
+      addActivity(
+        reason === "delete" ? "Drawing deleted" : "Drawing restored",
+        reason === "delete"
+          ? `${deletedZones.length || 1} drawing${deletedZones.length === 1 ? "" : "s"} removed from ${projectName}.`
+          : `A recently deleted drawing was restored to ${projectName}.`,
+        "Map"
+      );
+      window.setTimeout(() => {
+        setProjectMessage((current) =>
+          current === "Drawing deleted" || current === "Drawing restored" ? null : current
+        );
+      }, 3200);
+      return true;
+    },
+    [
+      activeProjectId,
+      addActivity,
+      address,
+      addressDetails,
+      profitInputs,
+      projectForm,
+      projects,
+      serviceTemplates,
+      userEmail
+    ]
+  );
 
   function handleNewProject() {
     setActiveProjectId(null);
@@ -1129,6 +1244,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
               onMeasurementsChange={setMeasurements}
               onPolygonChange={setPolygon}
               onZonesChange={setWorkZones}
+              onDrawingStateCommit={handleDrawingStateCommit}
               onSelectedZonesChange={handleSelectedZonesChange}
               onParcelLookupChange={setParcelLookup}
               onToolPanelChange={handleMapToolPanelChange}

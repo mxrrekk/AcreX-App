@@ -4559,6 +4559,27 @@ img {
   backdrop-filter: blur(16px);
 }
 
+.dashboard-toast.has-action {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+.dashboard-toast.has-action button {
+  border: 0;
+  color: #9be978;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.quote-source-measurement.is-deleted {
+  color: #d49b8e;
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;

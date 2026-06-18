@@ -17,6 +17,11 @@ type AcrexMapProps = {
   onAddressChange: (address: string) => void;
   onPolygonChange?: (polygon: Feature<Polygon> | null) => void;
   onZonesChange?: (zones: WorkZone[]) => void;
+  onDrawingStateCommit?: (
+    zones: WorkZone[],
+    deletedZones: WorkZone[],
+    reason: "delete" | "undo"
+  ) => boolean | Promise<boolean>;
   onSelectedZonesChange?: (zones: WorkZone[]) => void;
   onAddressDetailsChange?: (details: AddressDetails | null) => void;
   onParcelLookupChange?: (lookup: ParcelLookupState) => void;
@@ -377,6 +382,7 @@ export function AcrexMap({
   onAddressChange,
   onPolygonChange,
   onZonesChange,
+  onDrawingStateCommit,
   onSelectedZonesChange,
   onAddressDetailsChange,
   onParcelLookupChange,
@@ -418,7 +424,8 @@ export function AcrexMap({
   const spaceRestoreModeRef = useRef<DrawMode | null>(null);
   const measurePointsRef = useRef<[number, number][]>([]);
   const circleCenterRef = useRef<[number, number] | null>(null);
-  const refreshZonesRef = useRef<() => void>(() => undefined);
+  const refreshZonesRef = useRef<() => WorkZone[]>(() => []);
+  const onDrawingStateCommitRef = useRef(onDrawingStateCommit);
   const loadedProjectKeyRef = useRef<string | null | undefined>(undefined);
   const selectedParcelRef = useRef<ParcelBoundaryFeature | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -440,6 +447,8 @@ export function AcrexMap({
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [savePill, setSavePill] = useState<{ id: string; message: string; color: string; type: ZoneType } | null>(null);
+  const [drawingDeleteNotice, setDrawingDeleteNotice] = useState<{ count: number; snapshot: DrawSnapshot } | null>(null);
+  const drawingDeleteNoticeRef = useRef<{ count: number; snapshot: DrawSnapshot } | null>(null);
   const [customDrawColor, setCustomDrawColor] = useState(zoneColors.Custom);
   const [renamingExplorerZoneId, setRenamingExplorerZoneId] = useState<string | null>(null);
   const [changingExplorerZoneId, setChangingExplorerZoneId] = useState<string | null>(null);
@@ -451,10 +460,11 @@ export function AcrexMap({
     onAddressChangeRef.current = onAddressChange;
     onPolygonChangeRef.current = onPolygonChange;
     onZonesChangeRef.current = onZonesChange;
+    onDrawingStateCommitRef.current = onDrawingStateCommit;
     onSelectedZonesChangeRef.current = onSelectedZonesChange;
     onAddressDetailsChangeRef.current = onAddressDetailsChange;
     onParcelLookupChangeRef.current = onParcelLookupChange;
-  }, [onMeasurementsChange, onAddressChange, onPolygonChange, onZonesChange, onSelectedZonesChange, onAddressDetailsChange, onParcelLookupChange]);
+  }, [onMeasurementsChange, onAddressChange, onPolygonChange, onZonesChange, onDrawingStateCommit, onSelectedZonesChange, onAddressDetailsChange, onParcelLookupChange]);
 
   useEffect(() => {
     activeZoneTypeRef.current = activeZoneType;
@@ -521,7 +531,7 @@ export function AcrexMap({
     setHistoryState();
   }
 
-  function applySnapshot(snapshot: DrawSnapshot) {
+  function applySnapshot(snapshot: DrawSnapshot, commitReason?: "undo") {
     const draw = drawRef.current;
     if (!draw) return;
 
@@ -534,7 +544,10 @@ export function AcrexMap({
     selectedZoneIdsRef.current = [];
     setSelectedZoneIds([]);
     onSelectedZonesChangeRef.current?.([]);
-    refreshZonesRef.current();
+    const zones = refreshZonesRef.current();
+    if (commitReason) {
+      void onDrawingStateCommitRef.current?.(zones, [], commitReason);
+    }
   }
 
   function undoDrawChange() {
@@ -543,7 +556,9 @@ export function AcrexMap({
     const previous = historyRef.current[historyRef.current.length - 2];
     redoRef.current = [current, ...redoRef.current].slice(0, 60);
     historyRef.current = historyRef.current.slice(0, -1);
-    applySnapshot(previous);
+    drawingDeleteNoticeRef.current = null;
+    setDrawingDeleteNotice(null);
+    applySnapshot(previous, "undo");
     setHistoryState();
   }
 
@@ -552,8 +567,61 @@ export function AcrexMap({
     if (!next) return;
     redoRef.current = redoRef.current.slice(1);
     historyRef.current = [...historyRef.current, next].slice(-60);
-    applySnapshot(next);
+    drawingDeleteNoticeRef.current = null;
+    setDrawingDeleteNotice(null);
+    applySnapshot(next, "undo");
     setHistoryState();
+  }
+
+  function restoreDeletedDrawing() {
+    if (!drawingDeleteNotice) return;
+    const snapshot = drawingDeleteNotice.snapshot;
+    drawingDeleteNoticeRef.current = null;
+    setDrawingDeleteNotice(null);
+    historyRef.current = [...historyRef.current, snapshot].slice(-60);
+    redoRef.current = [];
+    applySnapshot(snapshot, "undo");
+    setHistoryState();
+  }
+
+  function commitDrawingDeletion(deletedZones: WorkZone[], previousSnapshot: DrawSnapshot) {
+    const zones = refreshZonesRef.current();
+    pushHistorySnapshot();
+    const notice = {
+      count: Math.max(deletedZones.length, 1),
+      snapshot: previousSnapshot
+    };
+    drawingDeleteNoticeRef.current = notice;
+    setDrawingDeleteNotice(notice);
+    void Promise.resolve(onDrawingStateCommitRef.current?.(zones, deletedZones, "delete") ?? true).then((saved) => {
+      if (saved) return;
+      drawingDeleteNoticeRef.current = null;
+      setDrawingDeleteNotice(null);
+      historyRef.current = [...historyRef.current, previousSnapshot].slice(-60);
+      applySnapshot(previousSnapshot, "undo");
+      setHistoryState();
+    });
+  }
+
+  useEffect(() => {
+    if (!drawingDeleteNotice) return;
+    const timeout = window.setTimeout(() => {
+      drawingDeleteNoticeRef.current = null;
+      setDrawingDeleteNotice(null);
+      const features = drawRef.current?.getAll().features.filter(isDrawShapeFeature) ?? [];
+      historyRef.current = [createSnapshot(features)];
+      redoRef.current = [];
+      setCanUndo(false);
+      setCanRedo(false);
+    }, 6500);
+    return () => window.clearTimeout(timeout);
+  }, [drawingDeleteNotice]);
+
+  function sealExpiredDrawingDeletion() {
+    if (!drawingDeleteNoticeRef.current) return;
+    drawingDeleteNoticeRef.current = null;
+    setDrawingDeleteNotice(null);
+    resetHistory(getCurrentSnapshot());
   }
 
   function updateLinearMeasurement(points: [number, number][], previewPoint?: [number, number]) {
@@ -1102,7 +1170,7 @@ export function AcrexMap({
         });
       };
 
-      const updateMeasurements = () => {
+      const updateMeasurements = (): WorkZone[] => {
         const shapes = draw.getAll().features.filter(isDrawShapeFeature);
 
         if (!shapes.length) {
@@ -1116,7 +1184,7 @@ export function AcrexMap({
           setHasPolygon(false);
           selectedZoneIdsRef.current = [];
           setSelectedZoneIds([]);
-          return;
+          return [];
         }
 
         const primaryPolygon = shapes.find((feature): feature is Feature<Polygon, DrawFeatureProperties> => feature.geometry.type === "Polygon") ?? null;
@@ -1208,11 +1276,13 @@ export function AcrexMap({
         selectedZoneIdsRef.current = nextIds;
         setSelectedZoneIds(nextIds);
         onSelectedZonesChangeRef.current?.(zones.filter((zone) => nextIds.includes(zone.id)));
+        return zones;
       };
 
       refreshZonesRef.current = updateMeasurements;
 
       const handleDrawCreate = (event: { features: GeoJSON.Feature[] }) => {
+        sealExpiredDrawingDeletion();
         assignZoneDefaults(event.features);
         updateMeasurements();
         pushHistorySnapshot();
@@ -1238,15 +1308,25 @@ export function AcrexMap({
       };
 
       const handleDrawUpdate = (event: { features: GeoJSON.Feature[] }) => {
+        sealExpiredDrawingDeletion();
         if (restoreLockedFeatures(event.features)) return;
         updateMeasurements();
         pushHistorySnapshot();
       };
 
-      const handleDrawDelete = () => {
+      const handleDrawDelete = (event: { features: GeoJSON.Feature[] }) => {
         if (isApplyingHistoryRef.current) return;
+        const deletedFeatures = event.features.filter(isDrawShapeFeature);
+        const deletedIds = new Set(
+          deletedFeatures
+            .map((feature) => (feature.id ? String(feature.id) : ""))
+            .filter(Boolean)
+        );
+        const deletedZones = workZonesRef.current.filter((zone) => deletedIds.has(zone.id));
+        const remainingFeatures = draw.getAll().features.filter(isDrawShapeFeature);
+        const previousSnapshot = createSnapshot([...remainingFeatures, ...deletedFeatures]);
         updateMeasurements();
-        pushHistorySnapshot();
+        commitDrawingDeletion(deletedZones, previousSnapshot);
       };
 
       const handleSelectionChange = (event: { features: GeoJSON.Feature[] }) => {
@@ -1369,7 +1449,7 @@ export function AcrexMap({
         }
         drawRef.current = null;
         mapRef.current = null;
-        refreshZonesRef.current = () => undefined;
+        refreshZonesRef.current = () => [];
         setMapReady(false);
         map.remove();
       };
@@ -1587,17 +1667,21 @@ export function AcrexMap({
     if (!draw) return;
 
     const selectedFeatures = draw.getSelected().features.filter((feature) => !((feature.properties ?? {}) as DrawFeatureProperties).zoneLocked);
-    if (selectedFeatures.length) {
-      draw.trash();
-    } else {
-      const unlocked = draw.getAll().features.filter((feature) => !((feature.properties ?? {}) as DrawFeatureProperties).zoneLocked);
-      unlocked.forEach((feature) => {
-        if (feature.id) draw.delete(String(feature.id));
-      });
-    }
+    const featuresToDelete = selectedFeatures.length
+      ? selectedFeatures
+      : draw.getAll().features.filter((feature) => !((feature.properties ?? {}) as DrawFeatureProperties).zoneLocked);
+    if (!featuresToDelete.length) return;
+    const deletedIds = new Set(featuresToDelete.map((feature) => (feature.id ? String(feature.id) : "")).filter(Boolean));
+    const deletedZones = workZonesRef.current.filter((zone) => deletedIds.has(zone.id));
+    const previousSnapshot = getCurrentSnapshot();
+    isApplyingHistoryRef.current = true;
+    featuresToDelete.forEach((feature) => {
+      if (feature.id) draw.delete(String(feature.id));
+    });
+    isApplyingHistoryRef.current = false;
+    commitDrawingDeletion(deletedZones, previousSnapshot);
 
     setActiveMode("select");
-    refreshZonesRef.current();
   }
 
   function clearSelectedZone() {
@@ -1669,12 +1753,14 @@ export function AcrexMap({
   function deleteExplorerZone(zone: WorkZone) {
     const draw = drawRef.current;
     if (!draw || zone.locked) return;
+    const previousSnapshot = getCurrentSnapshot();
+    isApplyingHistoryRef.current = true;
     draw.delete(zone.id);
+    isApplyingHistoryRef.current = false;
     if (selectedZoneIdsRef.current.includes(zone.id)) {
       clearSelectedZone();
     }
-    refreshZonesRef.current();
-    pushHistorySnapshot();
+    commitDrawingDeletion([zone], previousSnapshot);
   }
 
   function resetView() {
@@ -2136,6 +2222,14 @@ export function AcrexMap({
 
   return (
     <>
+      {drawingDeleteNotice ? (
+        <div className="toast-stack" aria-live="polite">
+          <div className="dashboard-toast has-action">
+            <span>{drawingDeleteNotice.count === 1 ? "Drawing deleted" : `${drawingDeleteNotice.count} drawings deleted`}</span>
+            <button type="button" onClick={restoreDeletedDrawing}>Undo</button>
+          </div>
+        </div>
+      ) : null}
       {!searchMountId ? <div className="map-search-bar" ref={searchContainerRef} /> : null}
       <div className="map-tool-controls" ref={mapControlsRef}>
         <div className="draw-toolbar" aria-label="Drawing toolbar">
