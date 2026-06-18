@@ -39,7 +39,7 @@ import {
   type ProfitInputs,
   type ServiceTemplate
 } from "@/lib/projects/pricing";
-import type { ClientRecord, InvoiceRecord, ProjectFormState, ProjectRecord, ProjectStatus, QuoteRecord, SavedProjectMapData, WorkZone, ZoneType } from "@/lib/projects/types";
+import type { ClientRecord, InvoiceRecord, ProjectFormState, ProjectRecord, ProjectStatus, QuoteItemRecord, QuoteRecord, SavedProjectMapData, WorkZone, ZoneType } from "@/lib/projects/types";
 import { zoneColors, zoneLabels } from "@/lib/projects/zones";
 
 type DashboardShellProps = {
@@ -183,6 +183,10 @@ function getInvoiceStatusForProject(projectId: string | null, invoices: InvoiceR
   return invoices.find((invoice) => invoice.project_id === projectId)?.status ?? "Not Created";
 }
 
+function normalizeQuoteItem(row: unknown): QuoteItemRecord {
+  return row as QuoteItemRecord;
+}
+
 function getCalculatorResult(type: string, measurements: ProjectMeasurements | null) {
   const acres = measurements?.acres ?? 0;
   const squareFeet = measurements?.squareFeet ?? 0;
@@ -317,6 +321,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [quotes, setQuotes] = useState<QuoteRecord[]>([]);
+  const [quoteItems, setQuoteItems] = useState<QuoteItemRecord[]>([]);
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
@@ -325,6 +330,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const [isSavingProject, setIsSavingProject] = useState(false);
   const [projectMessage, setProjectMessage] = useState<string | null>(null);
   const [mapResetKey, setMapResetKey] = useState(0);
+  const [explorerRequest, setExplorerRequest] = useState<{ id: number; type: ZoneType | null }>({ id: 0, type: null });
   const [activePanel, setActivePanel] = useState<DashboardPanelKey | null>(null);
   const [workZones, setWorkZones] = useState<WorkZone[]>([]);
   const [selectedZones, setSelectedZones] = useState<WorkZone[]>([]);
@@ -448,6 +454,56 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     { label: "Excluded total", value: excludedAcres ? `${formatAcres(excludedAcres)} ac` : "--" },
     { label: "Net billable total", value: netBillableAcres ? `${formatAcres(netBillableAcres)} ac` : "--" }
   ];
+  const mapSummaryGroups: Array<{ label: string; value: string; type: ZoneType; count: number }> = [
+    {
+      label: "Parcel",
+      value: summaryRows[0].value,
+      type: "Property",
+      count: workZones.filter((zone) => zone.type === "Property").length
+    },
+    {
+      label: "Brush",
+      value: brushAcres ? `${formatAcres(brushAcres)} ac` : "--",
+      type: "Brush",
+      count: workZones.filter((zone) => zone.type === "Brush").length
+    },
+    {
+      label: "Grass",
+      value: grassAcres ? `${formatAcres(grassAcres)} ac` : "--",
+      type: "Grass",
+      count: workZones.filter((zone) => zone.type === "Grass").length
+    },
+    {
+      label: "Woods",
+      value: woodsAcres ? `${formatAcres(woodsAcres)} ac` : "--",
+      type: "Woods",
+      count: workZones.filter((zone) => zone.type === "Woods").length
+    },
+    {
+      label: "Fence",
+      value: fenceLinearFt ? `${formatFeet(fenceLinearFt)} ft` : "--",
+      type: "Fence",
+      count: workZones.filter((zone) => zone.type === "Fence").length
+    },
+    {
+      label: "Driveway",
+      value: summaryRows[4].value,
+      type: "Driveway",
+      count: workZones.filter((zone) => zone.type === "Driveway").length
+    },
+    {
+      label: "House Pad",
+      value: summaryRows[5].value,
+      type: "HousePad",
+      count: workZones.filter((zone) => zone.type === "HousePad" || zone.type === "Building").length
+    },
+    {
+      label: "Exclusions",
+      value: excludedAcres ? `${formatAcres(excludedAcres)} ac` : "--",
+      type: "Excluded",
+      count: workZones.filter((zone) => zone.type === "Excluded").length
+    }
+  ];
   const estimateLines = useMemo<ServiceEstimateLine[]>(() => {
     return workZones
       .filter((zone) => !["Excluded", "Building"].includes(zone.type))
@@ -472,6 +528,13 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const activeProjectTags = activeProjectId ? tagStore[activeProjectId] ?? [] : [];
   const quoteStatus = getQuoteStatusForProject(activeProjectId, quotes);
   const invoiceStatus = getInvoiceStatusForProject(activeProjectId, invoices);
+  const quotedZoneNames = useMemo(() => {
+    if (!activeProjectId) return [];
+    const projectQuoteIds = new Set(quotes.filter((quote) => quote.project_id === activeProjectId).map((quote) => quote.id));
+    return quoteItems
+      .filter((item) => projectQuoteIds.has(item.quote_id) && item.zone_name)
+      .map((item) => item.zone_name as string);
+  }, [activeProjectId, quoteItems, quotes]);
   const dashboardMetrics = useMemo(() => {
     const now = new Date();
     const thisMonthProjects = projects.filter((project) => {
@@ -759,7 +822,14 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       supabase.from("invoices").select("*").eq("user_id", currentUserId).order("updated_at", { ascending: false })
     ]);
 
-    setQuotes((quoteRows ?? []).map(normalizeQuote));
+    const normalizedQuotes = (quoteRows ?? []).map(normalizeQuote);
+    const quoteIds = normalizedQuotes.map((quote) => quote.id);
+    const quoteItemRows = quoteIds.length
+      ? await supabase.from("quote_items").select("*").eq("user_id", currentUserId).in("quote_id", quoteIds)
+      : { data: [] };
+
+    setQuotes(normalizedQuotes);
+    setQuoteItems((quoteItemRows.data ?? []).map(normalizeQuoteItem));
     setInvoices((invoiceRows ?? []).map(normalizeInvoice));
   }, []);
 
@@ -836,11 +906,20 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     });
   }, []);
 
-  const handleMapToolPanelChange = useCallback((panel: "draw" | "layers" | null) => {
+  const handleMapToolPanelChange = useCallback((panel: "draw" | "layers" | "explorer" | null) => {
     if (!panel) return;
     setSelectedZones([]);
     setActivePanel(null);
   }, []);
+
+  function openProjectExplorer(type: ZoneType | null = null) {
+    setSelectedZones([]);
+    setActivePanel(null);
+    setExplorerRequest((current) => ({
+      id: current.id + 1,
+      type
+    }));
+  }
 
   function handleNewProject() {
     setActiveProjectId(null);
@@ -1099,28 +1178,44 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
 
         <section className="dashboard-main">
           <section className="dashboard-map-panel">
-            <div className="map-measurement-summary" aria-label="Measurement summary">
-              <span>Measurements</span>
-              {workZones.length || measurements ? (
-                <>
-                  <strong>{workZones.length} saved</strong>
-                  <div className="map-measurement-summary-grid">
-                    <small>Parcel <b>{summaryRows[0].value}</b></small>
-                    <small>Brush <b>{brushAcres ? `${formatAcres(brushAcres)} ac` : "--"}</b></small>
-                    <small>Grass <b>{grassAcres ? `${formatAcres(grassAcres)} ac` : "--"}</b></small>
-                    <small>Woods <b>{woodsAcres ? `${formatAcres(woodsAcres)} ac` : "--"}</b></small>
-                    <small>Fence <b>{fenceLinearFt ? `${formatFeet(fenceLinearFt)} ft` : "--"}</b></small>
-                    <small>Driveway <b>{summaryRows[4].value}</b></small>
-                    <small>House Pad <b>{summaryRows[5].value}</b></small>
-                  </div>
-                </>
-              ) : (
-                <p>No measurements yet. Tap Draw to start.</p>
-              )}
-              <Link href="/dashboard?panel=measurements">Open Drawings</Link>
-            </div>
+            {!selectedZones.length ? (
+              <div className="map-measurement-summary" aria-label="Measurement summary">
+                <span>Measurements</span>
+                {workZones.length || measurements ? (
+                  <>
+                    <strong>{workZones.length} saved</strong>
+                    <div className="map-measurement-summary-grid">
+                      {mapSummaryGroups.map((group) => (
+                        <div className="map-measurement-summary-row" key={group.label}>
+                          <small>
+                            {group.label} <b>{group.value}</b>
+                          </small>
+                          {group.count ? (
+                            <button type="button" onClick={() => openProjectExplorer(group.type)}>
+                              View
+                            </button>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p>No measurements yet. Tap Draw to start.</p>
+                )}
+                <div className="map-measurement-summary-actions">
+                  <button type="button" onClick={() => openProjectExplorer(null)}>
+                    Open Drawings
+                  </button>
+                  <Link href={`/quotes${activeProjectId ? `?project=${activeProjectId}` : ""}`}>Open Quote</Link>
+                </div>
+              </div>
+            ) : null}
             <AcrexMap
               activeProjectId={activeProjectId}
+              activeProjectName={activeProject?.project_name ?? projectForm.projectName}
+              quotedZoneNames={quotedZoneNames}
+              onSaveProject={handleSaveProject}
+              isSavingProject={isSavingProject}
               resetKey={mapResetKey}
               initialAddress={activeProject?.address ?? null}
               initialPolygon={activeProject?.polygon_geojson ?? draftMapData}
@@ -1132,6 +1227,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
               onSelectedZonesChange={handleSelectedZonesChange}
               onParcelLookupChange={setParcelLookup}
               onToolPanelChange={handleMapToolPanelChange}
+              explorerRequest={explorerRequest}
               searchMountId="dashboard-search-mount"
               useParcelRequestKey={useParcelRequestKey}
             />

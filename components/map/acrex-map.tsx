@@ -21,12 +21,20 @@ type AcrexMapProps = {
   onAddressDetailsChange?: (details: AddressDetails | null) => void;
   onParcelLookupChange?: (lookup: ParcelLookupState) => void;
   activeProjectId?: string | null;
+  activeProjectName?: string | null;
+  quotedZoneNames?: string[];
+  onSaveProject?: () => void | Promise<void>;
+  isSavingProject?: boolean;
   resetKey?: number;
   initialPolygon?: SavedProjectMapData | null;
   initialAddress?: string | null;
   searchMountId?: string;
   useParcelRequestKey?: number;
   onToolPanelChange?: (panel: ActiveMapPanel) => void;
+  explorerRequest?: {
+    id: number;
+    type: ZoneType | null;
+  };
 };
 
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -82,7 +90,7 @@ type RecentSearch = AddressDetails & {
 };
 
 type LayerVisibility = Record<ZoneType, boolean>;
-type ActiveMapPanel = "draw" | "layers" | null;
+type ActiveMapPanel = "draw" | "layers" | "explorer" | null;
 
 type DrawShapeFeature = Feature<Polygon | LineString, DrawFeatureProperties>;
 type DrawSnapshot = FeatureCollection<Polygon | LineString, DrawFeatureProperties>;
@@ -99,6 +107,19 @@ type CircleMeasurement = {
 };
 
 const recentSearchesKey = "acrex-recent-searches";
+const explorerGroupOrder: ZoneType[] = ["Grass", "Brush", "Woods", "Fence", "Driveway", "HousePad", "Excluded", "Custom", "Property", "Building"];
+const explorerGroupLabels: Partial<Record<ZoneType, string>> = {
+  Grass: "Grass / Mowing",
+  Brush: "Brush Clearing",
+  Woods: "Woods / Timber",
+  Fence: "Fence",
+  Driveway: "Driveway",
+  HousePad: "House Pad",
+  Excluded: "Exclusion",
+  Custom: "Custom",
+  Property: "Property",
+  Building: "Building"
+};
 const emptyFeatureCollection: FeatureCollection = {
   type: "FeatureCollection",
   features: []
@@ -182,8 +203,9 @@ function getZoneDefaults(type: ZoneType, index: number) {
 }
 
 function getServiceDefaults(serviceType: ActiveServiceType, index: number) {
+  const geometryLabel = serviceType.geometry === "line" ? "Line" : "Area";
   return {
-    name: serviceType.zoneType === "Custom" ? `Custom Zone ${index}` : `${serviceType.shortLabel} ${index}`,
+    name: `${serviceType.shortLabel} ${geometryLabel} ${index}`,
     type: serviceType.zoneType,
     notes: ""
   };
@@ -214,6 +236,16 @@ function formatShapeMeasurement(zone: WorkZone) {
     return `${formatSquareFeet(zone.squareFeet)} sq ft`;
   }
   return `${formatAcres(zone.acres)} ac`;
+}
+
+function formatSavedShapeMeasurement(zone: WorkZone) {
+  if (zone.geometryType === "line" || zone.type === "Fence") {
+    return `${formatFeet(zone.lengthFt ?? zone.perimeterFeet)} linear ft`;
+  }
+  if ((zone.defaultRateType === "per_sq_ft" || zone.type === "Driveway" || zone.type === "HousePad" || zone.type === "Building") && zone.squareFeet > 0) {
+    return `${formatSquareFeet(zone.squareFeet)} sq ft`;
+  }
+  return `${formatAcres(zone.acres)} acres`;
 }
 
 function getFeatureCoordinates(feature: DrawShapeFeature): [number, number][] {
@@ -349,16 +381,22 @@ export function AcrexMap({
   onAddressDetailsChange,
   onParcelLookupChange,
   activeProjectId,
+  activeProjectName,
+  quotedZoneNames = [],
+  onSaveProject,
+  isSavingProject = false,
   resetKey = 0,
   initialPolygon,
   initialAddress,
   searchMountId,
   useParcelRequestKey = 0,
-  onToolPanelChange
+  onToolPanelChange,
+  explorerRequest
 }: AcrexMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
   const mapControlsRef = useRef<HTMLDivElement | null>(null);
+  const selectedZoneNameInputRef = useRef<HTMLInputElement | null>(null);
   const drawRef = useRef<MapboxDraw | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const onMeasurementsChangeRef = useRef(onMeasurementsChange);
@@ -401,7 +439,11 @@ export function AcrexMap({
   const [, setCircleMeasurement] = useState<CircleMeasurement | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
-  const [savePill, setSavePill] = useState<{ id: string; message: string; color: string } | null>(null);
+  const [savePill, setSavePill] = useState<{ id: string; message: string; color: string; type: ZoneType } | null>(null);
+  const [customDrawColor, setCustomDrawColor] = useState(zoneColors.Custom);
+  const [renamingExplorerZoneId, setRenamingExplorerZoneId] = useState<string | null>(null);
+  const [changingExplorerZoneId, setChangingExplorerZoneId] = useState<string | null>(null);
+  const [explorerFilter, setExplorerFilter] = useState<ZoneType | null>(null);
   const selectedZoneIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -440,6 +482,17 @@ export function AcrexMap({
 
   const selectedZones = workZones.filter((zone) => selectedZoneIds.includes(zone.id));
   const selectedZone = selectedZones.length === 1 ? selectedZones[0] : null;
+  const selectedZoneQuoted = selectedZone ? quotedZoneNames.includes(selectedZone.name) : false;
+  const allExplorerGroups = explorerGroupOrder
+    .map((type) => ({
+      type,
+      label: explorerGroupLabels[type] ?? zoneLabels[type],
+      zones: workZones.filter((zone) => zone.type === type)
+    }))
+    .filter((group) => group.zones.length > 0);
+  const explorerGroups = explorerFilter
+    ? allExplorerGroups.filter((group) => group.type === explorerFilter || (explorerFilter === "HousePad" && group.type === "Building"))
+    : allExplorerGroups;
 
   function setHistoryState() {
     setCanUndo(historyRef.current.length > 1);
@@ -1013,8 +1066,15 @@ export function AcrexMap({
 
       const assignZoneDefaults = (features: GeoJSON.Feature[]) => {
         const createdFeatures = features.filter(isDrawShapeFeature);
-        const existingCount = Math.max(0, draw.getAll().features.filter(isDrawShapeFeature).length - createdFeatures.length);
         const serviceType = activeServiceTypeRef.current;
+        const existingCount = draw
+          .getAll()
+          .features.filter(isDrawShapeFeature)
+          .filter((feature) => !createdFeatures.some((created) => created.id === feature.id))
+          .filter((feature) => {
+            const properties = (feature.properties ?? {}) as DrawFeatureProperties;
+            return properties.serviceTypeId === serviceType.id || properties.zoneType === serviceType.zoneType;
+          }).length;
         createdFeatures.forEach((feature, featureIndex) => {
           if (!feature.id) return;
           const properties = (feature.properties ?? {}) as DrawFeatureProperties;
@@ -1166,12 +1226,13 @@ export function AcrexMap({
         if (createdZone) {
           setSavePill({
             id: createdZone.id,
-            message: `${createdZone.name} saved • ${formatShapeMeasurement(createdZone)}`,
-            color: createdZone.color ?? zoneColors[createdZone.type]
+            message: `${createdZone.name} saved • ${formatSavedShapeMeasurement(createdZone)}`,
+            color: createdZone.color ?? zoneColors[createdZone.type],
+            type: createdZone.type
           });
           window.setTimeout(() => {
             setSavePill((current) => (current?.id === createdZone.id ? null : current));
-          }, 5200);
+          }, 8000);
         }
         setActiveMode("select");
       };
@@ -1265,7 +1326,8 @@ export function AcrexMap({
           setSavePill({
             id: circleId,
             message: `${serviceType.shortLabel} Circle saved`,
-            color: serviceType.color
+            color: serviceType.color,
+            type: serviceType.zoneType
           });
           setActiveMode("select");
         }
@@ -1546,6 +1608,72 @@ export function AcrexMap({
     draw?.changeMode("simple_select", { featureIds: [] });
   }
 
+  function selectExplorerZone(zone: WorkZone, zoomToZone = false) {
+    const draw = drawRef.current;
+    if (!draw) return;
+
+    draw.changeMode("simple_select", { featureIds: [zone.id] });
+    const nextIds = [zone.id];
+    selectedZoneIdsRef.current = nextIds;
+    setSelectedZoneIds(nextIds);
+    onSelectedZonesChangeRef.current?.([zone]);
+    setActiveMode("select");
+
+    if (zoomToZone && mapRef.current) {
+      fitMapToFeatures(mapRef.current, [zone.feature as DrawShapeFeature]);
+    }
+  }
+
+  function updateExplorerZoneName(zone: WorkZone, value: string) {
+    const draw = drawRef.current;
+    if (!draw || zone.locked) return;
+    draw.setFeatureProperty(zone.id, "zoneName", value);
+    refreshZonesRef.current();
+    pushHistorySnapshot();
+  }
+
+  function changeExplorerZoneType(zone: WorkZone, serviceTypeId: string) {
+    const draw = drawRef.current;
+    if (!draw || zone.locked) return;
+    const serviceType = getServiceTypeById(serviceTypeId);
+
+    draw.setFeatureProperty(zone.id, "zoneType", serviceType.zoneType);
+    draw.setFeatureProperty(zone.id, "zoneVisible", layerVisibilityRef.current[serviceType.zoneType]);
+    draw.setFeatureProperty(zone.id, "serviceTypeId", serviceType.id);
+    draw.setFeatureProperty(zone.id, "serviceType", serviceType.id);
+    draw.setFeatureProperty(zone.id, "serviceTypeLabel", serviceType.label);
+    draw.setFeatureProperty(zone.id, "geometryType", zone.geometryType ?? serviceType.geometry);
+    draw.setFeatureProperty(zone.id, "color", serviceType.color);
+    draw.setFeatureProperty(zone.id, "unit", serviceType.unit);
+    draw.setFeatureProperty(zone.id, "label", serviceType.label);
+    draw.setFeatureProperty(zone.id, "quoteCategory", serviceType.quoteCategory);
+    draw.setFeatureProperty(zone.id, "defaultRateType", serviceType.defaultRateType);
+    draw.setFeatureProperty(zone.id, "visible", layerVisibilityRef.current[serviceType.zoneType]);
+    refreshZonesRef.current();
+    pushHistorySnapshot();
+  }
+
+  function toggleExplorerZoneVisibility(zone: WorkZone) {
+    const draw = drawRef.current;
+    if (!draw) return;
+    const nextVisible = zone.visible === false;
+    draw.setFeatureProperty(zone.id, "zoneVisible", nextVisible);
+    draw.setFeatureProperty(zone.id, "visible", nextVisible);
+    refreshZonesRef.current();
+    pushHistorySnapshot();
+  }
+
+  function deleteExplorerZone(zone: WorkZone) {
+    const draw = drawRef.current;
+    if (!draw || zone.locked) return;
+    draw.delete(zone.id);
+    if (selectedZoneIdsRef.current.includes(zone.id)) {
+      clearSelectedZone();
+    }
+    refreshZonesRef.current();
+    pushHistorySnapshot();
+  }
+
   function resetView() {
     const map = mapRef.current;
     if (!map) return;
@@ -1594,6 +1722,19 @@ export function AcrexMap({
     pushHistorySnapshot();
   }
 
+  function updateSelectedZoneColor(color: string) {
+    const draw = drawRef.current;
+    if (!draw || !selectedZone || selectedZone.locked) return;
+    draw.setFeatureProperty(selectedZone.id, "color", color);
+    refreshZonesRef.current();
+    pushHistorySnapshot();
+  }
+
+  function zoomToSelectedZone() {
+    if (!selectedZone || !mapRef.current) return;
+    fitMapToFeatures(mapRef.current, [selectedZone.feature as DrawShapeFeature]);
+  }
+
   function applyServiceTypeToSelectedZone(serviceType: ActiveServiceType) {
     const draw = drawRef.current;
     if (!draw || !selectedZone || selectedZone.locked) return false;
@@ -1638,21 +1779,40 @@ export function AcrexMap({
   }
 
   function handleServiceTypeSelect(serviceType: ActiveServiceType) {
-    setActiveServiceType(serviceType);
-    activeServiceTypeRef.current = serviceType;
-    setActiveZoneType(serviceType.zoneType);
-    activeZoneTypeRef.current = serviceType.zoneType;
+    const selectedServiceType =
+      serviceType.zoneType === "Custom"
+        ? {
+            ...serviceType,
+            color: customDrawColor
+          }
+        : serviceType;
+    setActiveServiceType(selectedServiceType);
+    activeServiceTypeRef.current = selectedServiceType;
+    setActiveZoneType(selectedServiceType.zoneType);
+    activeZoneTypeRef.current = selectedServiceType.zoneType;
     const map = mapRef.current;
-    setDrawLayerFallbackColor(map, serviceType.color);
+    setDrawLayerFallbackColor(map, selectedServiceType.color);
     if (map?.getLayer("acrex-circle-preview-fill")) {
-      map.setPaintProperty("acrex-circle-preview-fill", "fill-color", serviceType.color);
-      map.setPaintProperty("acrex-circle-preview-line", "line-color", serviceType.color);
+      map.setPaintProperty("acrex-circle-preview-fill", "fill-color", selectedServiceType.color);
+      map.setPaintProperty("acrex-circle-preview-line", "line-color", selectedServiceType.color);
     }
     selectedZoneIdsRef.current = [];
     setSelectedZoneIds([]);
     onSelectedZonesChangeRef.current?.([]);
     setDrawMode("draw");
     setMapPanel(null);
+  }
+
+  function handleCustomDrawColorChange(color: string) {
+    setCustomDrawColor(color);
+    if (activeServiceType.zoneType !== "Custom") return;
+    const nextServiceType = {
+      ...activeServiceType,
+      color
+    };
+    setActiveServiceType(nextServiceType);
+    activeServiceTypeRef.current = nextServiceType;
+    setDrawLayerFallbackColor(mapRef.current, color);
   }
 
   function handleSelectedZoneServiceTypeChange(serviceTypeId: string) {
@@ -1677,6 +1837,32 @@ export function AcrexMap({
       return nextPanel;
     });
   }, [onToolPanelChange]);
+
+  function renameSavedZoneFromPill() {
+    if (!savePill) return;
+    const zone = workZonesRef.current.find((item) => item.id === savePill.id);
+    if (!zone) return;
+    selectExplorerZone(zone);
+    setSavePill(null);
+    window.setTimeout(() => {
+      selectedZoneNameInputRef.current?.focus();
+      selectedZoneNameInputRef.current?.select();
+    }, 0);
+  }
+
+  function drawAnotherFromPill() {
+    clearSelectedZone();
+    setSavePill(null);
+    setDrawMode("draw");
+  }
+
+  function openDrawingsFromPill() {
+    if (!savePill) return;
+    clearSelectedZone();
+    setExplorerFilter(savePill.type);
+    setSavePill(null);
+    setMapPanel("explorer");
+  }
 
   function toggleSelectedZoneLock() {
     const draw = drawRef.current;
@@ -1910,6 +2096,12 @@ export function AcrexMap({
   }, [useParcelRequestKey]);
 
   useEffect(() => {
+    if (!explorerRequest?.id) return;
+    setExplorerFilter(explorerRequest.type);
+    setMapPanel("explorer");
+  }, [explorerRequest?.id, explorerRequest?.type, setMapPanel]);
+
+  useEffect(() => {
     if (!activeMapPanel) return;
 
     function handlePointerDown(event: PointerEvent) {
@@ -1948,7 +2140,9 @@ export function AcrexMap({
             aria-expanded={activeMapPanel === "draw"}
             aria-haspopup="menu"
           >
-            Draw
+            <i className="draw-active-color" style={{ background: activeServiceType.color }} aria-hidden="true" />
+            <span>Draw</span>
+            <small>{activeServiceType.shortLabel}</small>
           </button>
           {activeMapPanel === "draw" ? (
             <div className="draw-service-menu" role="menu" aria-label="Draw service type">
@@ -1963,16 +2157,185 @@ export function AcrexMap({
                   className={activeServiceType.id === serviceType.id ? "active" : ""}
                   key={serviceType.id}
                   type="button"
-                  role="menuitem"
+                  role="menuitemradio"
+                  aria-checked={activeServiceType.id === serviceType.id}
+                  style={
+                    {
+                      "--service-color": serviceType.zoneType === "Custom" ? customDrawColor : serviceType.color
+                    } as CSSProperties
+                  }
                   onClick={() => handleServiceTypeSelect(serviceType)}
                 >
-                  <i style={{ background: serviceType.color }} />
+                  <i style={{ background: serviceType.zoneType === "Custom" ? customDrawColor : serviceType.color }} />
                   <span>{serviceType.shortLabel}</span>
                 </button>
               ))}
+              <label className="custom-draw-color">
+                <span>Custom color</span>
+                <input
+                  type="color"
+                  value={customDrawColor}
+                  onChange={(event) => handleCustomDrawColorChange(event.target.value)}
+                />
+                <code>{customDrawColor}</code>
+              </label>
             </div>
           ) : null}
+          <button
+            className={activeMapPanel === "explorer" ? "active" : ""}
+            type="button"
+            onClick={() => {
+              setExplorerFilter(null);
+              toggleMapPanel("explorer");
+            }}
+            aria-expanded={activeMapPanel === "explorer"}
+            aria-haspopup="dialog"
+          >
+            Drawings
+          </button>
         </div>
+        {activeMapPanel === "explorer" ? (
+          <section className="project-explorer-panel" role="dialog" aria-label="Project Explorer">
+            <div className="project-explorer-heading">
+              <div>
+                <span>Project Explorer</span>
+                <strong>
+                  {explorerFilter
+                    ? `${explorerGroupLabels[explorerFilter] ?? zoneLabels[explorerFilter]} drawings`
+                    : activeProjectId
+                      ? `${workZones.length} saved drawing${workZones.length === 1 ? "" : "s"}`
+                      : "Unsaved project"}
+                </strong>
+              </div>
+              <div className="project-explorer-heading-actions">
+                {explorerFilter ? (
+                  <button type="button" onClick={() => setExplorerFilter(null)}>
+                    Show All
+                  </button>
+                ) : null}
+                <button type="button" onClick={() => setMapPanel(null)} aria-label="Close Project Explorer">
+                  Close
+                </button>
+              </div>
+            </div>
+
+            {explorerGroups.length ? (
+              <div className="project-explorer-groups">
+                {explorerGroups.map((group) => (
+                  <section className="project-explorer-group" key={group.type}>
+                    <header>
+                      <span>{group.label}</span>
+                      <small>{group.zones.length}</small>
+                    </header>
+                    <div>
+                      {group.zones.map((zone) => {
+                        const isSelected = selectedZoneIds.includes(zone.id);
+                        const isRenaming = renamingExplorerZoneId === zone.id;
+                        const isChangingType = changingExplorerZoneId === zone.id;
+                        return (
+                          <article className={`project-explorer-row${isSelected ? " is-selected" : ""}`} key={zone.id}>
+                            <button className="project-explorer-row-main" type="button" onClick={() => selectExplorerZone(zone)}>
+                              <i style={{ background: zone.color ?? zoneColors[zone.type] }} aria-hidden="true" />
+                              <span>
+                                <strong>{zone.name}</strong>
+                                <small>{zone.serviceTypeLabel ?? explorerGroupLabels[zone.type] ?? zoneLabels[zone.type]}</small>
+                              </span>
+                              <span className="project-explorer-measurement">{formatShapeMeasurement(zone)}</span>
+                            </button>
+
+                            <div className="project-explorer-status">
+                              <span>{zone.visible === false ? "Hidden" : "Visible"}</span>
+                              <span>{quotedZoneNames.includes(zone.name) ? "Quoted" : "Not quoted"}</span>
+                            </div>
+
+                            {isRenaming ? (
+                              <label className="project-explorer-inline-field">
+                                <span>Drawing name</span>
+                                <input
+                                  autoFocus
+                                  value={zone.name}
+                                  disabled={zone.locked}
+                                  onChange={(event) => updateExplorerZoneName(zone, event.target.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === "Escape") setRenamingExplorerZoneId(null);
+                                  }}
+                                />
+                              </label>
+                            ) : null}
+
+                            {isChangingType ? (
+                              <label className="project-explorer-inline-field">
+                                <span>Service type</span>
+                                <select
+                                  autoFocus
+                                  value={zone.serviceTypeId ?? getServiceTypeByZoneType(zone.type).id}
+                                  disabled={zone.locked}
+                                  onChange={(event) => {
+                                    changeExplorerZoneType(zone, event.target.value);
+                                    setChangingExplorerZoneId(null);
+                                  }}
+                                >
+                                  {serviceTypes.filter((serviceType) => serviceType.id !== "property-boundary").map((serviceType) => (
+                                    <option key={serviceType.id} value={serviceType.id}>
+                                      {serviceType.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            ) : null}
+
+                            <div className="project-explorer-actions">
+                              <button type="button" onClick={() => selectExplorerZone(zone)}>Select</button>
+                              <button type="button" onClick={() => selectExplorerZone(zone, true)}>Zoom To</button>
+                              <button
+                                type="button"
+                                disabled={zone.locked}
+                                onClick={() => {
+                                  setChangingExplorerZoneId(null);
+                                  setRenamingExplorerZoneId((current) => (current === zone.id ? null : zone.id));
+                                }}
+                              >
+                                Rename
+                              </button>
+                              <button
+                                type="button"
+                                disabled={zone.locked}
+                                onClick={() => {
+                                  setRenamingExplorerZoneId(null);
+                                  setChangingExplorerZoneId((current) => (current === zone.id ? null : zone.id));
+                                }}
+                              >
+                                Change Type
+                              </button>
+                              <button type="button" onClick={() => toggleExplorerZoneVisibility(zone)}>
+                                {zone.visible === false ? "Show" : "Hide"}
+                              </button>
+                              {activeProjectId ? (
+                                <a href={`/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(zone.id)}`}>Add to Quote</a>
+                              ) : (
+                                <button type="button" disabled title="Save the active project before adding drawings to a quote.">
+                                  Add to Quote
+                                </button>
+                              )}
+                              <button className="danger" type="button" disabled={zone.locked} onClick={() => deleteExplorerZone(zone)}>
+                                Delete
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="project-explorer-empty">
+                <strong>No drawings yet</strong>
+                <p>Choose Draw, select a service type, and mark the work area on the map.</p>
+              </div>
+            )}
+          </section>
+        ) : null}
         <div className="map-layer-chips" aria-label="Layer visibility">
           <button
             className={activeMapPanel === "layers" || parcelLinesVisible ? "active" : ""}
@@ -1999,6 +2362,25 @@ export function AcrexMap({
             </div>
           ) : null}
         </div>
+        <button
+          className="map-style-icon-button"
+          type="button"
+          onClick={() => changeMapStyle(mapStyle === "satellite" ? "street" : "satellite")}
+          aria-label={mapStyle === "satellite" ? "Switch to street view" : "Switch to satellite view"}
+          title={mapStyle === "satellite" ? "Street view" : "Satellite view"}
+        >
+          {mapStyle === "satellite" ? (
+            <svg aria-hidden="true" viewBox="0 0 20 20">
+              <path d="M3.2 5.2 7.4 3.5l5.2 2 4.2-1.7v11l-4.2 1.7-5.2-2-4.2 1.7v-11Z" />
+              <path d="M7.4 3.5v11M12.6 5.5v11" />
+            </svg>
+          ) : (
+            <svg aria-hidden="true" viewBox="0 0 20 20">
+              <path d="M10 2.8 3.4 6.2 10 9.6l6.6-3.4L10 2.8Z" />
+              <path d="m3.4 10 6.6 3.4 6.6-3.4M3.4 13.8l6.6 3.4 6.6-3.4" />
+            </svg>
+          )}
+        </button>
       </div>
       <div className="map-view-controls map-hidden-tools" aria-label="Map view controls">
         <div className="map-style-toggle" role="group" aria-label="Map style">
@@ -2022,10 +2404,20 @@ export function AcrexMap({
         </button>
       </div>
       {savePill ? (
-        <div className="shape-save-pill map-hidden-tools" style={{ "--zone-color": savePill.color } as CSSProperties}>
+        <div className="shape-save-pill" style={{ "--zone-color": savePill.color } as CSSProperties} role="status">
           <strong>{savePill.message}</strong>
-          <button type="button" onClick={() => setDrawMode("draw")}>Draw Another</button>
-          <button type="button" onClick={undoDrawChange}>Undo</button>
+          <div className="shape-save-pill-actions">
+            {activeProjectId ? (
+              <a href={`/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(savePill.id)}`}>Add to Quote</a>
+            ) : (
+              <button type="button" disabled title="Save the project before adding this drawing to a quote.">
+                Add to Quote
+              </button>
+            )}
+            <button type="button" onClick={renameSavedZoneFromPill}>Rename</button>
+            <button type="button" onClick={drawAnotherFromPill}>Draw Another</button>
+            <button type="button" onClick={openDrawingsFromPill}>Open Drawings</button>
+          </div>
         </div>
       ) : null}
       <div className="map-canvas" ref={mapContainerRef} aria-label="Mapbox property map" />
@@ -2033,7 +2425,10 @@ export function AcrexMap({
       {selectedZone ? (
         <div className="zone-editor" aria-label="Selected shape inspector">
           <div className="zone-editor-heading">
-            <span>Selected Shape</span>
+            <div>
+              <span>Selected Shape</span>
+              <strong>{selectedZoneQuoted ? "Quoted" : "Not quoted"}</strong>
+            </div>
             <button type="button" onClick={clearSelectedZone} aria-label="Close shape inspector">
               Close
             </button>
@@ -2043,21 +2438,51 @@ export function AcrexMap({
             <strong>{selectedZone.name}</strong>
             <small>{selectedZone.serviceTypeLabel ?? zoneLabels[selectedZone.type]}</small>
           </div>
-          <div className="zone-editor-measurements">
-            <span>{formatShapeMeasurement(selectedZone)}</span>
-            <span>{formatSquareFeet(selectedZone.squareFeet)} sq ft</span>
-            <span>{formatFeet(selectedZone.lengthFt ?? selectedZone.perimeterFeet)} linear ft</span>
+
+          <dl className="zone-inspector-details">
+            <div>
+              <dt>Area</dt>
+              <dd>{formatAcres(selectedZone.acres)} ac</dd>
+            </div>
+            <div>
+              <dt>Square feet</dt>
+              <dd>{formatSquareFeet(selectedZone.squareFeet)} sq ft</dd>
+            </div>
+            <div>
+              <dt>{selectedZone.geometryType === "line" || selectedZone.type === "Fence" ? "Length" : "Perimeter"}</dt>
+              <dd>{formatFeet(selectedZone.lengthFt ?? selectedZone.perimeterFeet)} ft</dd>
+            </div>
+            <div>
+              <dt>Quote category</dt>
+              <dd>{selectedZone.quoteCategory ?? selectedZone.serviceTypeLabel ?? zoneLabels[selectedZone.type]}</dd>
+            </div>
+            <div>
+              <dt>Project</dt>
+              <dd>{activeProjectId ? activeProjectName || "Active project" : "Unsaved draft"}</dd>
+            </div>
+            <div>
+              <dt>Quote status</dt>
+              <dd>{selectedZoneQuoted ? "Quoted" : "Not quoted"}</dd>
+            </div>
+          </dl>
+
+          <div className="zone-inspector-color-row">
+            <span>Color</span>
+            <i style={{ background: selectedZone.color ?? zoneColors[selectedZone.type] }} aria-hidden="true" />
+            <code>{selectedZone.color ?? zoneColors[selectedZone.type]}</code>
           </div>
+
           <label>
-            Rename
+            Drawing Name
             <input
+              ref={selectedZoneNameInputRef}
               value={selectedZone.name}
               disabled={selectedZone.locked}
               onChange={(event) => updateSelectedZoneProperty("zoneName", event.target.value)}
             />
           </label>
           <label>
-            Service Type
+            Change Service Type
             <select
               value={selectedZone.serviceTypeId ?? getServiceTypeByZoneType(selectedZone.type).id}
               disabled={selectedZone.locked}
@@ -2070,21 +2495,66 @@ export function AcrexMap({
               ))}
             </select>
           </label>
-          <div className="zone-editor-actions">
+
+          <label className="zone-color-field">
+            Change Color
+            <span>
+              <input
+                type="color"
+                value={selectedZone.color ?? zoneColors[selectedZone.type]}
+                disabled={selectedZone.locked}
+                onChange={(event) => updateSelectedZoneColor(event.target.value)}
+              />
+              <code>{selectedZone.color ?? zoneColors[selectedZone.type]}</code>
+            </span>
+          </label>
+
+          <div className="zone-editor-primary-actions">
+            {activeProjectId ? (
+              <>
+                <a className="zone-add-quote-link" href={`/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(selectedZone.id)}`}>
+                  Add to Quote
+                </a>
+                <a className="zone-open-quote-link" href={`/quotes?project=${activeProjectId}`}>
+                  Open Quote
+                </a>
+              </>
+            ) : (
+              <>
+                <button type="button" disabled title="Save the project before adding this shape to a quote.">
+                  Add to Quote
+                </button>
+                <button type="button" disabled>
+                  Open Quote
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="zone-editor-actions zone-editor-action-grid">
+            <button type="button" disabled={selectedZone.locked} onClick={() => selectedZoneNameInputRef.current?.focus()}>
+              Rename
+            </button>
+            <button type="button" onClick={() => void onSaveProject?.()} disabled={!onSaveProject || isSavingProject}>
+              {isSavingProject ? "Saving..." : "Save to Project"}
+            </button>
+            <button type="button" onClick={duplicateSelectedZone}>
+              Duplicate
+            </button>
+            <button type="button" onClick={zoomToSelectedZone}>
+              Zoom To
+            </button>
             <button type="button" onClick={toggleSelectedZoneVisibility}>
               {selectedZone.visible === false ? "Show" : "Hide"}
             </button>
-            <button type="button" onClick={deleteSelectedZone} disabled={selectedZone.locked}>
+            <button className="danger" type="button" onClick={deleteSelectedZone} disabled={selectedZone.locked}>
               Delete
             </button>
           </div>
-          {activeProjectId ? (
-            <a className="zone-add-quote-link" href={`/quotes?project=${activeProjectId}`}>
-              Add to quote
-            </a>
-          ) : (
+
+          {!activeProjectId ? (
             <small className="zone-inspector-note">Save the project before adding this shape to a quote.</small>
-          )}
+          ) : null}
         </div>
       ) : null}
     </>
