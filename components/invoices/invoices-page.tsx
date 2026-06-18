@@ -292,8 +292,14 @@ export function InvoicesPage({ userId, userEmail, quotes, invoices, errorMessage
             <span>Invoice Total</span>
             <strong>{formatCurrency(selectedQuote?.total ?? 0)}</strong>
             <small>{selectedQuote ? `Linked to ${selectedQuote.quote_number}` : "Select a quote to generate invoice"}</small>
-            <button className={isSaving ? "is-processing" : ""} type="button" onClick={handleSaveInvoice} disabled={isSaving}>
-              {isSaving ? "Saving Invoice..." : "Save Invoice"}
+            <button
+              className={isSaving ? "is-processing" : ""}
+              type="button"
+              onClick={handleSaveInvoice}
+              disabled={isSaving || !selectedQuote}
+              title={!selectedQuote ? "Select a saved quote before creating an invoice." : undefined}
+            >
+              {isSaving ? "Saving Invoice..." : selectedQuote ? "Save Invoice" : "Select Quote First"}
             </button>
           </aside>
         </section>

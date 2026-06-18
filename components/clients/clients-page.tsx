@@ -288,7 +288,9 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
                 <div className="projects-empty-state">
                   <strong>No clients found</strong>
                   <span>Add a client or adjust your search.</span>
-                  <button className="empty-state-action" type="button" onClick={() => setSearchTerm("")}>Clear Search</button>
+                  {searchTerm.trim() ? (
+                    <button className="empty-state-action" type="button" onClick={() => setSearchTerm("")}>Clear Search</button>
+                  ) : null}
                 </div>
               )}
             </div>

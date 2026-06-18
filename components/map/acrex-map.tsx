@@ -1702,6 +1702,8 @@ export function AcrexMap({
     setSelectedZoneIds(nextIds);
     onSelectedZonesChangeRef.current?.([zone]);
     setActiveMode("select");
+    setActiveMapPanel(null);
+    onToolPanelChange?.(null);
 
     if (zoomToZone && mapRef.current) {
       fitMapToFeatures(mapRef.current, [zone.feature as DrawShapeFeature]);
@@ -2236,7 +2238,10 @@ export function AcrexMap({
           <button
             className={activeMapPanel === "draw" || activeMode === "draw" ? "active" : ""}
             type="button"
-            onClick={() => toggleMapPanel("draw")}
+            onClick={() => {
+              if (activeMapPanel !== "draw") clearSelectedZone();
+              toggleMapPanel("draw");
+            }}
             aria-expanded={activeMapPanel === "draw"}
             aria-haspopup="menu"
           >
@@ -2285,20 +2290,21 @@ export function AcrexMap({
             className={activeMapPanel === "explorer" ? "active" : ""}
             type="button"
             onClick={() => {
+              if (activeMapPanel !== "explorer") clearSelectedZone();
               setExplorerFilter(null);
               toggleMapPanel("explorer");
             }}
             aria-expanded={activeMapPanel === "explorer"}
             aria-haspopup="dialog"
           >
-            Drawings
+            Inspect
           </button>
         </div>
         {activeMapPanel === "explorer" ? (
-          <section className="project-explorer-panel" role="dialog" aria-label="Project Explorer">
+          <section className="project-explorer-panel" role="dialog" aria-label="Drawing Inspector">
             <div className="project-explorer-heading">
               <div>
-                <span>Project Explorer</span>
+                <span>Drawing Inspector</span>
                 <strong>
                   {explorerFilter
                     ? `${explorerGroupLabels[explorerFilter] ?? zoneLabels[explorerFilter]} drawings`
@@ -2313,7 +2319,7 @@ export function AcrexMap({
                     Show All
                   </button>
                 ) : null}
-                <button type="button" onClick={() => setMapPanel(null)} aria-label="Close Project Explorer">
+                <button type="button" onClick={() => setMapPanel(null)} aria-label="Close Drawing Inspector">
                   Close
                 </button>
               </div>
@@ -2346,6 +2352,7 @@ export function AcrexMap({
                             <div className="project-explorer-status">
                               <span>{zone.visible === false ? "Hidden" : "Visible"}</span>
                               <span>{quotedZoneNames.includes(zone.name) ? "Quoted" : "Not quoted"}</span>
+                              <span>{zone.locked ? "Locked" : "Editable"}</span>
                             </div>
 
                             {isRenaming ? (
@@ -2385,11 +2392,11 @@ export function AcrexMap({
                             ) : null}
 
                             <div className="project-explorer-actions">
-                              <button type="button" onClick={() => selectExplorerZone(zone)}>Select</button>
                               <button type="button" onClick={() => selectExplorerZone(zone, true)}>Zoom To</button>
                               <button
                                 type="button"
                                 disabled={zone.locked}
+                                title={zone.locked ? "Select and unlock this drawing before renaming it." : undefined}
                                 onClick={() => {
                                   setChangingExplorerZoneId(null);
                                   setRenamingExplorerZoneId((current) => (current === zone.id ? null : zone.id));
@@ -2400,6 +2407,7 @@ export function AcrexMap({
                               <button
                                 type="button"
                                 disabled={zone.locked}
+                                title={zone.locked ? "Select and unlock this drawing before changing its service type." : undefined}
                                 onClick={() => {
                                   setRenamingExplorerZoneId(null);
                                   setChangingExplorerZoneId((current) => (current === zone.id ? null : zone.id));
@@ -2417,7 +2425,13 @@ export function AcrexMap({
                                   Add to Quote
                                 </button>
                               )}
-                              <button className="danger" type="button" disabled={zone.locked} onClick={() => deleteExplorerZone(zone)}>
+                              <button
+                                className="danger"
+                                type="button"
+                                disabled={zone.locked}
+                                title={zone.locked ? "Select and unlock this drawing before deleting it." : undefined}
+                                onClick={() => deleteExplorerZone(zone)}
+                              >
                                 Delete
                               </button>
                             </div>
@@ -2440,7 +2454,10 @@ export function AcrexMap({
           <button
             className={activeMapPanel === "layers" || parcelLinesVisible ? "active" : ""}
             type="button"
-            onClick={() => toggleMapPanel("layers")}
+            onClick={() => {
+              if (activeMapPanel !== "layers") clearSelectedZone();
+              toggleMapPanel("layers");
+            }}
             aria-expanded={activeMapPanel === "layers"}
             aria-haspopup="dialog"
           >
@@ -2516,7 +2533,7 @@ export function AcrexMap({
             )}
             <button type="button" onClick={renameSavedZoneFromPill}>Rename</button>
             <button type="button" onClick={drawAnotherFromPill}>Draw Another</button>
-            <button type="button" onClick={openDrawingsFromPill}>Open Drawings</button>
+            <button type="button" onClick={openDrawingsFromPill}>Inspect Drawing</button>
           </div>
         </div>
       ) : null}
@@ -2624,7 +2641,7 @@ export function AcrexMap({
                 <button type="button" disabled title="Save the project before adding this shape to a quote.">
                   Add to Quote
                 </button>
-                <button type="button" disabled>
+                <button type="button" disabled title="Save the project before opening its quote.">
                   Open Quote
                 </button>
               </>
@@ -2632,8 +2649,8 @@ export function AcrexMap({
           </div>
 
           <div className="zone-editor-actions zone-editor-action-grid">
-            <button type="button" disabled={selectedZone.locked} onClick={() => selectedZoneNameInputRef.current?.focus()}>
-              Rename
+            <button type="button" onClick={toggleSelectedZoneLock}>
+              {selectedZone.locked ? "Unlock" : "Lock"}
             </button>
             <button type="button" onClick={() => void onSaveProject?.()} disabled={!onSaveProject || isSavingProject}>
               {isSavingProject ? "Saving..." : "Save to Project"}
@@ -2647,7 +2664,13 @@ export function AcrexMap({
             <button type="button" onClick={toggleSelectedZoneVisibility}>
               {selectedZone.visible === false ? "Show" : "Hide"}
             </button>
-            <button className="danger" type="button" onClick={deleteSelectedZone} disabled={selectedZone.locked}>
+            <button
+              className="danger"
+              type="button"
+              onClick={deleteSelectedZone}
+              disabled={selectedZone.locked}
+              title={selectedZone.locked ? "Unlock this drawing before deleting it." : undefined}
+            >
               Delete
             </button>
           </div>

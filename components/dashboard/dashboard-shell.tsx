@@ -1207,12 +1207,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
           <div className="dashboard-header-search" id="dashboard-search-mount" />
         </div>
         <div className="dashboard-header-actions map-hidden-tools">
-          <button className="dashboard-icon-button" type="button" aria-label="Notifications placeholder">
-            <span className="dashboard-notification-dot" />
-            <svg aria-hidden="true" viewBox="0 0 20 20">
-              <path d="M10 3.2a3.2 3.2 0 0 0-3.2 3.2v1.3c0 .8-.3 1.6-.8 2.2l-1.1 1.3h10.2L14 9.9a3.5 3.5 0 0 1-.8-2.2V6.4A3.2 3.2 0 0 0 10 3.2Z M8.5 15.8a1.5 1.5 0 0 0 3 0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
-            </svg>
-          </button>
           <div className="dashboard-user-chip">
             <span className="dashboard-avatar">{getAvatarLabel(userEmail)}</span>
             <div>
@@ -1299,7 +1293,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 <span>Outstanding invoices <strong>{formatCurrency(dashboardMetrics.outstandingInvoices)}</strong></span>
                 <span>Paid invoices <strong>{formatCurrency(dashboardMetrics.paidInvoices)}</strong></span>
                 <span>Avg margin <strong>{formatNumber(dashboardMetrics.averageProfitMargin, 1)}%</strong></span>
-                <span>Upcoming jobs <strong>Coming Soon</strong></span>
               </div>
 
               <div className={getPanelClass(effectivePanel, "search", "global-search-panel")}>
@@ -1455,11 +1448,9 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                     type="button"
                     onClick={() => setUseParcelRequestKey((current) => current + 1)}
                     disabled={parcelLookup.status !== "found"}
+                    title={parcelLookup.status !== "found" ? "Search an address with an available parcel boundary first." : undefined}
                   >
                     Use Parcel Boundary
-                  </button>
-                  <button type="button" onClick={() => setProjectMessage("Draw manually with the Property type selected.")}>
-                    Draw Manually
                   </button>
                 </div>
               </div>
@@ -1924,25 +1915,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 </div>
               </div>
 
-              <div className={getPanelClass(effectivePanel, "project", "share-panel")}>
-                <div>
-                  <span>Share Project</span>
-                  <strong>Read-only share links coming soon.</strong>
-                </div>
-                <button type="button" disabled title="Project sharing is coming soon">Share Project</button>
-              </div>
-
-              <div className={getPanelClass(effectivePanel, "settings", "photo-placeholder-panel")}>
-                <span>Project Photos</span>
-                <strong>Photos coming soon.</strong>
-                <p>Before, during, and after photo storage will be enabled when storage is configured.</p>
-                <div>
-                  <button type="button" disabled>Before photos</button>
-                  <button type="button" disabled>During photos</button>
-                  <button type="button" disabled>After photos</button>
-                </div>
-              </div>
-
               <div className="dashboard-summary-footer">
                 <div className="summary-estimate-card">
                   <span>Estimator Revenue</span>
@@ -1963,20 +1935,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
               </div>
             </div>
 
-            <div className="dashboard-placeholder-stack">
-              <div className="dashboard-placeholder-card">
-                <span>Projects</span>
-                <strong>{projects.length ? `${projects.length} saved project${projects.length === 1 ? "" : "s"}` : "No saved projects yet"}</strong>
-              </div>
-              <div className="dashboard-placeholder-card">
-                <span>Service Type</span>
-                <strong>{projectForm.serviceType}</strong>
-              </div>
-              <div className="dashboard-placeholder-card">
-                <span>AI Assistant</span>
-                <strong>Coming Soon</strong>
-              </div>
-            </div>
           </aside>
           ) : null}
         </section>
