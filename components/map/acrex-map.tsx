@@ -49,6 +49,7 @@ type AcrexMapProps = {
   };
   initialMapStyle?: MapStyle;
   onMapStyleChange?: (style: MapStyle) => void;
+  onViewModeChange?: (is3D: boolean) => void;
   mobileCommand?: {
     id: number;
     action:
@@ -56,6 +57,8 @@ type AcrexMapProps = {
       | "layers"
       | "locate"
       | "map-style"
+      | "toggle-3d"
+      | "reset-view"
       | "rename-selected"
       | "service-selected"
       | "color-selected"
@@ -79,6 +82,9 @@ type DrawMode = "select" | "draw" | "edit" | "measure" | "circle";
 // Rural imagery resolution varies by provider coverage, so cap close zoom before excessive
 // raster overzoom makes the source look softer without revealing additional ground detail.
 const maximumUsableZoom = 19.5;
+const terrainSourceId = "acrex-terrain-dem";
+const buildingSourceId = "acrex-buildings";
+const buildingLayerId = "acrex-3d-buildings";
 type DrawFeatureProperties = {
   zoneName?: string;
   zoneType?: ZoneType;
@@ -334,6 +340,8 @@ function fitMapToFeatures(map: MapboxMap, features: DrawShapeFeature[]) {
   map.fitBounds(bounds, {
     padding: { top: 110, right: 110, bottom: 130, left: 130 },
     maxZoom: 17.2,
+    pitch: map.getPitch(),
+    bearing: map.getBearing(),
     duration: 950,
     essential: true
   });
@@ -465,6 +473,7 @@ export function AcrexMap({
   explorerRequest,
   initialMapStyle = "satellite-streets",
   onMapStyleChange,
+  onViewModeChange,
   mobileCommand
 }: AcrexMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -499,6 +508,7 @@ export function AcrexMap({
   const currentSearchRef = useRef<AddressDetails | null>(null);
   const latestDrawingLocationIdRef = useRef<string | null>(null);
   const activeMapPanelRef = useRef<ActiveMapPanel>(null);
+  const is3DViewRef = useRef(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [hasPolygon, setHasPolygon] = useState(false);
   const [measurements, setMeasurements] = useState<ProjectMeasurements | null>(null);
@@ -510,6 +520,8 @@ export function AcrexMap({
   const [mapReady, setMapReady] = useState(false);
   const [mapStyle, setMapStyle] = useState<MapStyle>(initialMapStyle);
   const [isStyleMenuOpen, setIsStyleMenuOpen] = useState(false);
+  const [is3DView, setIs3DView] = useState(false);
+  const [viewNotice, setViewNotice] = useState<string | null>(null);
   const [layerVisibility, setLayerVisibility] = useState<LayerVisibility>(defaultLayerVisibility);
   const [parcelLinesVisible, setParcelLinesVisible] = useState(true);
   const [activeMapPanel, setActiveMapPanel] = useState<ActiveMapPanel>(null);
@@ -559,6 +571,10 @@ export function AcrexMap({
   useEffect(() => {
     activeMapPanelRef.current = activeMapPanel;
   }, [activeMapPanel]);
+
+  useEffect(() => {
+    is3DViewRef.current = is3DView;
+  }, [is3DView]);
 
   useEffect(() => {
     if (activeMapPanel !== "explorer") return;
@@ -893,6 +909,130 @@ export function AcrexMap({
     }
   }
 
+  function ensure3DResources(enabled = is3DViewRef.current) {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    if (!map.getSource(terrainSourceId)) {
+      map.addSource(terrainSourceId, {
+        type: "raster-dem",
+        url: "mapbox://mapbox.mapbox-terrain-dem-v1",
+        tileSize: 512,
+        maxzoom: 14
+      });
+    }
+
+    if (!map.getSource(buildingSourceId)) {
+      map.addSource(buildingSourceId, {
+        type: "vector",
+        url: "mapbox://mapbox.mapbox-streets-v8"
+      });
+    }
+
+    if (!map.getLayer(buildingLayerId)) {
+      const firstLabelLayer = map.getStyle().layers?.find(
+        (layer) => layer.type === "symbol" && Boolean(layer.layout?.["text-field"])
+      )?.id;
+      map.addLayer(
+        {
+          id: buildingLayerId,
+          type: "fill-extrusion",
+          source: buildingSourceId,
+          "source-layer": "building",
+          minzoom: 15,
+          layout: {
+            visibility: enabled ? "visible" : "none"
+          },
+          paint: {
+            "fill-extrusion-color": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              15,
+              "#657067",
+              18,
+              "#9aa79d"
+            ],
+            "fill-extrusion-height": ["coalesce", ["get", "height"], 3],
+            "fill-extrusion-base": ["coalesce", ["get", "min_height"], 0],
+            "fill-extrusion-opacity": 0.72,
+            "fill-extrusion-vertical-gradient": true
+          }
+        },
+        firstLabelLayer
+      );
+    } else {
+      map.setLayoutProperty(buildingLayerId, "visibility", enabled ? "visible" : "none");
+    }
+
+    map.setTerrain(enabled ? { source: terrainSourceId, exaggeration: 1.15 } : null);
+    map.setFog(enabled
+      ? {
+          color: "rgb(218, 226, 220)",
+          "high-color": "rgb(124, 148, 166)",
+          "horizon-blend": 0.08,
+          "space-color": "rgb(8, 14, 12)",
+          "star-intensity": 0
+        }
+      : null);
+  }
+
+  function setMapViewMode(next3D: boolean, options: { announce?: boolean; resetCenter?: boolean } = {}) {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const pausedDrawing = next3D && activeModeRef.current !== "select";
+    if (pausedDrawing) {
+      drawRef.current?.changeMode("simple_select");
+      circleCenterRef.current = null;
+      measurePointsRef.current = [];
+      updateCirclePreview(null);
+      updateLinearMeasurement([]);
+      activeModeRef.current = "select";
+      setActiveMode("select");
+    }
+
+    is3DViewRef.current = next3D;
+    setIs3DView(next3D);
+    onViewModeChange?.(next3D);
+    ensure3DResources(next3D);
+
+    if (next3D) {
+      map.dragRotate.enable();
+      map.touchZoomRotate.enableRotation();
+      map.easeTo({
+        pitch: 52,
+        bearing: map.getBearing() === 0 ? -18 : map.getBearing(),
+        duration: 850,
+        essential: true
+      });
+    } else {
+      map.dragRotate.disable();
+      map.touchZoomRotate.disableRotation();
+      map.easeTo({
+        center: options.resetCenter ? defaultMapView.center : map.getCenter(),
+        zoom: options.resetCenter ? defaultMapView.zoom : map.getZoom(),
+        pitch: 0,
+        bearing: 0,
+        duration: 700,
+        essential: true
+      });
+    }
+
+    if (options.announce) {
+      setViewNotice(pausedDrawing
+        ? "Drawing paused while 3D view is active"
+        : next3D
+          ? "3D terrain view enabled"
+          : "Reset to 2D north-up view");
+      window.setTimeout(() => setViewNotice(null), 2400);
+    }
+  }
+
+  function resetMapView() {
+    setMapViewMode(false, { announce: true, resetCenter: false });
+  }
+
   function setParcelVisibility(visible: boolean) {
     const map = mapRef.current;
     if (!map) return;
@@ -1191,6 +1331,8 @@ export function AcrexMap({
       map.once("load", () => {
         ensureMeasurementLayers();
         ensureParcelLayers();
+        map.dragRotate.disable();
+        map.touchZoomRotate.disableRotation();
         map.resize();
         setMapReady(true);
       });
@@ -1974,6 +2116,13 @@ export function AcrexMap({
     const draw = drawRef.current;
     if (!draw) return;
 
+    if (mode !== "select" && is3DViewRef.current) {
+      setMapViewMode(false);
+      mapRef.current?.jumpTo({ pitch: 0, bearing: 0 });
+      setViewNotice("Drawing works best in 2D view");
+      window.setTimeout(() => setViewNotice(null), 2600);
+    }
+
     circleCenterRef.current = null;
     updateCirclePreview(null);
 
@@ -2009,6 +2158,7 @@ export function AcrexMap({
     }
 
     setActiveMode(mode);
+    activeModeRef.current = mode;
   }
 
   function deleteBoundary() {
@@ -2084,6 +2234,7 @@ export function AcrexMap({
     map.once("style.load", () => {
       ensureMeasurementLayers();
       ensureParcelLayers();
+      ensure3DResources(is3DViewRef.current);
       updateParcelSources(selectedParcelRef.current);
       syncLayerVisibility();
       map.resize();
@@ -2268,6 +2419,14 @@ export function AcrexMap({
     }
     if (mobileCommand.action === "map-style" && mobileCommand.value && mobileCommand.value in mapStyles) {
       changeMapStyle(mobileCommand.value as MapStyle);
+      return;
+    }
+    if (mobileCommand.action === "toggle-3d") {
+      setMapViewMode(!is3DViewRef.current, { announce: true });
+      return;
+    }
+    if (mobileCommand.action === "reset-view") {
+      resetMapView();
       return;
     }
     if (mobileCommand.action === "locate") {
@@ -2780,27 +2939,40 @@ export function AcrexMap({
           ) : null}
         </div>
         <div className="map-style-control">
-          <button
-            className="map-style-icon-button"
-            type="button"
-            onClick={() => setIsStyleMenuOpen((current) => !current)}
-            aria-label="Choose map style"
-            aria-expanded={isStyleMenuOpen}
-            aria-haspopup="dialog"
-            title={`Map style: ${mapStyles[mapStyle].label}`}
-          >
-            {mapStyle === "satellite" || mapStyle === "satellite-streets" ? (
-            <svg aria-hidden="true" viewBox="0 0 20 20">
-              <path d="M3.2 5.2 7.4 3.5l5.2 2 4.2-1.7v11l-4.2 1.7-5.2-2-4.2 1.7v-11Z" />
-              <path d="M7.4 3.5v11M12.6 5.5v11" />
-            </svg>
-          ) : (
-            <svg aria-hidden="true" viewBox="0 0 20 20">
-              <path d="M10 2.8 3.4 6.2 10 9.6l6.6-3.4L10 2.8Z" />
-              <path d="m3.4 10 6.6 3.4 6.6-3.4M3.4 13.8l6.6 3.4 6.6-3.4" />
-            </svg>
-          )}
-          </button>
+          <div className="map-view-mode-controls">
+            <button
+              className="map-style-icon-button"
+              type="button"
+              onClick={() => setIsStyleMenuOpen((current) => !current)}
+              aria-label="Choose map style"
+              aria-expanded={isStyleMenuOpen}
+              aria-haspopup="dialog"
+              title={`Map style: ${mapStyles[mapStyle].label}`}
+            >
+              {mapStyle === "satellite" || mapStyle === "satellite-streets" ? (
+                <svg aria-hidden="true" viewBox="0 0 20 20">
+                  <path d="M3.2 5.2 7.4 3.5l5.2 2 4.2-1.7v11l-4.2 1.7-5.2-2-4.2 1.7v-11Z" />
+                  <path d="M7.4 3.5v11M12.6 5.5v11" />
+                </svg>
+              ) : (
+                <svg aria-hidden="true" viewBox="0 0 20 20">
+                  <path d="M10 2.8 3.4 6.2 10 9.6l6.6-3.4L10 2.8Z" />
+                  <path d="m3.4 10 6.6 3.4 6.6-3.4M3.4 13.8l6.6 3.4 6.6-3.4" />
+                </svg>
+              )}
+            </button>
+            <button
+              className={`map-3d-button${is3DView ? " active" : ""}`}
+              type="button"
+              onClick={() => setMapViewMode(!is3DViewRef.current, { announce: true })}
+              aria-pressed={is3DView}
+            >
+              {is3DView ? "2D" : "3D"}
+            </button>
+            <button className="map-reset-view-button" type="button" onClick={resetMapView}>
+              Reset View
+            </button>
+          </div>
           {isStyleMenuOpen ? (
             <div className="map-style-menu" role="dialog" aria-label="Map style">
               <div className="map-popover-heading">
@@ -2822,6 +2994,7 @@ export function AcrexMap({
           ) : null}
         </div>
       </div>
+      {viewNotice ? <div className="map-view-notice" role="status">{viewNotice}</div> : null}
       {savePill ? (
         <div className="shape-save-pill" style={{ "--zone-color": savePill.color } as CSSProperties} role="status">
           <strong>{savePill.message}</strong>

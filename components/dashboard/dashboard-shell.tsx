@@ -116,6 +116,8 @@ type MobileMapCommand = {
     | "layers"
     | "locate"
     | "map-style"
+    | "toggle-3d"
+    | "reset-view"
     | "rename-selected"
     | "service-selected"
     | "color-selected"
@@ -413,6 +415,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   const [mobileSheetSize, setMobileSheetSize] = useState<MobileSheetSize>("half");
   const [mobileMapCommand, setMobileMapCommand] = useState<MobileMapCommand | undefined>(undefined);
   const [preferredMapStyle, setPreferredMapStyle] = useState<MapStyle>(defaultUserSettings.map.preferredStyle);
+  const [is3DMapView, setIs3DMapView] = useState(false);
   const [mobileSheetDrag, setMobileSheetDrag] = useState(0);
   const [workZones, setWorkZones] = useState<WorkZone[]>([]);
   const [selectedZones, setSelectedZones] = useState<WorkZone[]>([]);
@@ -1470,6 +1473,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
               explorerRequest={explorerRequest}
               initialMapStyle={preferredMapStyle}
               onMapStyleChange={setPreferredMapStyle}
+              onViewModeChange={setIs3DMapView}
               mobileCommand={mobileMapCommand}
               searchMountId="dashboard-search-mount"
               useParcelRequestKey={useParcelRequestKey}
@@ -1482,6 +1486,18 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
             </button>
             <button type="button" onClick={() => sendMobileMapCommand("locate")} aria-label="Locate me">
               <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg>
+            </button>
+            <button
+              type="button"
+              className={is3DMapView ? "active" : ""}
+              onClick={() => sendMobileMapCommand("toggle-3d")}
+              aria-label={is3DMapView ? "Switch to 2D map" : "Switch to 3D map"}
+              aria-pressed={is3DMapView}
+            >
+              <strong>{is3DMapView ? "2D" : "3D"}</strong>
+            </button>
+            <button type="button" onClick={() => sendMobileMapCommand("reset-view")} aria-label="Reset map view">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4v6h6M20 20v-6h-6M5.5 15a7 7 0 0 0 11.8 2M18.5 9A7 7 0 0 0 6.7 7" /></svg>
             </button>
           </div>
 

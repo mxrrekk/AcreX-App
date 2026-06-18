@@ -2780,6 +2780,12 @@ img {
   z-index: 12;
 }
 
+.map-view-mode-controls {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+
 .map-style-icon-button {
   width: 42px;
   height: 42px;
@@ -2818,6 +2824,46 @@ img {
   stroke-width: 1.8;
 }
 
+.map-3d-button,
+.map-reset-view-button {
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 13px;
+  color: #e7eee9;
+  background: rgba(7, 12, 12, 0.8);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+  padding: 0 12px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  backdrop-filter: blur(14px);
+}
+
+.map-3d-button {
+  min-width: 46px;
+}
+
+.map-3d-button.active {
+  border-color: rgba(127, 217, 87, 0.34);
+  color: #071007;
+  background: var(--green);
+}
+
+.map-reset-view-button {
+  color: #aeb9b2;
+}
+
+.map-3d-button:hover,
+.map-reset-view-button:hover {
+  border-color: rgba(127, 217, 87, 0.26);
+  color: #f4fff6;
+  background: rgba(127, 217, 87, 0.12);
+}
+
+.map-3d-button.active:hover {
+  color: #071007;
+  background: #92e46f;
+}
+
 .map-style-menu {
   position: absolute;
   top: calc(100% + 9px);
@@ -2831,6 +2877,24 @@ img {
   box-shadow: 0 22px 56px rgba(0, 0, 0, 0.4);
   padding: 9px;
   backdrop-filter: blur(20px) saturate(1.12);
+}
+
+.map-view-notice {
+  position: absolute;
+  z-index: 18;
+  left: 50%;
+  bottom: 24px;
+  max-width: min(360px, calc(100% - 32px));
+  border: 1px solid rgba(127, 217, 87, 0.24);
+  border-radius: 999px;
+  color: #edf7ef;
+  background: rgba(7, 14, 11, 0.9);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.34);
+  padding: 9px 14px;
+  font-size: 0.72rem;
+  font-weight: 850;
+  transform: translateX(-50%);
+  backdrop-filter: blur(16px);
 }
 
 .map-style-menu > button:not(.map-popover-heading button) {
@@ -9829,6 +9893,7 @@ img {
     top: calc(max(12px, env(safe-area-inset-top)) + 64px);
     right: 14px;
     display: grid;
+    grid-template-columns: repeat(2, 44px);
     gap: 8px;
   }
 
@@ -9843,6 +9908,17 @@ img {
     background: rgba(8, 15, 12, 0.82);
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
     backdrop-filter: blur(18px);
+  }
+
+  .mobile-map-controls button.active {
+    border-color: rgba(131, 216, 103, 0.32);
+    color: #071007;
+    background: var(--app-green);
+  }
+
+  .mobile-map-controls strong {
+    font-size: 0.72rem;
+    font-weight: 950;
   }
 
   .mobile-map-controls svg {
@@ -10256,6 +10332,10 @@ img {
 
   .dashboard-map-panel .mapboxgl-ctrl-bottom-right {
     bottom: calc(max(12px, env(safe-area-inset-bottom)) + 78px);
+  }
+
+  .map-view-notice {
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 88px);
   }
 }
 
