@@ -730,11 +730,22 @@ export function QuotesPage({
 
   function updateSiteCondition<Key extends keyof SiteConditions>(key: Key, value: SiteConditions[Key]) {
     setSiteConditions((conditions) => ({ ...conditions, [key]: value }));
+    markQuoteUnsaved();
   }
 
   function duplicateLineItem(item: QuoteLineItem) {
     setLineItems((items) => [...items, { ...item, id: createId("line") }]);
     setSaveState("idle");
+  }
+
+  function markQuoteUnsaved() {
+    setSaveState("idle");
+    setSaveMessage("");
+  }
+
+  function updateAiSuggestion(suggestion: AiEstimateSuggestion) {
+    setAiSuggestion(suggestion);
+    markQuoteUnsaved();
   }
 
   function markSuggestionApplied(key: string) {
@@ -822,15 +833,43 @@ export function QuotesPage({
 
     const quoteNotesPayload = {
       ...notes,
+      quoteStatus: status,
+      project: {
+        id: selectedProject?.id ?? null,
+        name: selectedProject?.project_name ?? "",
+        address: selectedProject?.address ?? ""
+      },
+      customer: selectedClient
+        ? {
+            id: selectedClient.id,
+            name: selectedClient.name,
+            company: selectedClient.company ?? "",
+            email: selectedClient.email ?? "",
+            phone: selectedClient.phone ?? ""
+          }
+        : null,
+      measurementsUsed: estimateContext.measurements.selected,
+      measurementSourceIds: estimateContext.measurements.selectedSourceIds,
+      lineItems,
       materials,
       costLines,
+      siteConditions,
       discount: discountAmount,
       taxPercent: parseAmount(taxPercent),
       depositPercent: parseAmount(depositPercent),
       depositRequired,
       materialsSubtotal,
       laborEquipmentSubtotal,
-      mobilization
+      mobilization,
+      totals: estimateContext.quote.totals,
+      aiReview: aiSuggestion
+        ? {
+            projectVision: aiSuggestion.projectVision ?? "",
+            pricingAssumptions: aiSuggestion.pricingAssumptions,
+            warnings: aiSuggestion.warnings,
+            confidenceScore: aiSuggestion.confidenceScore ?? null
+          }
+        : null
     };
 
     const { data: quote, error: quoteError } = await supabase
@@ -883,7 +922,7 @@ export function QuotesPage({
     }
 
     setSaveState("saved");
-    setSaveMessage("Quote saved to project.");
+    setSaveMessage(selectedProject ? "Quote saved to project." : "Quote saved.");
   }
 
   return (
@@ -930,11 +969,23 @@ export function QuotesPage({
               <div className="quote-setup-grid">
                 <label>
                   Quote name / number
-                  <input value={quoteNumber} onChange={(event) => setQuoteNumber(event.target.value)} />
+                  <input
+                    value={quoteNumber}
+                    onChange={(event) => {
+                      setQuoteNumber(event.target.value);
+                      markQuoteUnsaved();
+                    }}
+                  />
                 </label>
                 <label>
                   Status
-                  <select value={status} onChange={(event) => setStatus(event.target.value as QuoteUiStatus)}>
+                  <select
+                    value={status}
+                    onChange={(event) => {
+                      setStatus(event.target.value as QuoteUiStatus);
+                      markQuoteUnsaved();
+                    }}
+                  >
                     <option>Draft</option>
                     <option>Sent</option>
                     <option>Approved</option>
@@ -943,7 +994,13 @@ export function QuotesPage({
                 </label>
                 <label>
                   Project
-                  <select value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
+                  <select
+                    value={selectedProjectId}
+                    onChange={(event) => {
+                      setSelectedProjectId(event.target.value);
+                      markQuoteUnsaved();
+                    }}
+                  >
                     <option value="">Select a project</option>
                     {projects.map((project) => (
                       <option value={project.id} key={project.id}>
@@ -954,7 +1011,13 @@ export function QuotesPage({
                 </label>
                 <label>
                   Customer
-                  <select value={selectedClientId} onChange={(event) => setSelectedClientId(event.target.value)}>
+                  <select
+                    value={selectedClientId}
+                    onChange={(event) => {
+                      setSelectedClientId(event.target.value);
+                      markQuoteUnsaved();
+                    }}
+                  >
                     <option value="">No customer selected</option>
                     {clients.map((client) => (
                       <option value={client.id} key={client.id}>
@@ -1118,7 +1181,7 @@ export function QuotesPage({
               <AiEstimateReview
                 suggestion={aiSuggestion}
                 appliedKeys={appliedSuggestionKeys}
-                onChange={setAiSuggestion}
+                onChange={updateAiSuggestion}
                 onApplyLineItem={applySuggestedLineItem}
                 onApplyMaterial={applySuggestedMaterial}
                 onApplyCost={applySuggestedCost}
@@ -1126,6 +1189,7 @@ export function QuotesPage({
                 onClear={() => {
                   setAiSuggestion(null);
                   setAppliedSuggestionKeys(new Set());
+                  markQuoteUnsaved();
                 }}
               />
             </section>
@@ -1355,23 +1419,38 @@ export function QuotesPage({
               <div className="quote-notes-grid">
                 <label className="quote-notes-field">
                   Scope of work
-                  <textarea value={notes.scopeOfWork} onChange={(event) => setNotes((state) => ({ ...state, scopeOfWork: event.target.value }))} />
+                  <textarea value={notes.scopeOfWork} onChange={(event) => {
+                    setNotes((state) => ({ ...state, scopeOfWork: event.target.value }));
+                    markQuoteUnsaved();
+                  }} />
                 </label>
                 <label className="quote-notes-field">
                   Customer notes
-                  <textarea value={notes.customerNotes} onChange={(event) => setNotes((state) => ({ ...state, customerNotes: event.target.value }))} />
+                  <textarea value={notes.customerNotes} onChange={(event) => {
+                    setNotes((state) => ({ ...state, customerNotes: event.target.value }));
+                    markQuoteUnsaved();
+                  }} />
                 </label>
                 <label className="quote-notes-field">
                   Exclusions
-                  <textarea value={notes.exclusions} onChange={(event) => setNotes((state) => ({ ...state, exclusions: event.target.value }))} />
+                  <textarea value={notes.exclusions} onChange={(event) => {
+                    setNotes((state) => ({ ...state, exclusions: event.target.value }));
+                    markQuoteUnsaved();
+                  }} />
                 </label>
                 <label className="quote-notes-field">
                   Payment terms
-                  <textarea value={notes.paymentTerms} onChange={(event) => setNotes((state) => ({ ...state, paymentTerms: event.target.value }))} />
+                  <textarea value={notes.paymentTerms} onChange={(event) => {
+                    setNotes((state) => ({ ...state, paymentTerms: event.target.value }));
+                    markQuoteUnsaved();
+                  }} />
                 </label>
                 <label className="quote-notes-field">
                   Estimated timeline
-                  <textarea value={notes.estimatedTimeline} onChange={(event) => setNotes((state) => ({ ...state, estimatedTimeline: event.target.value }))} />
+                  <textarea value={notes.estimatedTimeline} onChange={(event) => {
+                    setNotes((state) => ({ ...state, estimatedTimeline: event.target.value }));
+                    markQuoteUnsaved();
+                  }} />
                 </label>
               </div>
             </section>
@@ -1396,15 +1475,24 @@ export function QuotesPage({
             <div className="quote-total-inputs">
               <label>
                 Discount
-                <input value={discount} inputMode="decimal" placeholder="0.00" onChange={(event) => setDiscount(event.target.value)} />
+                <input value={discount} inputMode="decimal" placeholder="0.00" onChange={(event) => {
+                  setDiscount(event.target.value);
+                  markQuoteUnsaved();
+                }} />
               </label>
               <label>
                 Tax %
-                <input value={taxPercent} inputMode="decimal" placeholder="0" onChange={(event) => setTaxPercent(event.target.value)} />
+                <input value={taxPercent} inputMode="decimal" placeholder="0" onChange={(event) => {
+                  setTaxPercent(event.target.value);
+                  markQuoteUnsaved();
+                }} />
               </label>
               <label>
                 Deposit %
-                <input value={depositPercent} inputMode="decimal" placeholder="0" onChange={(event) => setDepositPercent(event.target.value)} />
+                <input value={depositPercent} inputMode="decimal" placeholder="0" onChange={(event) => {
+                  setDepositPercent(event.target.value);
+                  markQuoteUnsaved();
+                }} />
               </label>
             </div>
 
@@ -1439,18 +1527,46 @@ export function QuotesPage({
               <button type="button" onClick={saveQuote} disabled={saveState === "saving"}>
                 {saveState === "saving" ? "Saving..." : "Save Quote"}
               </button>
-              <button type="button" className="secondary" disabled title="Quote preview is coming in the quote actions phase">
+              <button type="button" className="secondary" disabled title="Quote preview is coming soon">
                 Preview Quote
                 <small>Coming soon</small>
               </button>
               <div className="quote-summary-action-grid">
-                <button type="button" className="secondary" disabled title="PDF export is coming in the quote actions phase">
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled
+                  title={saveState === "saved" ? "PDF export is coming soon" : "Save the quote before exporting"}
+                >
                   Export PDF
-                  <small>Coming soon</small>
+                  <small>{saveState === "saved" ? "Coming soon" : "Requires saved quote"}</small>
                 </button>
-                <button type="button" className="secondary" disabled title="Customer sending is coming in the quote actions phase">
-                  Send
-                  <small>Coming soon</small>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled
+                  title={saveState === "saved" ? "Customer sending is coming soon" : "Save the quote before sending"}
+                >
+                  Send to Customer
+                  <small>{saveState === "saved" ? "Coming soon" : "Requires saved quote"}</small>
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled
+                  title={saveState === "saved" ? "Invoice conversion is coming soon" : "Save the quote before converting"}
+                >
+                  Convert to Invoice
+                  <small>{saveState === "saved" ? "Coming soon" : "Requires saved quote"}</small>
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled
+                  title={selectedProject ? "The selected project is included when Save Quote runs" : "Select a project first"}
+                >
+                  Save to Project
+                  <small>{selectedProject ? "Included in Save Quote" : "Select project first"}</small>
                 </button>
               </div>
             </div>
