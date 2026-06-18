@@ -476,6 +476,7 @@ export function AcrexMap({
   const selectedParcelRef = useRef<ParcelBoundaryFeature | null>(null);
   const currentSearchRef = useRef<AddressDetails | null>(null);
   const latestDrawingLocationIdRef = useRef<string | null>(null);
+  const activeMapPanelRef = useRef<ActiveMapPanel>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [hasPolygon, setHasPolygon] = useState(false);
   const [measurements, setMeasurements] = useState<ProjectMeasurements | null>(null);
@@ -531,6 +532,27 @@ export function AcrexMap({
   useEffect(() => {
     selectedZoneIdsRef.current = selectedZoneIds;
   }, [selectedZoneIds]);
+
+  useEffect(() => {
+    activeMapPanelRef.current = activeMapPanel;
+  }, [activeMapPanel]);
+
+  useEffect(() => {
+    if (activeMapPanel !== "explorer") return;
+
+    function closeInspectorOnOutsideClick(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Element) || mapControlsRef.current?.contains(target)) return;
+      clearSelectedZone();
+      setActiveMapPanel(null);
+      onToolPanelChange?.(null);
+    }
+
+    window.addEventListener("pointerdown", closeInspectorOnOutsideClick);
+    return () => window.removeEventListener("pointerdown", closeInspectorOnOutsideClick);
+  // The inspector owns this click-away lifecycle and reads the current map refs directly.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMapPanel, onToolPanelChange]);
 
   useEffect(() => {
     setRecentSearches(getStoredRecentSearches());
@@ -1538,6 +1560,9 @@ export function AcrexMap({
         if (nextIds.length) {
           setActiveMapPanel("explorer");
           onToolPanelChange?.("explorer");
+        } else if (activeMapPanelRef.current === "explorer") {
+          setActiveMapPanel(null);
+          onToolPanelChange?.(null);
         }
       };
 
@@ -2433,7 +2458,13 @@ export function AcrexMap({
               </div>
               <div className="project-explorer-heading-actions">
                 {selectedZone ? (
-                  <button type="button" onClick={clearSelectedZone}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearSelectedZone();
+                      window.setTimeout(() => setMapPanel("explorer"), 0);
+                    }}
+                  >
                     All Drawings
                   </button>
                 ) : null}

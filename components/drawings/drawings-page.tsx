@@ -139,7 +139,7 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
                     disabled={deletingDrawingId === drawing.id}
                     onClick={() => void deleteDrawing(drawing.projectId, drawing.id)}
                   >
-                    {deletingDrawingId === drawing.id ? "Deleting..." : "Delete Permanently"}
+                    {deletingDrawingId === drawing.id ? "Deleting..." : "Delete"}
                   </button>
                 </div>
               </article>

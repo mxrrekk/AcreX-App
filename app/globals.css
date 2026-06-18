@@ -264,7 +264,7 @@ body {
   position: absolute;
   left: 18px;
   right: 18px;
-  top: 18px;
+  top: 68px;
   max-width: 540px;
   height: 48px;
 }
@@ -2296,29 +2296,44 @@ img {
 
 .project-explorer-panel {
   position: absolute;
-  left: 178px;
   top: 18px;
-  bottom: 18px;
+  right: 18px;
   z-index: 18;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  width: min(420px, calc(100% - 270px));
+  width: min(326px, calc(100% - 220px));
+  max-height: min(68vh, 570px);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 18px;
+  border: 1px solid rgba(191, 225, 190, 0.18);
+  border-radius: 16px;
   color: #f4fbf6;
-  background: rgba(7, 12, 12, 0.94);
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(18px);
+  background:
+    linear-gradient(145deg, rgba(18, 27, 24, 0.97), rgba(7, 12, 11, 0.96));
+  box-shadow:
+    0 22px 52px rgba(0, 0, 0, 0.42),
+    0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  backdrop-filter: blur(22px) saturate(125%);
+  animation: inspector-enter 160ms ease-out;
+}
+
+@keyframes inspector-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .project-explorer-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 14px;
+  padding: 11px 12px;
 }
 
 .project-explorer-heading > div {
@@ -2344,17 +2359,17 @@ img {
 
 .project-explorer-heading strong {
   color: #f4fbf6;
-  font-size: 0.94rem;
+  font-size: 0.86rem;
 }
 
 .project-explorer-heading button {
-  min-height: 30px;
+  min-height: 27px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
   color: #dce6df;
   background: rgba(255, 255, 255, 0.06);
-  padding: 0 11px;
-  font-size: 0.66rem;
+  padding: 0 9px;
+  font-size: 0.62rem;
   font-weight: 900;
   cursor: pointer;
 }
@@ -2362,16 +2377,16 @@ img {
 .project-explorer-groups {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 9px;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px;
+  padding: 10px;
 }
 
 .project-explorer-selected {
   display: grid;
-  gap: 14px;
-  padding: 14px;
+  gap: 10px;
+  padding: 11px;
   overflow-y: auto;
 }
 
@@ -2381,8 +2396,8 @@ img {
 
 .project-explorer-selected .project-explorer-inline-field input[type="color"] {
   width: 100%;
-  min-height: 42px;
-  padding: 4px;
+  min-height: 34px;
+  padding: 3px;
 }
 
 .project-explorer-group {
@@ -2418,9 +2433,9 @@ img {
   display: grid;
   gap: 8px;
   border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 14px;
+  border-radius: 11px;
   background: rgba(255, 255, 255, 0.035);
-  padding: 10px;
+  padding: 8px;
   transition:
     border-color var(--motion-fast),
     background-color var(--motion-fast),
@@ -2452,8 +2467,8 @@ img {
 }
 
 .project-explorer-row-main > i {
-  width: 9px;
-  height: 28px;
+  width: 8px;
+  height: 24px;
   border-radius: 999px;
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.07);
 }
@@ -2473,7 +2488,7 @@ img {
 
 .project-explorer-row-main strong {
   color: #f4fbf6;
-  font-size: 0.82rem;
+  font-size: 0.77rem;
 }
 
 .project-explorer-row-main small,
@@ -2504,13 +2519,13 @@ img {
 .project-explorer-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
   padding-left: 19px;
 }
 
 .project-explorer-actions button,
 .project-explorer-actions a {
-  min-height: 28px;
+  min-height: 27px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2519,7 +2534,7 @@ img {
   color: #dce6df;
   background: rgba(255, 255, 255, 0.05);
   padding: 0 8px;
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 850;
   text-decoration: none;
   cursor: pointer;
@@ -2543,8 +2558,8 @@ img {
 
 .project-explorer-inline-field {
   display: grid;
-  gap: 5px;
-  padding-left: 19px;
+  gap: 4px;
+  padding-left: 0;
 }
 
 .project-explorer-inline-field span {
@@ -2558,14 +2573,72 @@ img {
 .project-explorer-inline-field input,
 .project-explorer-inline-field select {
   width: 100%;
-  min-height: 36px;
+  min-height: 34px;
   border: 1px solid rgba(127, 217, 87, 0.26);
   border-radius: 9px;
   color: #f4fbf6;
   background: rgba(255, 255, 255, 0.06);
   padding: 0 9px;
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
+}
+
+.project-explorer-selected .zone-inspector-title {
+  grid-template-columns: 9px minmax(0, 1fr);
+  gap: 7px 9px;
+  border: 1px solid rgba(127, 217, 87, 0.13);
+  border-radius: 11px;
+  background: rgba(127, 217, 87, 0.055);
+  padding: 9px;
+}
+
+.project-explorer-selected .zone-inspector-title i {
+  grid-row: 1 / 3;
+  width: 8px;
+  height: 100%;
+  min-height: 34px;
+}
+
+.project-explorer-selected .zone-inspector-title strong,
+.project-explorer-selected .zone-inspector-title small {
+  grid-column: 2;
+}
+
+.project-explorer-selected .zone-inspector-details {
+  grid-template-columns: 1fr;
+  gap: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 3px 9px;
+}
+
+.project-explorer-selected .zone-inspector-details > div {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 7px 0;
+}
+
+.project-explorer-selected .zone-inspector-details > div:last-child {
+  border-bottom: 0;
+}
+
+.project-explorer-selected .zone-inspector-details dd {
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.project-explorer-selected .project-explorer-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-left: 0;
+}
+
+.project-explorer-selected .project-explorer-actions .danger {
+  grid-column: span 3;
 }
 
 .project-explorer-empty {
@@ -7877,11 +7950,11 @@ img {
   .project-explorer-panel {
     left: 12px;
     right: 12px;
-    top: 76px;
+    top: auto;
     bottom: 12px;
     width: auto;
-    max-height: calc(100dvh - 164px);
-    border-radius: 20px;
+    max-height: min(48dvh, 430px);
+    border-radius: 18px;
   }
 
   .workflow-guide-bar {
