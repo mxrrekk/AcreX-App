@@ -40,7 +40,7 @@ import {
   type ProfitInputs,
   type ServiceTemplate
 } from "@/lib/projects/pricing";
-import type { ClientRecord, InvoiceRecord, ProjectFormState, ProjectRecord, ProjectStatus, QuoteItemRecord, QuoteRecord, SavedProjectMapData, WorkZone, ZoneType } from "@/lib/projects/types";
+import type { ClientRecord, DrawingLocationSource, InvoiceRecord, ProjectFormState, ProjectRecord, ProjectStatus, QuoteItemRecord, QuoteRecord, SavedProjectMapData, WorkZone, ZoneType } from "@/lib/projects/types";
 import { zoneColors, zoneLabels } from "@/lib/projects/zones";
 
 type DashboardShellProps = {
@@ -53,6 +53,7 @@ type AddressDetails = {
   longitude: number;
   county?: string | null;
   parcelId?: string | null;
+  source?: DrawingLocationSource;
 };
 
 type DashboardToast = {
@@ -277,10 +278,41 @@ function createSavedProjectMapData(
         quoteCategory: zone.quoteCategory,
         defaultRateType: zone.defaultRateType,
         visible: zone.visible ?? true,
-        createdAt: zone.createdAt
+        createdAt: zone.createdAt,
+        address: zone.address,
+        latitude: zone.latitude,
+        longitude: zone.longitude,
+        centroid: zone.centroid,
+        parcelId: zone.parcelId,
+        locationSource: zone.locationSource
       }
     }))
   };
+}
+
+function getPreferredDrawingLocation(zones: WorkZone[], selectedZones: WorkZone[] = []) {
+  const selectedIds = new Set(selectedZones.map((zone) => zone.id));
+  const candidates = [
+    ...selectedZones,
+    ...[...zones]
+      .filter((zone) => !selectedIds.has(zone.id))
+      .sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""))
+  ];
+
+  return candidates.find(
+    (zone) =>
+      Boolean(zone.address?.trim()) ||
+      (Number.isFinite(zone.latitude) && Number.isFinite(zone.longitude))
+  ) ?? null;
+}
+
+function getDrawingAddress(zones: WorkZone[], fallback: string, selectedZones: WorkZone[] = []) {
+  const location = getPreferredDrawingLocation(zones, selectedZones);
+  if (location?.address?.trim()) return location.address.trim();
+  if (Number.isFinite(location?.latitude) && Number.isFinite(location?.longitude)) {
+    return `Lat: ${location?.latitude?.toFixed(6)}, Lng: ${location?.longitude?.toFixed(6)}`;
+  }
+  return fallback;
 }
 
 function normalizeProject(row: unknown): ProjectRecord {
@@ -660,7 +692,12 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
 
     const timeout = window.setTimeout(() => {
       const projectName = projectForm.projectName.trim() || "Untitled Project";
-      const projectAddress = projectForm.address.trim() || address;
+      const activeProjectAddress = activeProjectId
+        ? projects.find((project) => project.id === activeProjectId)?.address
+        : null;
+      const projectAddress =
+        activeProjectAddress ||
+        getDrawingAddress(workZones, projectForm.address.trim() || address, selectedZones);
       const mapData =
         activeProjectId || workZones.length
           ? createSavedProjectMapData(workZones, projectForm.status, projectAddress, projectName)
@@ -684,7 +721,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     }, 3200);
 
     return () => window.clearTimeout(timeout);
-  }, [activeProjectId, address, addressDetails, draftMapData, hasRestoredDraft, measurements, projectForm, showToast, userEmail, workZones]);
+  }, [activeProjectId, address, addressDetails, draftMapData, hasRestoredDraft, measurements, projectForm, projects, selectedZones, showToast, userEmail, workZones]);
 
   const loadProjects = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -870,7 +907,9 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       if (activeProjectId && !currentProject) return false;
 
       const projectName = projectForm.projectName.trim() || currentProject?.project_name || "Untitled Project";
-      const projectAddress = projectForm.address.trim() || address;
+      const projectAddress =
+        currentProject?.address ||
+        getDrawingAddress(zones, projectForm.address.trim() || address);
       const mapData = createSavedProjectMapData(zones, projectForm.status, projectAddress, projectName);
       const totals = sumSelectedMeasurements(zones);
       if (currentProject) {
@@ -1032,7 +1071,11 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     }
 
     const projectName = projectForm.projectName.trim() || "Untitled Project";
-    const projectAddress = projectForm.address.trim() || address;
+    const projectAddress = getDrawingAddress(
+      workZones,
+      projectForm.address.trim() || address,
+      selectedZones
+    );
     const linkedClient = clients.find((client) => client.id === projectForm.clientId) ?? null;
     const savedMapData = createSavedProjectMapData(workZones, projectForm.status, projectAddress, projectName);
 
@@ -1072,6 +1115,8 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
 
     const savedProject = normalizeProject(data);
     setActiveProjectId(savedProject.id);
+    setAddress(savedProject.address || projectAddress);
+    setProjectForm((current) => ({ ...current, address: savedProject.address || projectAddress }));
     setProjects((current) => {
       const withoutSaved = current.filter((project) => project.id !== savedProject.id);
       return [savedProject, ...withoutSaved];
@@ -1161,9 +1206,16 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       name: `${projectForm.projectName || "Project"} snapshot`,
       createdAt: new Date().toISOString(),
       projectName: projectForm.projectName,
-      address: projectForm.address || address,
+      address: getDrawingAddress(workZones, projectForm.address || address, selectedZones),
       measurements,
-      mapData: workZones.length ? createSavedProjectMapData(workZones, projectForm.status, projectForm.address || address, projectForm.projectName) : draftMapData,
+      mapData: workZones.length
+        ? createSavedProjectMapData(
+            workZones,
+            projectForm.status,
+            getDrawingAddress(workZones, projectForm.address || address, selectedZones),
+            projectForm.projectName
+          )
+        : draftMapData,
       estimate: {
         revenue: projectEstimate.estimatedRevenue,
         cost: projectEstimate.estimatedCost,

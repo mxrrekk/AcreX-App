@@ -6,6 +6,11 @@ export type QuoteRateType = "per_acre" | "per_sq_ft" | "per_linear_ft" | "each";
 export type ProjectStatus = "Draft" | "Estimating" | "Quoted" | "Won" | "Lost" | "Completed" | "Archived";
 export type QuoteStatus = "Draft" | "Sent" | "Accepted" | "Declined";
 export type InvoiceStatus = "Draft" | "Sent" | "Paid" | "Overdue";
+export type DrawingLocationSource = "parcel" | "search" | "reverse_geocode" | "coordinates";
+export type DrawingCentroid = {
+  latitude: number;
+  longitude: number;
+};
 export type QuoteService =
   | "Mowing"
   | "Brush Clearing"
@@ -46,6 +51,12 @@ export type WorkZone = {
   defaultRateType?: QuoteRateType;
   visible?: boolean;
   createdAt?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  centroid?: DrawingCentroid;
+  parcelId?: string | null;
+  locationSource?: DrawingLocationSource;
   feature: Feature<Polygon | LineString, SavedZoneProperties>;
 };
 
@@ -78,6 +89,12 @@ export type SavedZoneProperties = {
   serviceTypeChangedAt?: string;
   previousServiceTypeLabel?: string;
   previousQuoteCategory?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  centroid?: DrawingCentroid;
+  parcelId?: string | null;
+  locationSource?: DrawingLocationSource;
 };
 
 export type SavedProjectMapData =

@@ -4,11 +4,19 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import type MapboxDraw from "@mapbox/mapbox-gl-draw";
 import type { LngLatBoundsLike, Map as MapboxMap } from "mapbox-gl";
 import type { Feature, FeatureCollection, LineString, Point, Polygon } from "geojson";
-import { circle as turfCircle, distance as turfDistance, length as turfLength, lineString as turfLineString } from "@turf/turf";
+import {
+  booleanPointInPolygon as turfBooleanPointInPolygon,
+  centroid as turfCentroid,
+  circle as turfCircle,
+  distance as turfDistance,
+  length as turfLength,
+  lineString as turfLineString,
+  point as turfPoint
+} from "@turf/turf";
 import { calculatePolygonMeasurements, type ProjectMeasurements } from "@/lib/geo/measurements";
 import { formatAcres, formatFeet, formatSquareFeet } from "@/lib/geo/format";
 import type { ParcelBoundaryFeature, ParcelLookupState } from "@/lib/projects/parcels";
-import type { SavedProjectMapData, WorkZone, ZoneType } from "@/lib/projects/types";
+import type { DrawingLocationSource, SavedProjectMapData, WorkZone, ZoneType } from "@/lib/projects/types";
 import { defaultServiceType, getServiceTypeById, getServiceTypeByZoneType, serviceTypes, type ActiveServiceType } from "@/lib/projects/service-types";
 import { zoneColors, zoneLabels, zoneTypes } from "@/lib/projects/zones";
 
@@ -80,6 +88,15 @@ type DrawFeatureProperties = {
   defaultRateType?: string;
   visible?: boolean;
   createdAt?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  centroid?: {
+    latitude: number;
+    longitude: number;
+  };
+  parcelId?: string | null;
+  locationSource?: DrawingLocationSource;
 };
 
 type AddressDetails = {
@@ -88,10 +105,23 @@ type AddressDetails = {
   longitude: number;
   county?: string | null;
   parcelId?: string | null;
+  source?: DrawingLocationSource;
 };
 
 type RecentSearch = AddressDetails & {
   id: string;
+};
+
+type DrawingLocation = {
+  address: string;
+  latitude: number;
+  longitude: number;
+  centroid: {
+    latitude: number;
+    longitude: number;
+  };
+  parcelId: string | null;
+  source: DrawingLocationSource;
 };
 
 type LayerVisibility = Record<ZoneType, boolean>;
@@ -377,6 +407,26 @@ function getParcelMeasurements(parcel: ParcelBoundaryFeature): ProjectMeasuremen
   };
 }
 
+function getFeatureCentroid(feature: DrawShapeFeature): [number, number] {
+  try {
+    const point = turfCentroid(feature);
+    const [longitude, latitude] = point.geometry.coordinates;
+    if (Number.isFinite(longitude) && Number.isFinite(latitude)) return [longitude, latitude];
+  } catch {
+    // Fall through to the first valid drawing coordinate.
+  }
+  return getFeatureCoordinates(feature)[0] ?? defaultMapView.center;
+}
+
+function coordinateAddress(latitude: number, longitude: number) {
+  return `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`;
+}
+
+function isSearchNearDrawing(search: AddressDetails | null, center: [number, number]) {
+  if (!search) return false;
+  return turfDistance([search.longitude, search.latitude], center, { units: "miles" }) <= 0.75;
+}
+
 export function AcrexMap({
   onMeasurementsChange,
   onAddressChange,
@@ -428,6 +478,8 @@ export function AcrexMap({
   const onDrawingStateCommitRef = useRef(onDrawingStateCommit);
   const loadedProjectKeyRef = useRef<string | null | undefined>(undefined);
   const selectedParcelRef = useRef<ParcelBoundaryFeature | null>(null);
+  const currentSearchRef = useRef<AddressDetails | null>(null);
+  const latestDrawingLocationIdRef = useRef<string | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [hasPolygon, setHasPolygon] = useState(false);
   const [measurements, setMeasurements] = useState<ProjectMeasurements | null>(null);
@@ -827,6 +879,112 @@ export function AcrexMap({
     setParcelVisibility(parcelLinesVisible);
   }
 
+  function getImmediateDrawingLocation(feature: DrawShapeFeature): DrawingLocation {
+    const [longitude, latitude] = getFeatureCentroid(feature);
+    const parcel = selectedParcelRef.current;
+    const insideSelectedParcel = parcel
+      ? turfBooleanPointInPolygon(turfPoint([longitude, latitude]), parcel)
+      : false;
+    const parcelAddress = insideSelectedParcel ? parcel?.properties?.address?.trim() : "";
+    const search = currentSearchRef.current;
+
+    if (parcelAddress) {
+      return {
+        address: parcelAddress,
+        latitude,
+        longitude,
+        centroid: { latitude, longitude },
+        parcelId: parcel?.properties?.parcelId ?? null,
+        source: "parcel" as const
+      };
+    }
+
+    if (isSearchNearDrawing(search, [longitude, latitude])) {
+      return {
+        address: search?.address ?? coordinateAddress(latitude, longitude),
+        latitude,
+        longitude,
+        centroid: { latitude, longitude },
+        parcelId: insideSelectedParcel ? parcel?.properties?.parcelId ?? search?.parcelId ?? null : search?.parcelId ?? null,
+        source: "search" as const
+      };
+    }
+
+    return {
+      address: coordinateAddress(latitude, longitude),
+      latitude,
+      longitude,
+      centroid: { latitude, longitude },
+      parcelId: insideSelectedParcel ? parcel?.properties?.parcelId ?? null : null,
+      source: "coordinates" as const
+    };
+  }
+
+  function applyDrawingLocation(featureId: string, location: DrawingLocation) {
+    const draw = drawRef.current;
+    if (!draw?.get(featureId)) return;
+    draw.setFeatureProperty(featureId, "address", location.address);
+    draw.setFeatureProperty(featureId, "latitude", location.latitude);
+    draw.setFeatureProperty(featureId, "longitude", location.longitude);
+    draw.setFeatureProperty(featureId, "centroid", location.centroid);
+    draw.setFeatureProperty(featureId, "parcelId", location.parcelId);
+    draw.setFeatureProperty(featureId, "locationSource", location.source);
+    refreshZonesRef.current();
+    if (latestDrawingLocationIdRef.current !== featureId) return;
+    onAddressChangeRef.current(location.address);
+    onAddressDetailsChangeRef.current?.({
+      address: location.address,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      parcelId: location.parcelId,
+      source: location.source
+    });
+  }
+
+  async function reverseGeocode(latitude: number, longitude: number) {
+    try {
+      const response = await fetch(
+        `/api/geocode/reverse?lat=${encodeURIComponent(latitude)}&lng=${encodeURIComponent(longitude)}`
+      );
+      if (!response.ok) return null;
+      const data = (await response.json()) as { address?: string | null };
+      return data.address?.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function resolveDrawingLocation(feature: DrawShapeFeature) {
+    if (!feature.id) return;
+    const featureId = String(feature.id);
+    const immediate = getImmediateDrawingLocation(feature);
+    applyDrawingLocation(featureId, immediate);
+    if (immediate.source !== "coordinates") return;
+
+    const centroidAddress = await reverseGeocode(immediate.latitude, immediate.longitude);
+    if (centroidAddress) {
+      applyDrawingLocation(featureId, {
+        ...immediate,
+        address: centroidAddress,
+        source: "reverse_geocode"
+      });
+      return;
+    }
+
+    const mapCenter = mapRef.current?.getCenter();
+    if (!mapCenter) return;
+    const centerAddress = await reverseGeocode(mapCenter.lat, mapCenter.lng);
+    if (!centerAddress) return;
+    applyDrawingLocation(featureId, {
+      address: centerAddress,
+      latitude: immediate.latitude,
+      longitude: immediate.longitude,
+      centroid: immediate.centroid,
+      parcelId: null,
+      source: "reverse_geocode"
+    });
+  }
+
   async function lookupParcelBoundary(center: [number, number]) {
     const loadingState: ParcelLookupState = {
       status: "loading",
@@ -849,6 +1007,23 @@ export function AcrexMap({
         selectedParcelRef.current = data.selectedParcel;
         updateParcelSources(data.selectedParcel, data.surroundingParcels ?? null);
         if (mapRef.current) fitMapToPolygon(mapRef.current, data.selectedParcel);
+        const parcelCenter = getFeatureCentroid(data.selectedParcel as DrawShapeFeature);
+        const parcelAddress = data.selectedParcel.properties?.address?.trim();
+        const matchingSearch = isSearchNearDrawing(currentSearchRef.current, parcelCenter)
+          ? currentSearchRef.current
+          : null;
+        const candidateAddress = parcelAddress || matchingSearch?.address;
+        if (candidateAddress) {
+          const parcelDetails: AddressDetails = {
+            address: candidateAddress,
+            longitude: parcelCenter[0],
+            latitude: parcelCenter[1],
+            parcelId: data.selectedParcel.properties?.parcelId ?? null,
+            source: parcelAddress ? "parcel" : "search"
+          };
+          onAddressChangeRef.current(candidateAddress);
+          onAddressDetailsChangeRef.current?.(parcelDetails);
+        }
         onParcelLookupChangeRef.current?.({
           status: "found",
           provider: data.provider ?? null,
@@ -1123,8 +1298,10 @@ export function AcrexMap({
             longitude: center[0],
             latitude: center[1],
             county: getCountyFromContext(result?.context),
-            parcelId: null
+            parcelId: null,
+            source: "search"
           };
+          currentSearchRef.current = addressDetails;
           onAddressDetailsChangeRef.current?.(addressDetails);
           setRecentSearches(storeRecentSearch({ ...addressDetails, id: `${center[0]}:${center[1]}:${Date.now()}` }));
           map.flyTo({ center, zoom: 16.4, duration: 950, essential: true });
@@ -1167,6 +1344,13 @@ export function AcrexMap({
           draw.setFeatureProperty(String(feature.id), "defaultRateType", serviceType.defaultRateType);
           draw.setFeatureProperty(String(feature.id), "visible", visible);
           draw.setFeatureProperty(String(feature.id), "createdAt", properties.createdAt ?? new Date().toISOString());
+          const location = getImmediateDrawingLocation(feature);
+          draw.setFeatureProperty(String(feature.id), "address", location.address);
+          draw.setFeatureProperty(String(feature.id), "latitude", location.latitude);
+          draw.setFeatureProperty(String(feature.id), "longitude", location.longitude);
+          draw.setFeatureProperty(String(feature.id), "centroid", location.centroid);
+          draw.setFeatureProperty(String(feature.id), "parcelId", location.parcelId);
+          draw.setFeatureProperty(String(feature.id), "locationSource", location.source);
         });
       };
 
@@ -1223,6 +1407,12 @@ export function AcrexMap({
             defaultRateType: serviceType.defaultRateType,
             visible: zoneVisible,
             createdAt: properties.createdAt ?? new Date().toISOString(),
+            address: properties.address,
+            latitude: properties.latitude,
+            longitude: properties.longitude,
+            centroid: properties.centroid,
+            parcelId: properties.parcelId ?? null,
+            locationSource: properties.locationSource,
             feature: {
               ...feature,
               properties: {
@@ -1248,7 +1438,13 @@ export function AcrexMap({
                 quoteCategory: properties.quoteCategory ?? serviceType.quoteCategory,
                 defaultRateType: serviceType.defaultRateType,
                 visible: zoneVisible,
-                createdAt: properties.createdAt ?? new Date().toISOString()
+                createdAt: properties.createdAt ?? new Date().toISOString(),
+                address: properties.address,
+                latitude: properties.latitude,
+                longitude: properties.longitude,
+                centroid: properties.centroid,
+                parcelId: properties.parcelId ?? null,
+                locationSource: properties.locationSource
               }
             }
           };
@@ -1288,6 +1484,7 @@ export function AcrexMap({
         pushHistorySnapshot();
         const createdFeature = event.features.find(isDrawShapeFeature);
         const nextIds = createdFeature?.id ? [String(createdFeature.id)] : [];
+        latestDrawingLocationIdRef.current = nextIds[0] ?? null;
         selectedZoneIdsRef.current = nextIds;
         setSelectedZoneIds(nextIds);
         const selected = workZonesRef.current.filter((zone) => nextIds.includes(zone.id));
@@ -1304,6 +1501,9 @@ export function AcrexMap({
             setSavePill((current) => (current?.id === createdZone.id ? null : current));
           }, 8000);
         }
+        event.features.filter(isDrawShapeFeature).forEach((feature) => {
+          void resolveDrawingLocation(feature);
+        });
         setActiveMode("select");
       };
 
@@ -1312,6 +1512,11 @@ export function AcrexMap({
         if (restoreLockedFeatures(event.features)) return;
         updateMeasurements();
         pushHistorySnapshot();
+        const updatedFeature = event.features.find(isDrawShapeFeature);
+        if (updatedFeature?.id) {
+          latestDrawingLocationIdRef.current = String(updatedFeature.id);
+          void resolveDrawingLocation(updatedFeature);
+        }
       };
 
       const handleDrawDelete = (event: { features: GeoJSON.Feature[] }) => {
@@ -1399,6 +1604,8 @@ export function AcrexMap({
           }) as Feature<Polygon, DrawFeatureProperties>;
           circleFeature.id = circleId;
           draw.add(circleFeature);
+          latestDrawingLocationIdRef.current = circleId;
+          void resolveDrawingLocation(circleFeature);
           circleCenterRef.current = null;
           updateCirclePreview(null);
           updateMeasurements();
@@ -1474,6 +1681,10 @@ export function AcrexMap({
     if (loadedProjectKeyRef.current === projectLoadKey) return;
 
     loadedProjectKeyRef.current = projectLoadKey;
+    currentSearchRef.current = null;
+    latestDrawingLocationIdRef.current = null;
+    selectedParcelRef.current = null;
+    updateParcelSources(null, null);
 
     isApplyingHistoryRef.current = true;
     draw.deleteAll();
@@ -1550,6 +1761,12 @@ export function AcrexMap({
         defaultRateType: serviceType.defaultRateType,
         visible: zoneVisible,
         createdAt: properties.createdAt ?? new Date().toISOString(),
+        address: properties.address,
+        latitude: properties.latitude,
+        longitude: properties.longitude,
+        centroid: properties.centroid,
+        parcelId: properties.parcelId ?? null,
+        locationSource: properties.locationSource,
         feature: {
           ...feature,
           id: addedIds[index] ?? feature.id,
@@ -1576,7 +1793,13 @@ export function AcrexMap({
             quoteCategory: properties.quoteCategory ?? serviceType.quoteCategory,
             defaultRateType: serviceType.defaultRateType,
             visible: zoneVisible,
-            createdAt: properties.createdAt ?? new Date().toISOString()
+            createdAt: properties.createdAt ?? new Date().toISOString(),
+            address: properties.address,
+            latitude: properties.latitude,
+            longitude: properties.longitude,
+            centroid: properties.centroid,
+            parcelId: properties.parcelId ?? null,
+            locationSource: properties.locationSource
           }
         }
       };
@@ -2023,6 +2246,11 @@ export function AcrexMap({
     refreshZonesRef.current();
     pushHistorySnapshot();
     if (duplicateId) {
+      latestDrawingLocationIdRef.current = String(duplicateId);
+      const duplicateFeature = draw.get(String(duplicateId));
+      if (duplicateFeature && isDrawShapeFeature(duplicateFeature)) {
+        void resolveDrawingLocation(duplicateFeature);
+      }
       draw.changeMode("simple_select", { featureIds: [String(duplicateId)] });
       const nextIds = [String(duplicateId)];
       selectedZoneIdsRef.current = nextIds;
@@ -2064,6 +2292,7 @@ export function AcrexMap({
       id: crypto.randomUUID(),
       properties: {
         ...(parcel.properties ?? {}),
+        address: parcel.properties?.address ?? undefined,
         zoneName: "Parcel Boundary",
         zoneType: "Property",
         zoneNotes: "Parcel lines are approximate and not legal survey boundaries.",
@@ -2090,6 +2319,11 @@ export function AcrexMap({
     const ids = draw.add(feature);
     const addedId = Array.isArray(ids) ? ids[0] : feature.id;
     if (addedId) {
+      latestDrawingLocationIdRef.current = String(addedId);
+      const addedFeature = draw.get(String(addedId));
+      if (addedFeature && isDrawShapeFeature(addedFeature)) {
+        void resolveDrawingLocation(addedFeature);
+      }
       draw.changeMode("simple_select", { featureIds: [String(addedId)] });
       const nextIds = [String(addedId)];
       selectedZoneIdsRef.current = nextIds;
@@ -2580,6 +2814,18 @@ export function AcrexMap({
             <div>
               <dt>Quote status</dt>
               <dd>{selectedZoneQuoted ? "Quoted" : "Not quoted"}</dd>
+            </div>
+            <div>
+              <dt>Location</dt>
+              <dd>{selectedZone.address ?? "Location pending"}</dd>
+            </div>
+            <div>
+              <dt>Coordinates</dt>
+              <dd>
+                {Number.isFinite(selectedZone.latitude) && Number.isFinite(selectedZone.longitude)
+                  ? `${selectedZone.latitude?.toFixed(6)}, ${selectedZone.longitude?.toFixed(6)}`
+                  : "Location pending"}
+              </dd>
             </div>
           </dl>
 
