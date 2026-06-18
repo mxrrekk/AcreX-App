@@ -516,9 +516,15 @@ export function QuotesPage({
                   <span>Quote Header</span>
                   <strong>Project and customer details</strong>
                 </div>
-                <button type="button" onClick={saveQuote} disabled={saveState === "saving"}>
-                  {saveState === "saving" ? "Saving..." : "Save Quote"}
-                </button>
+                <span className={`quote-save-state quote-save-state-${saveState}`}>
+                  {saveState === "saving"
+                    ? "Saving"
+                    : saveState === "saved"
+                      ? "Saved"
+                      : saveState === "error"
+                        ? "Save needs attention"
+                        : "Unsaved draft"}
+                </span>
               </div>
 
               <div className="quote-setup-grid">
@@ -572,6 +578,56 @@ export function QuotesPage({
                   <span>Property Address</span>
                   <strong>{selectedProject?.address || selectedClient?.address || "No address yet"}</strong>
                 </div>
+              </div>
+            </section>
+
+            <section className="quote-ai-workspace" aria-label="AI estimator">
+              <div className="quote-ai-orbit" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="quote-ai-heading">
+                <div className="quote-ai-mark" aria-hidden="true">A</div>
+                <div>
+                  <span>AI Estimator</span>
+                  <strong>Turn project context into a reviewed estimate</strong>
+                  <p>
+                    AcreX will analyze measurements, services, site conditions, materials, and pricing defaults while
+                    keeping every suggestion under your control.
+                  </p>
+                </div>
+                <span className="quote-ai-status">Layout ready</span>
+              </div>
+
+              <div className="quote-ai-context">
+                <span className={selectedProject ? "ready" : ""}>
+                  <strong>{selectedProject ? "Project connected" : "Project needed"}</strong>
+                  {selectedProject?.address || "Select a saved project"}
+                </span>
+                <span className={availableMeasurements.length > 0 ? "ready" : ""}>
+                  <strong>{availableMeasurements.length} measurements</strong>
+                  {availableMeasurements.length > 0 ? "Ready for estimate context" : "Draw work areas on the map"}
+                </span>
+                <span className={savedTemplates ? "ready" : ""}>
+                  <strong>{savedTemplates ? "Pricing defaults found" : "Pricing defaults optional"}</strong>
+                  {savedTemplates ? "Saved settings will be included" : "Rates can remain blank"}
+                </span>
+              </div>
+
+              <div className="quote-ai-composer">
+                <div>
+                  <strong>AI estimate workspace</strong>
+                  <p>Structured recommendations and review controls will appear here when the estimator phase is connected.</p>
+                </div>
+                <button type="button" disabled title="AI estimator connection is scheduled for the next phase">
+                  AI setup pending
+                </button>
+              </div>
+
+              <div className="quote-ai-review-empty">
+                <span>Recommendation review</span>
+                <p>Suggested services, materials, costs, scope, and terms will appear here for approval—never automatically.</p>
               </div>
             </section>
 
@@ -785,11 +841,18 @@ export function QuotesPage({
           </div>
 
           <aside className="quote-summary-card quote-pricing-summary" aria-label="Pricing summary">
-            <div className="quote-card-heading">
+            <div className="quote-summary-heading">
+              <span>Pricing Summary</span>
+              <strong>{formatCurrency(grandTotal)}</strong>
+              <small>Live total · updates as you edit</small>
+            </div>
+
+            <div className="quote-confidence-preview">
               <div>
-                <span>Pricing Summary</span>
-                <strong>{formatCurrency(grandTotal)}</strong>
+                <span>Quote confidence</span>
+                <strong>Not calculated</strong>
               </div>
+              <p>Confidence and uncertainty warnings will appear after the AI estimate is reviewed.</p>
             </div>
 
             <div className="quote-total-inputs">
@@ -834,9 +897,25 @@ export function QuotesPage({
               </span>
             </div>
 
-            <button type="button" onClick={saveQuote} disabled={saveState === "saving"}>
-              {saveState === "saving" ? "Saving..." : "Save Quote"}
-            </button>
+            <div className="quote-summary-actions">
+              <button type="button" onClick={saveQuote} disabled={saveState === "saving"}>
+                {saveState === "saving" ? "Saving..." : "Save Quote"}
+              </button>
+              <button type="button" className="secondary" disabled title="Quote preview is coming in the quote actions phase">
+                Preview Quote
+                <small>Coming soon</small>
+              </button>
+              <div className="quote-summary-action-grid">
+                <button type="button" className="secondary" disabled title="PDF export is coming in the quote actions phase">
+                  Export PDF
+                  <small>Coming soon</small>
+                </button>
+                <button type="button" className="secondary" disabled title="Customer sending is coming in the quote actions phase">
+                  Send
+                  <small>Coming soon</small>
+                </button>
+              </div>
+            </div>
           </aside>
         </section>
       </section>

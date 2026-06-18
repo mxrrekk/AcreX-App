@@ -5596,6 +5596,9 @@ img {
   display: grid;
   align-content: start;
   gap: 18px;
+  width: 100%;
+  max-width: 1680px;
+  margin: 0 auto;
   padding: 24px;
 }
 
@@ -5753,14 +5756,14 @@ img {
 
 .quote-workspace-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 350px);
+  gap: 20px;
   align-items: start;
 }
 
 .quote-workspace-main {
   display: grid;
-  gap: 18px;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -5810,9 +5813,9 @@ img {
   align-content: start;
   gap: 16px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 18px;
-  background: rgba(10, 17, 15, 0.94);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.26);
+  border-radius: 16px;
+  background: rgba(10, 17, 15, 0.92);
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.2);
 }
 
 .quote-builder-card,
@@ -5853,6 +5856,39 @@ img {
   font-size: 1.05rem;
 }
 
+.quote-save-state {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 999px;
+  color: #aeb9b2;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 0 11px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.quote-save-state-saving {
+  color: #f7d79b;
+  border-color: rgba(246, 184, 93, 0.24);
+  background: rgba(246, 184, 93, 0.08);
+}
+
+.quote-save-state-saved {
+  color: #dfffd6;
+  border-color: rgba(127, 217, 87, 0.24);
+  background: rgba(127, 217, 87, 0.08);
+}
+
+.quote-save-state-error {
+  color: #ffd6ce;
+  border-color: rgba(255, 120, 91, 0.26);
+  background: rgba(255, 120, 91, 0.08);
+}
+
 .quote-card-heading button,
 .quote-summary-card button,
 .quote-item-row button {
@@ -5866,7 +5902,7 @@ img {
   cursor: pointer;
 }
 
-.quote-summary-card {
+.quote-estimating-grid > .quote-summary-card {
   grid-area: summary;
 }
 
@@ -5943,6 +5979,211 @@ img {
   color: #f4fbf6;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.quote-ai-workspace {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(127, 217, 87, 0.28);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(127, 217, 87, 0.16), transparent 28%),
+    linear-gradient(135deg, rgba(12, 24, 18, 0.98), rgba(6, 12, 10, 0.96));
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.28),
+    inset 0 1px rgba(255, 255, 255, 0.04);
+  padding: 20px;
+}
+
+.quote-ai-orbit {
+  position: absolute;
+  top: -105px;
+  right: -75px;
+  width: 260px;
+  height: 260px;
+  border: 1px solid rgba(127, 217, 87, 0.1);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.quote-ai-orbit span {
+  position: absolute;
+  inset: 28px;
+  border: 1px solid rgba(127, 217, 87, 0.08);
+  border-radius: inherit;
+}
+
+.quote-ai-orbit span:nth-child(2) {
+  inset: 58px;
+}
+
+.quote-ai-orbit span:nth-child(3) {
+  inset: 88px;
+  background: rgba(127, 217, 87, 0.06);
+}
+
+.quote-ai-heading {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 13px;
+  align-items: start;
+}
+
+.quote-ai-mark {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid rgba(127, 217, 87, 0.3);
+  border-radius: 13px;
+  color: #071007;
+  background: linear-gradient(145deg, #a4ee80, var(--green));
+  box-shadow: 0 10px 28px rgba(127, 217, 87, 0.16);
+  font-size: 1.1rem;
+  font-weight: 1000;
+}
+
+.quote-ai-heading > div:nth-child(2) {
+  display: grid;
+  gap: 4px;
+}
+
+.quote-ai-heading span,
+.quote-ai-context span strong {
+  color: var(--green);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.quote-ai-heading strong {
+  color: #f7fff8;
+  font-size: 1.18rem;
+  letter-spacing: -0.01em;
+}
+
+.quote-ai-heading p,
+.quote-ai-composer p {
+  max-width: 760px;
+  margin: 0;
+  color: #a7b4ab;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.quote-ai-heading .quote-ai-status {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  border: 1px solid rgba(127, 217, 87, 0.22);
+  border-radius: 999px;
+  color: #dfffd6;
+  background: rgba(127, 217, 87, 0.08);
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.quote-ai-context {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.quote-ai-context > span {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  color: #8f9c94;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 11px 12px;
+  font-size: 0.77rem;
+}
+
+.quote-ai-context > span.ready {
+  border-color: rgba(127, 217, 87, 0.16);
+  background: rgba(127, 217, 87, 0.055);
+}
+
+.quote-ai-context span strong {
+  overflow: hidden;
+  color: #c5d0c8;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quote-ai-context span.ready strong {
+  color: #dfffd6;
+}
+
+.quote-ai-composer {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(2, 8, 6, 0.46);
+  padding: 13px 14px;
+}
+
+.quote-ai-composer > div {
+  display: grid;
+  gap: 3px;
+}
+
+.quote-ai-composer strong {
+  color: #eff8f1;
+  font-size: 0.88rem;
+}
+
+.quote-ai-composer button {
+  min-height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #9aa69e;
+  background: rgba(255, 255, 255, 0.055);
+  padding: 0 14px;
+  font-weight: 900;
+  cursor: not-allowed;
+}
+
+.quote-ai-review-empty {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 13px;
+}
+
+.quote-ai-review-empty span {
+  color: #dfffd6;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.quote-ai-review-empty p {
+  margin: 0;
+  color: #8f9c94;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  text-align: right;
 }
 
 .zone-measurements-list {
@@ -6063,17 +6304,63 @@ img {
 .quote-summary-card {
   position: sticky;
   top: 18px;
+  gap: 14px;
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+  border-color: rgba(127, 217, 87, 0.18);
+  background:
+    linear-gradient(180deg, rgba(127, 217, 87, 0.045), transparent 32%),
+    rgba(8, 15, 12, 0.97);
+}
+
+.quote-summary-heading {
+  display: grid;
+  gap: 5px;
+  padding-bottom: 2px;
+}
+
+.quote-summary-heading span {
+  color: var(--green);
+}
+
+.quote-summary-heading strong {
+  color: var(--green);
+  font-size: 2.5rem;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.quote-summary-heading small {
+  color: #91a097;
+  font-size: 0.75rem;
+}
+
+.quote-confidence-preview {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 12px;
+}
+
+.quote-confidence-preview div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
 }
 
-.quote-summary-card strong {
-  color: var(--green);
-  font-size: 2.25rem;
-  line-height: 1;
+.quote-confidence-preview strong {
+  color: #d7e1da;
+  font-size: 0.82rem;
 }
 
-.quote-summary-card small {
-  color: #91a097;
+.quote-confidence-preview p {
+  margin: 0;
+  color: #8f9c94;
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .quote-total-inputs {
@@ -6112,6 +6399,45 @@ img {
 .quote-total-breakdown strong {
   color: #f4fbf6;
   font-size: 0.95rem;
+}
+
+.quote-summary-actions {
+  display: grid;
+  gap: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 14px;
+}
+
+.quote-summary-actions > button,
+.quote-summary-action-grid button {
+  display: grid;
+  min-height: 44px;
+  place-content: center;
+  gap: 1px;
+}
+
+.quote-summary-actions button small {
+  color: inherit;
+  font-size: 0.62rem;
+  font-weight: 800;
+  opacity: 0.72;
+}
+
+.quote-summary-actions button.secondary {
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  color: #aab5ad;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.quote-summary-actions button.secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.quote-summary-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
 }
 
 .quote-items-card,
@@ -6868,9 +7194,14 @@ img {
   }
 
   .quote-builder-grid,
+  .quote-workspace-grid,
   .invoice-builder-grid,
   .quote-setup-grid,
   .quote-pulled-data {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-ai-context {
     grid-template-columns: 1fr;
   }
 
@@ -6893,6 +7224,7 @@ img {
 
   .quote-summary-card {
     position: static;
+    max-height: none;
   }
 
   .quote-items-header,
@@ -7318,6 +7650,39 @@ img {
   .quote-card-heading {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .quote-ai-heading,
+  .quote-ai-composer {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-ai-review-empty {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .quote-ai-review-empty p {
+    text-align: left;
+  }
+
+  .quote-ai-mark {
+    width: 40px;
+    height: 40px;
+  }
+
+  .quote-ai-heading .quote-ai-status {
+    width: max-content;
+  }
+
+  .quote-summary-action-grid,
+  .quote-notes-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-notes-grid .quote-notes-field:first-child {
+    grid-column: auto;
   }
 
   .quote-item-row,
