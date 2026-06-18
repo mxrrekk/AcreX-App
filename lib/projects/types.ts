@@ -104,6 +104,7 @@ export type SavedProjectMapData =
         status?: ProjectStatus;
         address?: string;
         projectName?: string;
+        titleManuallyEdited?: boolean;
       };
     });
 

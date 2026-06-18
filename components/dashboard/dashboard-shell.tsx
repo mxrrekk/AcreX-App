@@ -66,6 +66,7 @@ type DashboardDraft = {
   address: string;
   addressDetails: AddressDetails | null;
   projectForm: ProjectFormState;
+  titleManuallyEdited?: boolean;
   mapData: SavedProjectMapData | null;
   measurements: ProjectMeasurements | null;
   savedAt: string;
@@ -246,14 +247,16 @@ function createSavedProjectMapData(
   zones: WorkZone[],
   status: ProjectStatus,
   address: string,
-  projectName: string
+  projectName: string,
+  titleManuallyEdited: boolean
 ): SavedProjectMapData {
   return {
     type: "FeatureCollection",
     properties: {
       status,
       address,
-      projectName
+      projectName,
+      titleManuallyEdited
     },
     features: zones.map((zone) => ({
       ...zone.feature,
@@ -315,6 +318,27 @@ function getDrawingAddress(zones: WorkZone[], fallback: string, selectedZones: W
   return fallback;
 }
 
+function getAutoProjectTitle(address: string, customerName = "") {
+  const normalizedAddress = address.trim();
+  if (!normalizedAddress || normalizedAddress === "No address selected") return "Untitled Project";
+  const titleAddress = normalizedAddress.replace(/^Lat:\s*/i, "Lat ");
+  const normalizedCustomer = customerName.trim();
+  return normalizedCustomer
+    ? `${normalizedCustomer} - ${titleAddress}`
+    : `${titleAddress} Estimate`;
+}
+
+function getSavedTitleManualState(project: ProjectRecord) {
+  const mapData = project.polygon_geojson;
+  if (isFeatureCollection(mapData) && typeof mapData.properties?.titleManuallyEdited === "boolean") {
+    return mapData.properties.titleManuallyEdited;
+  }
+
+  const savedName = project.project_name?.trim() || "Untitled Project";
+  if (savedName === "Untitled Project") return false;
+  return savedName !== getAutoProjectTitle(project.address ?? "", project.customer_name ?? "");
+}
+
 function normalizeProject(row: unknown): ProjectRecord {
   return row as ProjectRecord;
 }
@@ -354,6 +378,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
+  const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [isSavingProject, setIsSavingProject] = useState(false);
@@ -398,6 +423,11 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const lastDraftJsonRef = useRef<string>("");
   const drawingPersistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
   const loadedRequestedProjectIdRef = useRef<string | null>(null);
+  const titleManuallyEditedRef = useRef(false);
+
+  useEffect(() => {
+    titleManuallyEditedRef.current = titleManuallyEdited;
+  }, [titleManuallyEdited]);
 
   const showToast = useCallback((message: string) => {
     const id = crypto.randomUUID();
@@ -665,7 +695,16 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       setActiveProjectId(draft.activeProjectId ?? null);
       setAddress(draft.address || "No address selected");
       setAddressDetails(draft.addressDetails ?? null);
-      setProjectForm({ ...emptyProjectForm, ...(draft.projectForm ?? {}) });
+      const restoredProjectForm = { ...emptyProjectForm, ...(draft.projectForm ?? {}) };
+      setProjectForm(restoredProjectForm);
+      const restoredTitleManualState =
+        typeof draft.titleManuallyEdited === "boolean"
+          ? draft.titleManuallyEdited
+          : restoredProjectForm.projectName !== "Untitled Project" &&
+            restoredProjectForm.projectName !==
+              getAutoProjectTitle(restoredProjectForm.address || draft.address || "", restoredProjectForm.customerName);
+      setTitleManuallyEdited(restoredTitleManualState);
+      titleManuallyEditedRef.current = restoredTitleManualState;
       setMeasurements(draft.measurements ?? null);
       setDraftMapData(draft.mapData ?? null);
       setDraftSavedAt(draft.savedAt ?? null);
@@ -700,13 +739,20 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
         getDrawingAddress(workZones, projectForm.address.trim() || address, selectedZones);
       const mapData =
         activeProjectId || workZones.length
-          ? createSavedProjectMapData(workZones, projectForm.status, projectAddress, projectName)
+          ? createSavedProjectMapData(
+              workZones,
+              projectForm.status,
+              projectAddress,
+              projectName,
+              titleManuallyEdited
+            )
           : draftMapData;
       const draft: DashboardDraft = {
         activeProjectId,
         address,
         addressDetails,
         projectForm,
+        titleManuallyEdited,
         mapData,
         measurements,
         savedAt: new Date().toISOString()
@@ -721,7 +767,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     }, 3200);
 
     return () => window.clearTimeout(timeout);
-  }, [activeProjectId, address, addressDetails, draftMapData, hasRestoredDraft, measurements, projectForm, projects, selectedZones, showToast, userEmail, workZones]);
+  }, [activeProjectId, address, addressDetails, draftMapData, hasRestoredDraft, measurements, projectForm, projects, selectedZones, showToast, titleManuallyEdited, userEmail, workZones]);
 
   const loadProjects = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -833,6 +879,9 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     setAddress(requestedProject.address ?? "No address selected");
     setAddressDetails(null);
     setDraftMapData(null);
+    const requestedTitleManualState = getSavedTitleManualState(requestedProject);
+    setTitleManuallyEdited(requestedTitleManualState);
+    titleManuallyEditedRef.current = requestedTitleManualState;
     setProjectForm({
       projectName: requestedProject.project_name || "Untitled Project",
       customerName: requestedProject.customer_name ?? "",
@@ -878,7 +927,11 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     setAddress(nextAddress);
     setProjectForm((current) => ({
       ...current,
-      address: nextAddress || current.address
+      address: nextAddress || current.address,
+      projectName:
+        !titleManuallyEditedRef.current && nextAddress
+          ? getAutoProjectTitle(nextAddress, current.customerName)
+          : current.projectName
     }));
     if (nextAddress) {
       addActivity("Address searched", nextAddress, "Address");
@@ -910,7 +963,13 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       const projectAddress =
         currentProject?.address ||
         getDrawingAddress(zones, projectForm.address.trim() || address);
-      const mapData = createSavedProjectMapData(zones, projectForm.status, projectAddress, projectName);
+      const mapData = createSavedProjectMapData(
+        zones,
+        projectForm.status,
+        projectAddress,
+        projectName,
+        titleManuallyEditedRef.current
+      );
       const totals = sumSelectedMeasurements(zones);
       if (currentProject) {
         const optimisticProject: ProjectRecord = {
@@ -931,6 +990,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
         address,
         addressDetails,
         projectForm,
+        titleManuallyEdited: titleManuallyEditedRef.current,
         mapData,
         measurements: zones.length ? totals : null,
         savedAt: new Date().toISOString()
@@ -1011,6 +1071,8 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   function handleNewProject() {
     setActiveProjectId(null);
     setProjectForm(emptyProjectForm);
+    setTitleManuallyEdited(false);
+    titleManuallyEditedRef.current = false;
     setAddress("No address selected");
     setMeasurements(null);
     setPolygon(null);
@@ -1070,14 +1132,23 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       return;
     }
 
-    const projectName = projectForm.projectName.trim() || "Untitled Project";
     const projectAddress = getDrawingAddress(
       workZones,
       projectForm.address.trim() || address,
       selectedZones
     );
     const linkedClient = clients.find((client) => client.id === projectForm.clientId) ?? null;
-    const savedMapData = createSavedProjectMapData(workZones, projectForm.status, projectAddress, projectName);
+    const customerName = linkedClient?.name ?? projectForm.customerName;
+    const projectName = titleManuallyEditedRef.current
+      ? projectForm.projectName.trim() || "Untitled Project"
+      : getAutoProjectTitle(projectAddress, customerName);
+    const savedMapData = createSavedProjectMapData(
+      workZones,
+      projectForm.status,
+      projectAddress,
+      projectName,
+      titleManuallyEditedRef.current
+    );
 
     const payload = {
       user_id: currentUserId,
@@ -1116,7 +1187,11 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
     const savedProject = normalizeProject(data);
     setActiveProjectId(savedProject.id);
     setAddress(savedProject.address || projectAddress);
-    setProjectForm((current) => ({ ...current, address: savedProject.address || projectAddress }));
+    setProjectForm((current) => ({
+      ...current,
+      projectName: savedProject.project_name || projectName,
+      address: savedProject.address || projectAddress
+    }));
     setProjects((current) => {
       const withoutSaved = current.filter((project) => project.id !== savedProject.id);
       return [savedProject, ...withoutSaved];
@@ -1213,7 +1288,8 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
             workZones,
             projectForm.status,
             getDrawingAddress(workZones, projectForm.address || address, selectedZones),
-            projectForm.projectName
+            projectForm.projectName,
+            titleManuallyEdited
           )
         : draftMapData,
       estimate: {
@@ -1230,6 +1306,8 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
 
   function restoreSnapshot(snapshot: ProjectSnapshot) {
     setProjectForm((current) => ({ ...current, projectName: snapshot.projectName, address: snapshot.address }));
+    setTitleManuallyEdited(true);
+    titleManuallyEditedRef.current = true;
     setAddress(snapshot.address || "No address selected");
     setMeasurements(snapshot.measurements);
     setDraftMapData(snapshot.mapData);
@@ -1255,7 +1333,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
           <div className="dashboard-user-chip">
             <span className="dashboard-avatar">{getAvatarLabel(userEmail)}</span>
             <div>
-              <strong>{activeProject?.project_name ?? "Map Workspace"}</strong>
+              <strong>{projectForm.projectName || activeProject?.project_name || "Map Workspace"}</strong>
               <span>{userEmail}</span>
             </div>
           </div>
@@ -1271,7 +1349,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
           <section className="dashboard-map-panel">
             <AcrexMap
               activeProjectId={activeProjectId}
-              activeProjectName={activeProject?.project_name ?? projectForm.projectName}
+              activeProjectName={projectForm.projectName || activeProject?.project_name}
               quotedZoneNames={quotedZoneNames}
               onSaveProject={handleSaveProject}
               isSavingProject={isSavingProject}
@@ -1383,6 +1461,27 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                   </div>
                 ) : null}
               </div>
+
+              <label className="project-status-control">
+                Project Title
+                <input
+                  value={projectForm.projectName}
+                  onChange={(event) => {
+                    setTitleManuallyEdited(true);
+                    titleManuallyEditedRef.current = true;
+                    setProjectForm((current) => ({
+                      ...current,
+                      projectName: event.target.value
+                    }));
+                  }}
+                  placeholder="Project title"
+                />
+                <span>
+                  {titleManuallyEdited
+                    ? "Custom title. Address updates will not overwrite it."
+                    : "Updates automatically from the current project address."}
+                </span>
+              </label>
 
               <div className="dashboard-summary-address">
                 <strong>{address}</strong>
@@ -1507,7 +1606,13 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                     setProjectForm((current) => ({
                       ...current,
                       clientId: event.target.value,
-                      customerName: nextClient?.name ?? current.customerName
+                      customerName: nextClient?.name ?? "",
+                      projectName: titleManuallyEditedRef.current
+                        ? current.projectName
+                        : getAutoProjectTitle(
+                            current.address || address,
+                            nextClient?.name ?? ""
+                          )
                     }));
                   }}
                   disabled={isLoadingClients}
