@@ -4583,6 +4583,269 @@ img {
     linear-gradient(180deg, #07100d, #060a09 100%);
 }
 
+.settings-page {
+  display: grid;
+  min-height: 100vh;
+  grid-template-columns: 244px minmax(0, 1fr);
+  color: #f4fbf6;
+  background:
+    radial-gradient(circle at 82% 8%, rgba(127, 217, 87, 0.09), transparent 25%),
+    linear-gradient(180deg, #07100d, #060a09 100%);
+}
+
+.settings-workspace {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  min-width: 0;
+  padding: 24px;
+}
+
+.settings-header p {
+  max-width: 720px;
+  margin: 8px 0 0;
+  color: #9eaaa2;
+  line-height: 1.5;
+}
+
+.settings-card {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  padding: 20px;
+  background: rgba(12, 20, 17, 0.84);
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.18);
+}
+
+.settings-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.settings-section-heading > div {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-section-heading span {
+  color: var(--green);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.settings-section-heading h2 {
+  margin: 0;
+  color: #f5fbf6;
+  font-size: 1.08rem;
+}
+
+.settings-sign-out,
+.settings-save-bar button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 11px;
+  padding: 0 16px;
+  color: #071007;
+  background: linear-gradient(180deg, var(--green), var(--green-2));
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.settings-sign-out {
+  border: 1px solid rgba(255, 120, 91, 0.22);
+  color: #ffd6ce;
+  background: rgba(255, 120, 91, 0.08);
+}
+
+.account-detail-grid,
+.settings-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.account-detail-grid > div,
+.settings-logo-placeholder {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 13px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.account-detail-grid span,
+.settings-logo-placeholder span {
+  color: #8f9b93;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.account-detail-grid strong,
+.settings-logo-placeholder strong {
+  overflow-wrap: anywhere;
+  color: #f4fbf6;
+}
+
+.account-detail-grid .account-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+}
+
+.settings-placeholder-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.settings-placeholder-actions button {
+  display: grid;
+  gap: 2px;
+  min-width: 190px;
+  min-height: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #aab5ad;
+  background: rgba(255, 255, 255, 0.035);
+  text-align: left;
+  padding: 9px 12px;
+}
+
+.settings-placeholder-actions small {
+  color: #758078;
+}
+
+.settings-field-grid label {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  color: #aeb9b1;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.settings-field-grid input,
+.settings-field-grid select,
+.settings-field-grid textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 10px;
+  color: #f4fbf6;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 9px 11px;
+  font: inherit;
+  font-weight: 650;
+}
+
+.settings-field-grid textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.settings-wide-field {
+  grid-column: span 3;
+}
+
+.settings-logo-placeholder {
+  min-height: 86px;
+}
+
+.settings-logo-placeholder small {
+  color: #89958d;
+  line-height: 1.4;
+}
+
+.settings-color-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settings-color-grid label {
+  display: grid;
+  grid-template-columns: 1fr 38px;
+  align-items: center;
+  gap: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.settings-color-grid span {
+  color: #e5eee7;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.settings-color-grid input {
+  width: 38px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings-color-grid code {
+  grid-column: span 2;
+  color: #8f9b93;
+  font-size: 0.72rem;
+}
+
+.settings-toggle {
+  grid-template-columns: 20px minmax(0, 1fr) !important;
+  align-items: center !important;
+  align-content: center !important;
+  min-height: 42px;
+}
+
+.settings-toggle input {
+  min-height: 0;
+}
+
+.settings-save-bar {
+  position: sticky;
+  bottom: 14px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid rgba(127, 217, 87, 0.18);
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: rgba(7, 13, 11, 0.94);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(18px);
+}
+
+.settings-save-bar > div {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-save-bar strong {
+  color: #f4fbf6;
+}
+
+.settings-save-bar span {
+  color: #87938b;
+  font-size: 0.75rem;
+}
+
 .projects-sidebar {
   display: grid;
   align-content: start;
@@ -8407,6 +8670,51 @@ img {
   .invoice-row span,
   .invoices-table-header span {
     color: #333;
+  }
+}
+
+@media (max-width: 980px) {
+  .settings-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-workspace {
+    padding: 14px;
+  }
+
+  .account-detail-grid,
+  .settings-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-wide-field {
+    grid-column: span 2;
+  }
+
+  .settings-color-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .account-detail-grid,
+  .settings-field-grid,
+  .settings-color-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-wide-field {
+    grid-column: span 1;
+  }
+
+  .settings-section-heading,
+  .settings-save-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-save-bar {
+    bottom: 8px;
   }
 }
 

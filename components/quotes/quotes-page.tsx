@@ -17,6 +17,13 @@ import {
   type ProfitInputs,
   type ServiceTemplate
 } from "@/lib/projects/pricing";
+import {
+  getUserSettingsStorageKey,
+  normalizeUserSettings,
+  pricingTemplatesFromSettings,
+  profitInputsFromSettings,
+  type AcrexUserSettings
+} from "@/lib/settings/user-settings";
 import type { ClientRecord, ProjectRecord, QuoteRecord, QuoteStatus, SavedZoneProperties, ZoneType } from "@/lib/projects/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -361,8 +368,21 @@ function getFeatureMeasurements(project: ProjectRecord | null): MeasurementRow[]
   });
 }
 
-function loadSavedServiceTemplates() {
+function loadSavedUserSettings(userId: string) {
   if (typeof window === "undefined") return null;
+  const stored = window.localStorage.getItem(getUserSettingsStorageKey(userId));
+  if (!stored) return null;
+  try {
+    return normalizeUserSettings(JSON.parse(stored) as Partial<AcrexUserSettings>);
+  } catch {
+    return null;
+  }
+}
+
+function loadSavedServiceTemplates(userId: string) {
+  if (typeof window === "undefined") return null;
+  const userSettings = loadSavedUserSettings(userId);
+  if (userSettings) return pricingTemplatesFromSettings(userSettings);
   const storedTemplates = window.localStorage.getItem(serviceTemplatesStorageKey);
   if (!storedTemplates) return null;
 
@@ -373,8 +393,10 @@ function loadSavedServiceTemplates() {
   }
 }
 
-function loadSavedProfitInputs() {
+function loadSavedProfitInputs(userId: string) {
   if (typeof window === "undefined") return null;
+  const userSettings = loadSavedUserSettings(userId);
+  if (userSettings) return profitInputsFromSettings(userSettings);
   const storedInputs = window.localStorage.getItem(profitInputsStorageKey);
   if (!storedInputs) return null;
 
@@ -591,10 +613,20 @@ export function QuotesPage({
   const [aiEditMessage, setAiEditMessage] = useState("");
 
   useEffect(() => {
-    setSavedTemplates(loadSavedServiceTemplates());
-    setSavedProfitInputs(loadSavedProfitInputs());
+    const userSettings = loadSavedUserSettings(userId);
+    setSavedTemplates(loadSavedServiceTemplates(userId));
+    setSavedProfitInputs(loadSavedProfitInputs(userId));
+    if (!initialSavedQuote && userSettings) {
+      setDepositPercent(userSettings.quoteDefaults.depositPercent ? String(userSettings.quoteDefaults.depositPercent) : "");
+      setTaxPercent(userSettings.quoteDefaults.taxPercent ? String(userSettings.quoteDefaults.taxPercent) : "");
+      setNotes((current) => ({
+        ...current,
+        customerNotes: current.customerNotes || userSettings.quoteDefaults.notes,
+        paymentTerms: current.paymentTerms || userSettings.quoteDefaults.terms
+      }));
+    }
     setTemplatesLoaded(true);
-  }, []);
+  }, [initialSavedQuote, userId]);
 
   useEffect(() => {
     const clientId = selectedProject?.client_id ?? "";

@@ -4,7 +4,17 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+type DashboardPageProps = {
+  searchParams?: {
+    panel?: string;
+  };
+};
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  if (searchParams?.panel === "settings") {
+    redirect("/settings");
+  }
+
   const supabase = createSupabaseServerClient();
 
   if (!supabase) {

@@ -99,7 +99,7 @@ const emptyProjectForm: ProjectFormState = {
 };
 
 const projectStatuses: ProjectStatus[] = ["Draft", "Estimating", "Quoted", "Won", "Lost", "Completed", "Archived"];
-type DashboardPanelKey = "search" | "layers" | "measurements" | "quote" | "project" | "settings";
+type DashboardPanelKey = "search" | "layers" | "measurements" | "quote" | "project";
 
 function formatCurrency(value: number | null) {
   if (value === null || Number.isNaN(value)) return "$0.00";
@@ -347,17 +347,10 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const [tagStore, setTagStore] = useState<ProjectTagStore>({});
   const [customTag, setCustomTag] = useState("");
   const requestedPanel = searchParams.get("panel");
-  const requestedSection = searchParams.get("section");
   const sidebarActiveKey: AppSidebarKey =
     requestedPanel === "measurements"
       ? "drawings"
-      : requestedPanel === "project" && requestedSection === "exports"
-        ? "exports"
-        : requestedPanel === "settings" && requestedSection === "account"
-          ? "account"
-          : requestedPanel === "settings"
-            ? "settings"
-            : "map";
+      : "map";
   const [checklistItems, setChecklistItems] = useState<ProjectChecklistItem[]>([]);
   const [editingChecklistId, setEditingChecklistId] = useState<string | null>(null);
   const [checklistDraft, setChecklistDraft] = useState("");
@@ -821,7 +814,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
       return;
     }
 
-    if (requestedPanel === "measurements" || requestedPanel === "settings") {
+    if (requestedPanel === "measurements") {
       setActivePanel(requestedPanel);
     }
   }, [requestedPanel]);
@@ -1256,9 +1249,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                   <span>
                     {effectivePanel === "measurements"
                       ? "Drawing Inspector"
-                      : effectivePanel === "settings"
-                        ? "Map Preferences"
-                        : effectivePanel === "quote"
+                      : effectivePanel === "quote"
                           ? "Map Estimate Reference"
                           : effectivePanel === "search"
                             ? "Property Search"
@@ -1700,89 +1691,6 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                   <span>Margin <strong>{formatNumber(projectEstimate.profitMargin, 1)}%</strong></span>
                 </div>
               </div>
-
-              <details className={getPanelClass(effectivePanel, "settings", "service-template-panel")}>
-                <summary>
-                  <span>Job Cost Library</span>
-                  <strong>{serviceTemplates.filter((template) => template.active !== false).length} active</strong>
-                </summary>
-                <div className="template-list">
-                  {serviceTemplates.map((template) => (
-                    <div className="template-row" key={template.id}>
-                      <div>
-                        <strong>{template.serviceName}</strong>
-                        <span>{template.billableZoneTypes.map((type) => zoneLabels[type]).join(", ")}</span>
-                      </div>
-                      <label>
-                        Active
-                        <input
-                          checked={template.active !== false}
-                          type="checkbox"
-                          onChange={(event) =>
-                            setServiceTemplates((current) =>
-                              current.map((item) => (item.id === template.id ? { ...item, active: event.target.checked } : item))
-                            )
-                          }
-                        />
-                      </label>
-                      <label>
-                        Unit
-                        <input
-                          value={template.unitType}
-                          onChange={(event) =>
-                            setServiceTemplates((current) =>
-                              current.map((item) => (item.id === template.id ? { ...item, unitType: event.target.value } : item))
-                            )
-                          }
-                        />
-                      </label>
-                      <label>
-                        Rate
-                        <input
-                          value={String(template.defaultUnitPrice)}
-                          inputMode="decimal"
-                          onChange={(event) =>
-                            setServiceTemplates((current) =>
-                              current.map((item) =>
-                                item.id === template.id ? { ...item, defaultUnitPrice: Number(event.target.value) || 0 } : item
-                              )
-                            )
-                          }
-                        />
-                      </label>
-                      <label>
-                        Production/hr
-                        <input
-                          value={String(template.productionRatePerHour ?? 0)}
-                          inputMode="decimal"
-                          onChange={(event) =>
-                            setServiceTemplates((current) =>
-                              current.map((item) =>
-                                item.id === template.id ? { ...item, productionRatePerHour: Number(event.target.value) || 0 } : item
-                              )
-                            )
-                          }
-                        />
-                      </label>
-                      <label>
-                        Min
-                        <input
-                          value={String(template.minimumCharge)}
-                          inputMode="decimal"
-                          onChange={(event) =>
-                            setServiceTemplates((current) =>
-                              current.map((item) =>
-                                item.id === template.id ? { ...item, minimumCharge: Number(event.target.value) || 0 } : item
-                              )
-                            )
-                          }
-                        />
-                      </label>
-                      <small>{template.notes}</small>
-                    </div>
-                  ))}
-                </div>
-              </details>
 
               <div className={getPanelClass(effectivePanel, "project", "workflow-panel")}>
                 <span>Workflow</span>

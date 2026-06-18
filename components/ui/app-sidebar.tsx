@@ -29,7 +29,7 @@ const appSidebarItems: Array<{
   { key: "clients", label: "Clients", href: "/clients", icon: "users" },
   { key: "drawings", label: "Drawings", href: "/drawings", icon: "draw" },
   { key: "invoices", label: "Invoices", href: "/invoices", icon: "receipt" },
-  { key: "settings", label: "Settings", href: "/dashboard?panel=settings", icon: "gear" }
+  { key: "settings", label: "Settings", href: "/settings", icon: "gear" }
 ];
 
 function AppSidebarIcon({ icon }: { icon: (typeof appSidebarItems)[number]["icon"] }) {
