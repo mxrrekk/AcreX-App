@@ -291,7 +291,10 @@ export function SettingsPage({ account }: SettingsPageProps) {
               Preferred map style
               <select value={settings.map.preferredStyle} onChange={(event) => updateSection("map", "preferredStyle", event.target.value)}>
                 <option value="satellite">Satellite</option>
-                <option value="street">Street</option>
+                <option value="satellite-streets">Satellite Streets</option>
+                <option value="outdoors">Outdoors</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
               </select>
             </label>
             <label>

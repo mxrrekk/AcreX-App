@@ -10,6 +10,7 @@ import type { Feature, Polygon } from "geojson";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatAcres, formatFeet, formatSquareFeet } from "@/lib/geo/format";
 import type { ProjectMeasurements } from "@/lib/geo/measurements";
+import { mapStyleOptions, type MapStyle } from "@/lib/map/styles";
 import {
   createChecklistFromService,
   defaultProjectTags,
@@ -44,8 +45,10 @@ import {
 import { serviceTypes } from "@/lib/projects/service-types";
 import type { ClientRecord, DrawingLocationSource, InvoiceRecord, ProjectFormState, ProjectRecord, ProjectStatus, QuoteItemRecord, QuoteRecord, SavedProjectMapData, WorkZone, ZoneType } from "@/lib/projects/types";
 import { zoneColors, zoneLabels } from "@/lib/projects/zones";
+import { defaultUserSettings, loadUserSettings } from "@/lib/settings/user-settings";
 
 type DashboardShellProps = {
+  userId: string;
   userEmail: string;
 };
 
@@ -112,6 +115,7 @@ type MobileMapCommand = {
     | "draw-service"
     | "layers"
     | "locate"
+    | "map-style"
     | "rename-selected"
     | "service-selected"
     | "color-selected"
@@ -384,7 +388,7 @@ async function getCurrentUserId(supabase: NonNullable<ReturnType<typeof createSu
   return user.id;
 }
 
-export function DashboardShell({ userEmail }: DashboardShellProps) {
+export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   const searchParams = useSearchParams();
   const requestedProjectId = searchParams.get("project");
   const [measurements, setMeasurements] = useState<ProjectMeasurements | null>(null);
@@ -408,6 +412,7 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   const [mobileSheet, setMobileSheet] = useState<MobileSheetKey | null>(null);
   const [mobileSheetSize, setMobileSheetSize] = useState<MobileSheetSize>("half");
   const [mobileMapCommand, setMobileMapCommand] = useState<MobileMapCommand | undefined>(undefined);
+  const [preferredMapStyle, setPreferredMapStyle] = useState<MapStyle>(defaultUserSettings.map.preferredStyle);
   const [mobileSheetDrag, setMobileSheetDrag] = useState(0);
   const [workZones, setWorkZones] = useState<WorkZone[]>([]);
   const [selectedZones, setSelectedZones] = useState<WorkZone[]>([]);
@@ -453,6 +458,10 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
   useEffect(() => {
     titleManuallyEditedRef.current = titleManuallyEdited;
   }, [titleManuallyEdited]);
+
+  useEffect(() => {
+    setPreferredMapStyle(loadUserSettings(userId).map.preferredStyle);
+  }, [userId]);
 
   const showToast = useCallback((message: string) => {
     const id = crypto.randomUUID();
@@ -1459,6 +1468,8 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
               onParcelLookupChange={setParcelLookup}
               onToolPanelChange={handleMapToolPanelChange}
               explorerRequest={explorerRequest}
+              initialMapStyle={preferredMapStyle}
+              onMapStyleChange={setPreferredMapStyle}
               mobileCommand={mobileMapCommand}
               searchMountId="dashboard-search-mount"
               useParcelRequestKey={useParcelRequestKey}
@@ -1607,14 +1618,34 @@ export function DashboardShell({ userEmail }: DashboardShellProps) {
                 ) : null}
 
                 {mobileSheet === "more" ? (
-                  <div className="mobile-more-links">
-                    <Link href="/drawings">Drawings</Link>
-                    <Link href="/clients">Clients</Link>
-                    <Link href="/invoices">Invoices</Link>
-                    <button type="button" disabled>Exports <small>Coming soon</small></button>
-                    <Link href="/settings">Settings</Link>
-                    <Link href="/settings?tab=account">Account</Link>
-                  </div>
+                  <>
+                    <section className="mobile-map-style-picker" aria-label="Map style">
+                      <span>Map style</span>
+                      <div>
+                        {mapStyleOptions.map((style) => (
+                          <button
+                            type="button"
+                            className={preferredMapStyle === style.id ? "active" : ""}
+                            key={style.id}
+                            onClick={() => {
+                              setPreferredMapStyle(style.id);
+                              sendMobileMapCommand("map-style", style.id);
+                            }}
+                          >
+                            {style.label}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                    <div className="mobile-more-links">
+                      <Link href="/drawings">Drawings</Link>
+                      <Link href="/clients">Clients</Link>
+                      <Link href="/invoices">Invoices</Link>
+                      <button type="button" disabled>Exports <small>Coming soon</small></button>
+                      <Link href="/settings">Settings</Link>
+                      <Link href="/settings?tab=account">Account</Link>
+                    </div>
+                  </>
                 ) : null}
 
                 {mobileSheet === "shape" && selectedMobileZone ? (

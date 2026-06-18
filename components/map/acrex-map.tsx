@@ -15,6 +15,7 @@ import {
 } from "@turf/turf";
 import { calculatePolygonMeasurements, type ProjectMeasurements } from "@/lib/geo/measurements";
 import { formatAcres, formatFeet, formatSquareFeet } from "@/lib/geo/format";
+import { mapStyleOptions, mapStyles, type MapStyle } from "@/lib/map/styles";
 import type { ParcelBoundaryFeature, ParcelLookupState } from "@/lib/projects/parcels";
 import type { DrawingLocationSource, SavedProjectMapData, WorkZone, ZoneType } from "@/lib/projects/types";
 import { defaultServiceType, getServiceTypeById, getServiceTypeByZoneType, serviceTypes, type ActiveServiceType } from "@/lib/projects/service-types";
@@ -46,12 +47,15 @@ type AcrexMapProps = {
     id: number;
     type: ZoneType | null;
   };
+  initialMapStyle?: MapStyle;
+  onMapStyleChange?: (style: MapStyle) => void;
   mobileCommand?: {
     id: number;
     action:
       | "draw-service"
       | "layers"
       | "locate"
+      | "map-style"
       | "rename-selected"
       | "service-selected"
       | "color-selected"
@@ -69,12 +73,12 @@ const defaultMapView = {
   center: baldwinCountyCenter,
   zoom: 10.2
 };
-const mapStyles = {
-  satellite: "mapbox://styles/mapbox/satellite-streets-v12",
-  street: "mapbox://styles/mapbox/streets-v12"
-} as const;
 type DrawMode = "select" | "draw" | "edit" | "measure" | "circle";
-type MapStyle = keyof typeof mapStyles;
+
+// Mapbox GL automatically requests high-DPI tiles using the browser device pixel ratio.
+// Rural imagery resolution varies by provider coverage, so cap close zoom before excessive
+// raster overzoom makes the source look softer without revealing additional ground detail.
+const maximumUsableZoom = 19.5;
 type DrawFeatureProperties = {
   zoneName?: string;
   zoneType?: ZoneType;
@@ -459,6 +463,8 @@ export function AcrexMap({
   useParcelRequestKey = 0,
   onToolPanelChange,
   explorerRequest,
+  initialMapStyle = "satellite-streets",
+  onMapStyleChange,
   mobileCommand
 }: AcrexMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -502,7 +508,8 @@ export function AcrexMap({
   const [activeServiceType, setActiveServiceType] = useState<ActiveServiceType>(defaultServiceType);
   const [activeMode, setActiveMode] = useState<DrawMode>("select");
   const [mapReady, setMapReady] = useState(false);
-  const [mapStyle, setMapStyle] = useState<MapStyle>("satellite");
+  const [mapStyle, setMapStyle] = useState<MapStyle>(initialMapStyle);
+  const [isStyleMenuOpen, setIsStyleMenuOpen] = useState(false);
   const [layerVisibility, setLayerVisibility] = useState<LayerVisibility>(defaultLayerVisibility);
   const [parcelLinesVisible, setParcelLinesVisible] = useState(true);
   const [activeMapPanel, setActiveMapPanel] = useState<ActiveMapPanel>(null);
@@ -864,6 +871,16 @@ export function AcrexMap({
         }
       });
       map.addLayer({
+        id: "acrex-selected-parcel-casing",
+        type: "line",
+        source: "acrex-selected-parcel",
+        paint: {
+          "line-color": "rgba(4, 9, 7, 0.88)",
+          "line-width": parcelLinesVisible ? 5 : 0,
+          "line-opacity": parcelLinesVisible ? 0.9 : 0
+        }
+      });
+      map.addLayer({
         id: "acrex-selected-parcel-line",
         type: "line",
         source: "acrex-selected-parcel",
@@ -888,6 +905,10 @@ export function AcrexMap({
     if (map.getLayer("acrex-selected-parcel-line")) {
       map.setPaintProperty("acrex-selected-parcel-line", "line-opacity", visible ? 0.95 : 0);
       map.setPaintProperty("acrex-selected-parcel-line", "line-width", visible ? 2.2 : 0);
+    }
+    if (map.getLayer("acrex-selected-parcel-casing")) {
+      map.setPaintProperty("acrex-selected-parcel-casing", "line-opacity", visible ? 0.9 : 0);
+      map.setPaintProperty("acrex-selected-parcel-casing", "line-width", visible ? 5 : 0);
     }
   }
 
@@ -1155,9 +1176,10 @@ export function AcrexMap({
 
       const map = new mapboxgl.Map({
         container: mapContainerRef.current,
-        style: mapStyles.satellite,
+        style: mapStyles[initialMapStyle].url,
         center: defaultMapView.center,
         zoom: defaultMapView.zoom,
+        maxZoom: maximumUsableZoom,
         pitch: 0,
         bearing: 0,
         fadeDuration: 260,
@@ -1174,6 +1196,7 @@ export function AcrexMap({
       });
 
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "bottom-right");
+      map.addControl(new mapboxgl.ScaleControl({ maxWidth: 96, unit: "imperial" }), "bottom-left");
       map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-left");
 
       let resizeFrame = 0;
@@ -1224,6 +1247,34 @@ export function AcrexMap({
             }
           },
           {
+            id: "acrex-polygon-casing-inactive",
+            type: "line",
+            filter: ["all", ["==", "$type", "Polygon"], ["!=", "mode", "static"], ["!=", "active", "true"], hiddenFilter],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round"
+            },
+            paint: {
+              "line-color": "rgba(4, 9, 7, 0.82)",
+              "line-width": 5,
+              "line-opacity": 0.84
+            }
+          },
+          {
+            id: "acrex-polygon-casing-active",
+            type: "line",
+            filter: ["all", ["==", "$type", "Polygon"], ["!=", "mode", "static"], ["==", "active", "true"], hiddenFilter],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round"
+            },
+            paint: {
+              "line-color": "#f5fff1",
+              "line-width": 7,
+              "line-opacity": 0.96
+            }
+          },
+          {
             id: "acrex-polygon-line-inactive",
             type: "line",
             filter: ["all", ["==", "$type", "Polygon"], ["!=", "mode", "static"], ["!=", "active", "true"], hiddenFilter],
@@ -1234,7 +1285,7 @@ export function AcrexMap({
             paint: {
               "line-color": featureColorExpression,
               "line-width": 3,
-              "line-blur": 0.35
+              "line-blur": 0
             }
           },
           {
@@ -1248,7 +1299,35 @@ export function AcrexMap({
             paint: {
               "line-color": featureColorExpression,
               "line-width": 4.5,
-              "line-blur": 0.2
+              "line-blur": 0
+            }
+          },
+          {
+            id: "acrex-line-casing-inactive",
+            type: "line",
+            filter: ["all", ["==", "$type", "LineString"], ["!=", "mode", "static"], ["!=", "active", "true"], hiddenFilter],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round"
+            },
+            paint: {
+              "line-color": "rgba(4, 9, 7, 0.82)",
+              "line-width": 7,
+              "line-opacity": 0.84
+            }
+          },
+          {
+            id: "acrex-line-casing-active",
+            type: "line",
+            filter: ["all", ["==", "$type", "LineString"], ["!=", "mode", "static"], ["==", "active", "true"], hiddenFilter],
+            layout: {
+              "line-cap": "round",
+              "line-join": "round"
+            },
+            paint: {
+              "line-color": "#f5fff1",
+              "line-width": 9,
+              "line-opacity": 0.96
             }
           },
           {
@@ -1284,8 +1363,10 @@ export function AcrexMap({
             type: "circle",
             filter: ["all", ["==", "$type", "Point"], ["==", "meta", "midpoint"], hiddenFilter],
             paint: {
-              "circle-radius": 4,
-              "circle-color": "#7fd957"
+              "circle-radius": 4.5,
+              "circle-color": "#7fd957",
+              "circle-stroke-color": "rgba(4, 9, 7, 0.9)",
+              "circle-stroke-width": 1.5
             }
           },
           {
@@ -1293,10 +1374,10 @@ export function AcrexMap({
             type: "circle",
             filter: ["all", ["==", "$type", "Point"], ["==", "meta", "vertex"], hiddenFilter],
             paint: {
-              "circle-radius": 5,
+              "circle-radius": 6,
               "circle-color": "#f5fff1",
-              "circle-stroke-color": "#7fd957",
-              "circle-stroke-width": 2
+              "circle-stroke-color": "#234d2d",
+              "circle-stroke-width": 2.5
             }
           }
         ]
@@ -1988,29 +2069,15 @@ export function AcrexMap({
     commitDrawingDeletion([zone], previousSnapshot);
   }
 
-  function resetView() {
-    const map = mapRef.current;
-    if (!map) return;
-
-    if (fitMapToCurrentZones()) {
-      return;
-    }
-
-    map.flyTo({
-      center: defaultMapView.center,
-      zoom: defaultMapView.zoom,
-      pitch: 0,
-      bearing: 0,
-      essential: true
-    });
-  }
-
   function changeMapStyle(nextStyle: MapStyle) {
     const map = mapRef.current;
+    setIsStyleMenuOpen(false);
     if (!map || nextStyle === mapStyle) return;
 
     setMapStyle(nextStyle);
-    map.setStyle(mapStyles[nextStyle], {
+    onMapStyleChange?.(nextStyle);
+    map.setStyle(mapStyles[nextStyle].url, {
+      diff: false,
       localFontFamily: "",
       localIdeographFontFamily: ""
     });
@@ -2022,6 +2089,13 @@ export function AcrexMap({
       map.resize();
     });
   }
+
+  useEffect(() => {
+    if (!mapReady || initialMapStyle === mapStyle) return;
+    changeMapStyle(initialMapStyle);
+  // The style transition is intentionally driven only by the persisted preference.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMapStyle, mapReady]);
 
   function updateSelectedZoneProperty(field: keyof DrawFeatureProperties, value: string) {
     const draw = drawRef.current;
@@ -2190,6 +2264,10 @@ export function AcrexMap({
     }
     if (mobileCommand.action === "layers") {
       toggleParcelLines();
+      return;
+    }
+    if (mobileCommand.action === "map-style" && mobileCommand.value && mobileCommand.value in mapStyles) {
+      changeMapStyle(mobileCommand.value as MapStyle);
       return;
     }
     if (mobileCommand.action === "locate") {
@@ -2701,14 +2779,17 @@ export function AcrexMap({
             </div>
           ) : null}
         </div>
-        <button
-          className="map-style-icon-button"
-          type="button"
-          onClick={() => changeMapStyle(mapStyle === "satellite" ? "street" : "satellite")}
-          aria-label={mapStyle === "satellite" ? "Switch to street view" : "Switch to satellite view"}
-          title={mapStyle === "satellite" ? "Street view" : "Satellite view"}
-        >
-          {mapStyle === "satellite" ? (
+        <div className="map-style-control">
+          <button
+            className="map-style-icon-button"
+            type="button"
+            onClick={() => setIsStyleMenuOpen((current) => !current)}
+            aria-label="Choose map style"
+            aria-expanded={isStyleMenuOpen}
+            aria-haspopup="dialog"
+            title={`Map style: ${mapStyles[mapStyle].label}`}
+          >
+            {mapStyle === "satellite" || mapStyle === "satellite-streets" ? (
             <svg aria-hidden="true" viewBox="0 0 20 20">
               <path d="M3.2 5.2 7.4 3.5l5.2 2 4.2-1.7v11l-4.2 1.7-5.2-2-4.2 1.7v-11Z" />
               <path d="M7.4 3.5v11M12.6 5.5v11" />
@@ -2719,28 +2800,27 @@ export function AcrexMap({
               <path d="m3.4 10 6.6 3.4 6.6-3.4M3.4 13.8l6.6 3.4 6.6-3.4" />
             </svg>
           )}
-        </button>
-      </div>
-      <div className="map-view-controls map-hidden-tools" aria-label="Map view controls">
-        <div className="map-style-toggle" role="group" aria-label="Map style">
-          <button
-            className={mapStyle === "satellite" ? "active" : ""}
-            type="button"
-            onClick={() => changeMapStyle("satellite")}
-          >
-            Satellite
           </button>
-          <button
-            className={mapStyle === "street" ? "active" : ""}
-            type="button"
-            onClick={() => changeMapStyle("street")}
-          >
-            Street
-          </button>
+          {isStyleMenuOpen ? (
+            <div className="map-style-menu" role="dialog" aria-label="Map style">
+              <div className="map-popover-heading">
+                <span>Map style</span>
+                <button type="button" onClick={() => setIsStyleMenuOpen(false)} aria-label="Close map styles">Close</button>
+              </div>
+              {mapStyleOptions.map((style) => (
+                <button
+                  className={mapStyle === style.id ? "active" : ""}
+                  type="button"
+                  key={style.id}
+                  onClick={() => changeMapStyle(style.id)}
+                >
+                  <span>{style.label}</span>
+                  <small>{style.description}</small>
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
-        <button className="map-reset-button" type="button" onClick={resetView}>
-          Reset View
-        </button>
       </div>
       {savePill ? (
         <div className="shape-save-pill" style={{ "--zone-color": savePill.color } as CSSProperties} role="status">

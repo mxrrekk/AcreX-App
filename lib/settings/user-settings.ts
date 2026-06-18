@@ -45,7 +45,7 @@ export type AcrexUserSettings = {
     exclusionColor: string;
   };
   map: {
-    preferredStyle: "satellite" | "street";
+    preferredStyle: "satellite" | "satellite-streets" | "outdoors" | "light" | "dark";
     preferredUnits: "imperial" | "metric";
     showLabels: boolean;
     showParcelBoundary: boolean;
@@ -90,7 +90,7 @@ export const defaultUserSettings: AcrexUserSettings = {
     exclusionColor: "#ef4444"
   },
   map: {
-    preferredStyle: "satellite",
+    preferredStyle: "satellite-streets",
     preferredUnits: "imperial",
     showLabels: true,
     showParcelBoundary: true
@@ -112,6 +112,13 @@ export function normalizeUserSettings(value: Partial<AcrexUserSettings> | null |
   const pricing = (value?.pricing ?? {}) as Partial<AcrexUserSettings["pricing"]>;
   const drawing = (value?.drawing ?? {}) as Partial<AcrexUserSettings["drawing"]>;
   const map = (value?.map ?? {}) as Partial<AcrexUserSettings["map"]>;
+  const rawPreferredStyle = (value?.map as { preferredStyle?: unknown } | undefined)?.preferredStyle;
+  const supportedMapStyles = new Set(["satellite", "satellite-streets", "outdoors", "light", "dark"]);
+  const preferredStyle = rawPreferredStyle === "street"
+    ? "light"
+    : typeof rawPreferredStyle === "string" && supportedMapStyles.has(rawPreferredStyle)
+      ? rawPreferredStyle as AcrexUserSettings["map"]["preferredStyle"]
+      : defaultUserSettings.map.preferredStyle;
 
   return {
     company: { ...defaultUserSettings.company, ...company },
@@ -137,7 +144,7 @@ export function normalizeUserSettings(value: Partial<AcrexUserSettings> | null |
       fuelSurchargePercent: finiteNumber(pricing.fuelSurchargePercent, defaultUserSettings.pricing.fuelSurchargePercent)
     },
     drawing: { ...defaultUserSettings.drawing, ...drawing },
-    map: { ...defaultUserSettings.map, ...map },
+    map: { ...defaultUserSettings.map, ...map, preferredStyle },
     updatedAt: typeof value?.updatedAt === "string" ? value.updatedAt : null
   };
 }

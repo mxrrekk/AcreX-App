@@ -29,5 +29,5 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     redirect("/login");
   }
 
-  return <DashboardShell userEmail={user.email ?? "Contractor"} />;
+  return <DashboardShell userId={user.id} userEmail={user.email ?? "Contractor"} />;
 }
