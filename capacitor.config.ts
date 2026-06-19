@@ -1,6 +1,8 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
-const serverUrl = process.env.CAPACITOR_SERVER_URL?.trim();
+const configuredServerUrl = process.env.CAPACITOR_SERVER_URL?.trim();
+const serverUrl =
+  configuredServerUrl || (process.env.NODE_ENV === "production" ? undefined : "http://localhost:3001");
 
 const config: CapacitorConfig = {
   appId: "com.getacrex.app",
