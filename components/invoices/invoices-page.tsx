@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
+import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { InvoiceFormState, InvoiceRecord, InvoiceStatus, QuoteRecord } from "@/lib/projects/types";
 
@@ -360,6 +361,7 @@ export function InvoicesPage({ userId, userEmail, quotes, invoices, errorMessage
           </div>
         </section>
       </section>
+      <MobileAppNav active="invoices" />
     </main>
   );
 }

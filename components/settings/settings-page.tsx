@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppSidebar } from "@/components/ui/app-sidebar";
+import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   defaultUserSettings,
@@ -321,6 +322,7 @@ export function SettingsPage({ account }: SettingsPageProps) {
           </button>
         </footer>
       </section>
+      <MobileAppNav active={activeTab === "account" ? "account" : "settings"} />
     </main>
   );
 }

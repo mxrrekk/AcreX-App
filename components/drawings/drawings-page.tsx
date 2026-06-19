@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
+import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatDrawingQuantity, getProjectDrawings } from "@/lib/projects/drawings";
 import type { ProjectRecord, SavedProjectMapData } from "@/lib/projects/types";
@@ -177,6 +178,7 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
           )}
         </section>
       </section>
+      <MobileAppNav active="drawings" />
     </main>
   );
 }

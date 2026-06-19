@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
+import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatAcres } from "@/lib/geo/format";
 import {
@@ -300,6 +301,7 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, err
           </section>
         </div>
       ) : null}
+      <MobileAppNav active="projects" />
     </main>
   );
 }

@@ -454,6 +454,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   const lastDraftJsonRef = useRef<string>("");
   const drawingPersistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
   const loadedRequestedProjectIdRef = useRef<string | null>(null);
+  const hasStartedDraftRestoreRef = useRef(false);
   const titleManuallyEditedRef = useRef(false);
   const mobileSheetDragStartRef = useRef<number | null>(null);
   const mobileSheetDragRef = useRef(0);
@@ -724,6 +725,8 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   }, [addActivity, workZones]);
 
   useEffect(() => {
+    if (hasStartedDraftRestoreRef.current) return;
+    hasStartedDraftRestoreRef.current = true;
     if (hasRestoredDraft || requestedProjectId) {
       setHasRestoredDraft(true);
       return;
@@ -1702,6 +1705,17 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                           onChange={(event) => sendMobileMapCommand("color-selected", event.target.value)}
                         />
                       </label>
+                      <div className="mobile-shape-location">
+                        <span>Location</span>
+                        <strong>{selectedMobileZone.address || projectForm.address || address || "Address unavailable"}</strong>
+                        <small>
+                          {typeof selectedMobileZone.latitude === "number" && typeof selectedMobileZone.longitude === "number"
+                            ? `${selectedMobileZone.latitude.toFixed(6)}, ${selectedMobileZone.longitude.toFixed(6)}`
+                            : selectedMobileZone.centroid
+                              ? `${selectedMobileZone.centroid.latitude.toFixed(6)}, ${selectedMobileZone.centroid.longitude.toFixed(6)}`
+                              : "Coordinates unavailable"}
+                        </small>
+                      </div>
                     </div>
                     <div className="mobile-sheet-actions mobile-shape-actions">
                       {activeProjectId ? (

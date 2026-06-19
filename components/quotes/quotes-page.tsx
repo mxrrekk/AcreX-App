@@ -9,6 +9,7 @@ import {
   type AiSuggestedMaterial
 } from "@/components/quotes/ai-estimate-review";
 import { AppSidebar } from "@/components/ui/app-sidebar";
+import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import {
   detectEstimateServices,
   estimateQuestionCatalog,
@@ -1903,17 +1904,18 @@ export function QuotesPage({
                 {lineItems.length > 0 ? (
                   lineItems.map((item) => (
                     <div className="quote-editor-row quote-editor-line-grid" key={item.id}>
-                      <input aria-label="Service name" value={item.serviceName} onChange={(event) => updateLineItem(item.id, { serviceName: event.target.value })} />
-                      <input aria-label="Description" value={item.description} onChange={(event) => updateLineItem(item.id, { description: event.target.value })} />
+                      <label className="quote-mobile-field"><span>Service</span><input aria-label="Service name" value={item.serviceName} onChange={(event) => updateLineItem(item.id, { serviceName: event.target.value })} /></label>
+                      <label className="quote-mobile-field"><span>Description</span><input aria-label="Description" value={item.description} onChange={(event) => updateLineItem(item.id, { description: event.target.value })} /></label>
                       <span className={`quote-source-measurement${item.sourceId && !availableSourceIds.has(item.sourceId) ? " is-deleted" : ""}`}>
+                        <small>Source measurement</small>
                         {item.sourceMeasurement}
                         {item.sourceId && !availableSourceIds.has(item.sourceId) ? " · Drawing deleted" : ""}
                       </span>
-                      <input aria-label="Quantity" value={item.quantity} inputMode="decimal" onChange={(event) => updateLineItem(item.id, { quantity: event.target.value })} />
-                      <input aria-label="Unit" value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} />
-                      <input aria-label="Rate" value={item.rate} inputMode="decimal" placeholder="0.00" onChange={(event) => updateLineItem(item.id, { rate: event.target.value })} />
-                      <strong className="quote-line-total">{formatCurrency(lineTotal(item))}</strong>
-                      <input aria-label="Line item notes" value={item.notes} onChange={(event) => updateLineItem(item.id, { notes: event.target.value })} />
+                      <label className="quote-mobile-field"><span>Quantity</span><input aria-label="Quantity" value={item.quantity} inputMode="decimal" onChange={(event) => updateLineItem(item.id, { quantity: event.target.value })} /></label>
+                      <label className="quote-mobile-field"><span>Unit</span><input aria-label="Unit" value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} /></label>
+                      <label className="quote-mobile-field"><span>Rate</span><input aria-label="Rate" value={item.rate} inputMode="decimal" placeholder="0.00" onChange={(event) => updateLineItem(item.id, { rate: event.target.value })} /></label>
+                      <strong className="quote-line-total"><small>Total</small>{formatCurrency(lineTotal(item))}</strong>
+                      <label className="quote-mobile-field"><span>Notes</span><input aria-label="Line item notes" value={item.notes} onChange={(event) => updateLineItem(item.id, { notes: event.target.value })} /></label>
                       <div className="quote-editor-actions">
                         <button type="button" className="duplicate" onClick={() => duplicateLineItem(item)}>Duplicate</button>
                         <button
@@ -1979,12 +1981,12 @@ export function QuotesPage({
                 {materials.length > 0 ? (
                   materials.map((item) => (
                     <div className="quote-editor-row quote-editor-material-grid" key={item.id}>
-                      <input aria-label="Material name" value={item.name} onChange={(event) => updateMaterial(item.id, { name: event.target.value })} />
-                      <input aria-label="Material quantity" value={item.quantity} inputMode="decimal" onChange={(event) => updateMaterial(item.id, { quantity: event.target.value })} />
-                      <input aria-label="Material unit" value={item.unit} onChange={(event) => updateMaterial(item.id, { unit: event.target.value })} />
-                      <input aria-label="Material unit cost" value={item.unitCost} inputMode="decimal" placeholder="0.00" onChange={(event) => updateMaterial(item.id, { unitCost: event.target.value })} />
-                      <strong className="quote-line-total">{formatCurrency(materialTotal(item))}</strong>
-                      <input aria-label="Material notes" value={item.notes} onChange={(event) => updateMaterial(item.id, { notes: event.target.value })} />
+                      <label className="quote-mobile-field"><span>Material</span><input aria-label="Material name" value={item.name} onChange={(event) => updateMaterial(item.id, { name: event.target.value })} /></label>
+                      <label className="quote-mobile-field"><span>Quantity</span><input aria-label="Material quantity" value={item.quantity} inputMode="decimal" onChange={(event) => updateMaterial(item.id, { quantity: event.target.value })} /></label>
+                      <label className="quote-mobile-field"><span>Unit</span><input aria-label="Material unit" value={item.unit} onChange={(event) => updateMaterial(item.id, { unit: event.target.value })} /></label>
+                      <label className="quote-mobile-field"><span>Unit cost</span><input aria-label="Material unit cost" value={item.unitCost} inputMode="decimal" placeholder="0.00" onChange={(event) => updateMaterial(item.id, { unitCost: event.target.value })} /></label>
+                      <strong className="quote-line-total"><small>Total</small>{formatCurrency(materialTotal(item))}</strong>
+                      <label className="quote-mobile-field"><span>Notes</span><input aria-label="Material notes" value={item.notes} onChange={(event) => updateMaterial(item.id, { notes: event.target.value })} /></label>
                       <button type="button" onClick={() => {
                         setMaterials((items) => items.filter((material) => material.id !== item.id));
                         setSaveState("idle");
@@ -2029,7 +2031,7 @@ export function QuotesPage({
                 {costLines.length > 0 ? (
                   costLines.map((item) => (
                     <div className="quote-editor-row quote-editor-cost-grid" key={item.id}>
-                      <select aria-label="Cost category" value={item.category} onChange={(event) => updateCostLine(item.id, { category: event.target.value as CostLine["category"] })}>
+                      <label className="quote-mobile-field"><span>Category</span><select aria-label="Cost category" value={item.category} onChange={(event) => updateCostLine(item.id, { category: event.target.value as CostLine["category"] })}>
                         <option value="labor">Labor</option>
                         <option value="equipment">Equipment</option>
                         <option value="fuel">Fuel surcharge</option>
@@ -2038,10 +2040,10 @@ export function QuotesPage({
                         <option value="disposal">Disposal</option>
                         <option value="minimum">Minimum job charge</option>
                         <option value="other">Other</option>
-                      </select>
-                      <input aria-label="Cost name" value={item.name} onChange={(event) => updateCostLine(item.id, { name: event.target.value })} />
-                      <input aria-label="Cost amount" value={item.amount} inputMode="decimal" placeholder="0.00" onChange={(event) => updateCostLine(item.id, { amount: event.target.value })} />
-                      <input aria-label="Cost notes" value={item.notes} onChange={(event) => updateCostLine(item.id, { notes: event.target.value })} />
+                      </select></label>
+                      <label className="quote-mobile-field"><span>Name</span><input aria-label="Cost name" value={item.name} onChange={(event) => updateCostLine(item.id, { name: event.target.value })} /></label>
+                      <label className="quote-mobile-field"><span>Amount</span><input aria-label="Cost amount" value={item.amount} inputMode="decimal" placeholder="0.00" onChange={(event) => updateCostLine(item.id, { amount: event.target.value })} /></label>
+                      <label className="quote-mobile-field"><span>Notes</span><input aria-label="Cost notes" value={item.notes} onChange={(event) => updateCostLine(item.id, { notes: event.target.value })} /></label>
                       <button type="button" onClick={() => {
                         setCostLines((items) => items.filter((line) => line.id !== item.id));
                         setSaveState("idle");
@@ -2290,7 +2292,19 @@ export function QuotesPage({
             </div>
           </aside>
         </section>
+
+        <aside className="quote-mobile-summary-bar" aria-label="Mobile quote summary">
+          <div>
+            <span>Grand total</span>
+            <strong>{formatCurrency(grandTotal)}</strong>
+          </div>
+          <button type="button" onClick={() => setActiveTab("review")}>Review</button>
+          <button type="button" onClick={saveQuote} disabled={saveState === "saving"}>
+            {saveState === "saving" ? "Saving…" : "Save"}
+          </button>
+        </aside>
       </section>
+      <MobileAppNav active="quotes" />
     </main>
   );
 }

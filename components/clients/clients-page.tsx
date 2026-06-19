@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
+import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { ClientFormState, ClientRecord, InvoiceRecord, ProjectRecord, QuoteRecord } from "@/lib/projects/types";
 
@@ -297,6 +298,7 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
           </section>
         </section>
       </section>
+      <MobileAppNav active="clients" />
     </main>
   );
 }

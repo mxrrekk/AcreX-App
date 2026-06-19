@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
+import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { formatDrawingQuantity, getProjectDrawings } from "@/lib/projects/drawings";
 import { getProjectStorageKey, readStoredValue, writeStoredValue, type ProjectNote } from "@/lib/projects/operations";
 import type { ClientRecord, InvoiceRecord, ProjectRecord, QuoteRecord, SavedProjectMapData } from "@/lib/projects/types";
@@ -177,6 +178,7 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
         ) : null}
         </div>
       </section>
+      <MobileAppNav active="projects" />
     </main>
   );
 }
