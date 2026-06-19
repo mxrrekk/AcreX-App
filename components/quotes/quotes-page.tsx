@@ -47,6 +47,7 @@ type QuotesPageProps = {
 
 type QuoteUiStatus = "Draft" | "Sent" | "Approved" | "Declined";
 type QuoteWorkspaceTab = "estimate" | "line-items" | "materials" | "labor" | "scope" | "review";
+type MobileQuotePanel = "menu" | "details" | "pricing" | null;
 
 type MeasurementRow = {
   id: string;
@@ -711,6 +712,7 @@ export function QuotesPage({
   const [aiEditState, setAiEditState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [aiEditMessage, setAiEditMessage] = useState("");
   const [activeTab, setActiveTab] = useState<QuoteWorkspaceTab>("estimate");
+  const [mobileQuotePanel, setMobileQuotePanel] = useState<MobileQuotePanel>(null);
 
   useEffect(() => {
     if (!initialProjectId || initialProjectId === selectedProjectId) return;
@@ -1496,7 +1498,7 @@ export function QuotesPage({
   }
 
   return (
-    <main className="quotes-page">
+    <main className={`quotes-page${mobileQuotePanel ? ` mobile-quote-panel-${mobileQuotePanel}` : ""}`}>
       <aside className="projects-sidebar">
         <AppSidebar active="quotes" ariaLabel="Quote navigation" />
       </aside>
@@ -1517,9 +1519,56 @@ export function QuotesPage({
         {errorMessage ? <p className="projects-error">{errorMessage}</p> : null}
         {saveMessage ? <p className={saveState === "error" ? "projects-error" : "projects-success"}>{saveMessage}</p> : null}
 
+        <section className="quote-mobile-toolbar" aria-label="Mobile quote workspace">
+          <div>
+            <span>All Quotes</span>
+            <strong>{selectedProject?.project_name || selectedProject?.address || "New quote"}</strong>
+            <small>{quoteNumber} · {status}</small>
+          </div>
+          <button type="button" onClick={() => setMobileQuotePanel("menu")} aria-label="Open quote tools">
+            <span aria-hidden="true">•••</span>
+          </button>
+        </section>
+
+        {mobileQuotePanel ? (
+          <button
+            type="button"
+            className="quote-mobile-panel-backdrop"
+            aria-label="Close quote panel"
+            onClick={() => setMobileQuotePanel(null)}
+          />
+        ) : null}
+
+        {mobileQuotePanel === "menu" ? (
+          <section className="quote-mobile-tools-panel" role="dialog" aria-label="Quote tools">
+            <header>
+              <div>
+                <span>Quote tools</span>
+                <strong>Open only what you need</strong>
+              </div>
+              <button type="button" onClick={() => setMobileQuotePanel(null)} aria-label="Close quote tools">×</button>
+            </header>
+            <div>
+              <button type="button" onClick={() => setMobileQuotePanel("details")}>Quote details <small>Project, customer, status</small></button>
+              <button type="button" onClick={() => { setActiveTab("materials"); setMobileQuotePanel(null); }}>Materials <small>{materials.length} added</small></button>
+              <button type="button" onClick={() => { setActiveTab("labor"); setMobileQuotePanel(null); }}>Labor & equipment <small>{costLines.length} added</small></button>
+              <button type="button" onClick={() => { setActiveTab("scope"); setMobileQuotePanel(null); }}>Scope & terms <small>Notes and exclusions</small></button>
+              <button type="button" onClick={() => { setActiveTab("review"); setMobileQuotePanel(null); }}>Review quote <small>Final checks</small></button>
+              <button type="button" onClick={() => setMobileQuotePanel("pricing")}>Pricing summary <small>{formatCurrency(grandTotal)}</small></button>
+            </div>
+          </section>
+        ) : null}
+
         <section className="quote-workspace-grid">
           <div className="quote-workspace-main">
             <section className="quote-builder-card quote-header-card" aria-label="Quote header">
+              <div className="quote-mobile-panel-heading">
+                <div>
+                  <span>Quote details</span>
+                  <strong>Project and customer</strong>
+                </div>
+                <button type="button" onClick={() => setMobileQuotePanel(null)} aria-label="Close quote details">×</button>
+              </div>
               <div className="quote-card-heading">
                 <div>
                   <span>Quote Header</span>
@@ -1599,6 +1648,33 @@ export function QuotesPage({
               </div>
 
             </section>
+
+            <nav className="quote-mobile-primary-tabs" aria-label="Primary quote tools">
+              <button
+                type="button"
+                className={activeTab === "estimate" ? "active" : ""}
+                onClick={() => setActiveTab("estimate")}
+              >
+                Estimate
+              </button>
+              <button
+                type="button"
+                className={activeTab === "line-items" ? "active" : ""}
+                onClick={() => setActiveTab("line-items")}
+              >
+                Line Items {lineItems.length > 0 ? <span>{lineItems.length}</span> : null}
+              </button>
+              <button type="button" onClick={() => setMobileQuotePanel("menu")} aria-label="Open quote tools">
+                <i aria-hidden="true">•••</i>
+              </button>
+            </nav>
+
+            {!["estimate", "line-items"].includes(activeTab) ? (
+              <div className="quote-mobile-active-extra">
+                <span>{quoteWorkspaceTabs.find((tab) => tab.id === activeTab)?.label}</span>
+                <button type="button" onClick={() => setActiveTab("estimate")}>Done</button>
+              </div>
+            ) : null}
 
             <nav className="quote-detail-tabs" aria-label="Quote details">
               {quoteWorkspaceTabs.map((tab) => (
@@ -2170,6 +2246,13 @@ export function QuotesPage({
           </div>
 
           <aside className="quote-summary-card quote-pricing-summary" aria-label="Pricing summary">
+            <div className="quote-mobile-panel-heading">
+              <div>
+                <span>Pricing</span>
+                <strong>Quote summary</strong>
+              </div>
+              <button type="button" onClick={() => setMobileQuotePanel(null)} aria-label="Close pricing summary">×</button>
+            </div>
             <div className="quote-summary-heading">
               <span>Pricing Summary</span>
               <strong>{formatCurrency(grandTotal)}</strong>
@@ -2294,10 +2377,10 @@ export function QuotesPage({
         </section>
 
         <aside className="quote-mobile-summary-bar" aria-label="Mobile quote summary">
-          <div>
+          <button type="button" className="quote-mobile-total-button" onClick={() => setMobileQuotePanel("pricing")}>
             <span>Grand total</span>
             <strong>{formatCurrency(grandTotal)}</strong>
-          </div>
+          </button>
           <button type="button" onClick={() => setActiveTab("review")}>Review</button>
           <button type="button" onClick={saveQuote} disabled={saveState === "saving"}>
             {saveState === "saving" ? "Saving…" : "Save"}

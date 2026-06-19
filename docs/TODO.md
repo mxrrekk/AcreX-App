@@ -2,6 +2,27 @@
 
 Last updated: June 19, 2026.
 
+## Completed — Compact Landing Page Rebuild
+
+- [x] Rebuild the public homepage without changing authenticated application functionality.
+- [x] Use the shared AcreX app logo in the header and footer.
+- [x] Keep the page compact: header, hero, product explanation, audiences, three-step workflow, benefits, CTA, and footer.
+- [x] Use local high-resolution property and contractor imagery with a consistent SVG icon system.
+- [x] Route Try AcreX, Login, Terms, Privacy, Contact, and section navigation correctly.
+- [x] Remove the long pricing and FAQ sections from the homepage.
+- [x] Verify phone and desktop layouts have no horizontal overflow or image/text overlap.
+
+## Completed — Mobile Quote and Map Workflow Refinement
+
+- [x] Route the Map action bar Quotes control directly to the full Quotes workspace.
+- [x] Remove the duplicate Map quote snapshot sheet.
+- [x] Open the selected drawing inspector at a usable half-height on phones and portrait tablets.
+- [x] Keep essential drawing facts and quote actions visible while placing rename, service, color, visibility, zoom, and delete controls under one detail disclosure.
+- [x] Replace the location dot with a precise dot-and-crosshair marker.
+- [x] Reduce the mobile Quote workspace to Estimate and Line Items as primary tabs.
+- [x] Move quote details, materials, labor/equipment, scope/terms, review, and pricing into an on-demand mobile tools panel.
+- [x] Keep the fixed total, review, and save controls available without rendering the full pricing card in the page flow.
+
 ## Completed — Mobile Map View and Location Controls
 
 - [x] Lock the phone and portrait-tablet Map workspace to exactly one viewport.

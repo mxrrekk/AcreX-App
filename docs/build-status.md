@@ -4,7 +4,7 @@ Last reviewed: June 19, 2026.
 
 ## Current Status
 
-The full mobile layout phase is complete. Phone and portrait-tablet screens use mobile navigation, card-based content, wrapped tabs, large touch targets, safe-area spacing, and no desktop sidebars. Tablet landscape uses a compact navigation rail.
+The compact landing-page rebuild is complete. The homepage now explains AcreX in one short visual flow with clear audience, workflow, benefit, and CTA sections while leaving all authenticated app functionality unchanged.
 
 ## Verification
 
@@ -23,6 +23,16 @@ The full mobile layout phase is complete. Phone and portrait-tablet screens use 
 - Mobile Map View regression: the floating view control opened a real sheet; Satellite, Satellite Streets, Outdoors, Light, and Dark switched in place; 3D and Reset View returned expected state messages
 - Mobile Locate regression: denied browser location produced explicit device-settings guidance instead of failing silently; successful coordinates now create a persistent green map marker
 - iOS location readiness: `NSLocationWhenInUseUsageDescription` is present, the plist validates, and the iPhone 17 simulator build passes
+- Map Quotes action: routes directly to `/quotes` instead of opening a limited snapshot sheet
+- Drawing inspector: opens half-height on selection with visible measurement, project, location, quote, drawing, and expandable edit/delete controls
+- Mobile Quote workspace: Estimate and Line Items remain primary; quote details, materials, labor/equipment, scope, review, and pricing open on demand
+- Location marker: uses an HTML Mapbox marker with a centered dot, crosshairs, and accuracy halo that remains visible across style changes
+- `npx tsc --noEmit`: passing
+- Latest iPhone 17 simulator build and launch: passing with no Xcode warnings or errors
+- Landing page: shared app logo, local high-resolution visuals, consistent icons, and all requested sections present
+- Landing CTA routes: `/signup`, `/login`, `/terms`, `/privacy`, and support email verified
+- Landing responsive regression: 393px phone and 1440px desktop layouts have exact viewport-width documents with no horizontal overflow
+- Landing hero regression: image and text remain separate on phone and desktop with no overlap
 
 ## Remaining Release Work
 

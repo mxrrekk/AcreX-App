@@ -107,7 +107,7 @@ const emptyProjectForm: ProjectFormState = {
 
 const projectStatuses: ProjectStatus[] = ["Draft", "Estimating", "Quoted", "Won", "Lost", "Completed", "Archived"];
 type DashboardPanelKey = "search" | "layers" | "measurements" | "quote" | "project";
-type MobileSheetKey = "draw" | "project" | "quote" | "layers" | "more" | "shape";
+type MobileSheetKey = "draw" | "project" | "layers" | "more" | "shape";
 type MobileSheetSize = "collapsed" | "half" | "full";
 type MobileMapCommand = {
   id: number;
@@ -579,15 +579,6 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   const activeProjectQuoteTotal = quotes
     .filter((quote) => quote.project_id === activeProjectId)
     .reduce((total, quote) => total + Number(quote.total ?? 0), 0);
-  const availableMeasurementCount = workZones.filter((zone) => zone.type !== "Excluded").length;
-  const mobileEstimateConfidence = Math.min(
-    100,
-    (activeProjectId ? 25 : 0) +
-      (availableMeasurementCount > 0 ? 25 : 0) +
-      (serviceTemplates.some((template) => template.active !== false) ? 20 : 0) +
-      (projectForm.address ? 15 : 0) +
-      (projectForm.clientId ? 15 : 0)
-  );
   const selectedMobileZone = selectedZones.length === 1 ? selectedZones[0] : null;
   const dashboardMetrics = useMemo(() => {
     const now = new Date();
@@ -999,20 +990,22 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
     setSelectedZones(zones);
     if (!zones.length) {
       setMobileSheet((current) => (current === "shape" ? null : current));
+      return;
+    }
+    if (
+      zones.length === 1 &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 1024px) and (orientation: portrait)").matches
+    ) {
+      setMobileSheet("shape");
+      setMobileSheetSize("half");
+      setMobileSheetDrag(0);
     }
   }, []);
 
   const handleMapToolPanelChange = useCallback((panel: "draw" | "layers" | "explorer" | null) => {
     if (!panel) return;
     setActivePanel(null);
-    if (
-      panel === "explorer" &&
-      typeof window !== "undefined" &&
-      window.matchMedia("(max-width: 1024px) and (orientation: portrait)").matches
-    ) {
-      setMobileSheet("shape");
-      setMobileSheetSize("collapsed");
-    }
   }, []);
 
   function openMobileSheet(sheet: MobileSheetKey) {
@@ -1501,22 +1494,34 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
           </div>
 
           <nav className="mobile-map-action-bar" aria-label="Map actions">
-            {[
-              ["draw", "Draw"],
-              ["project", "Project"],
-              ["quote", "Quote"],
-              ["more", "More"]
-            ].map(([sheet, label]) => (
-              <button
-                type="button"
-                key={sheet}
-                className={mobileSheet === sheet ? "active" : ""}
-                onClick={() => openMobileSheet(sheet as MobileSheetKey)}
-              >
-                <i aria-hidden="true" />
-                <span>{label}</span>
-              </button>
-            ))}
+            <button
+              type="button"
+              className={mobileSheet === "draw" ? "active" : ""}
+              onClick={() => openMobileSheet("draw")}
+            >
+              <i aria-hidden="true" />
+              <span>Draw</span>
+            </button>
+            <button
+              type="button"
+              className={mobileSheet === "project" ? "active" : ""}
+              onClick={() => openMobileSheet("project")}
+            >
+              <i aria-hidden="true" />
+              <span>Project</span>
+            </button>
+            <Link href="/quotes" aria-label="Open all quotes">
+              <i aria-hidden="true" />
+              <span>Quotes</span>
+            </Link>
+            <button
+              type="button"
+              className={mobileSheet === "more" ? "active" : ""}
+              onClick={() => openMobileSheet("more")}
+            >
+              <i aria-hidden="true" />
+              <span>More</span>
+            </button>
           </nav>
 
           {mobileSheet ? (
@@ -1549,7 +1554,6 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                   <span>
                     {mobileSheet === "draw" ? "Draw a service" :
                       mobileSheet === "project" ? "Current project" :
-                      mobileSheet === "quote" ? "Quote snapshot" :
                       mobileSheet === "layers" ? "Map view" :
                       mobileSheet === "shape" ? "Drawing inspector" : "More"}
                   </span>
@@ -1558,9 +1562,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                       ? selectedMobileZone.name
                       : mobileSheet === "project"
                         ? projectForm.projectName
-                        : mobileSheet === "quote"
-                          ? formatCurrency(activeProjectQuoteTotal || recommendedQuote)
-                          : mobileSheet === "draw"
+                        : mobileSheet === "draw"
                             ? "Choose what to measure"
                             : mobileSheet === "layers"
                               ? mapStyles[preferredMapStyle].label
@@ -1616,21 +1618,6 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                         handleNewProject();
                         setMobileSheet(null);
                       }}>New Project</button>
-                    </div>
-                  </>
-                ) : null}
-
-                {mobileSheet === "quote" ? (
-                  <>
-                    <div className="mobile-sheet-stats">
-                      <span>Current total<strong>{formatCurrency(activeProjectQuoteTotal || recommendedQuote)}</strong></span>
-                      <span>Confidence<strong>{mobileEstimateConfidence}%</strong></span>
-                      <span>Measurements<strong>{availableMeasurementCount}</strong></span>
-                      <span>Quote status<strong>{quoteStatus}</strong></span>
-                    </div>
-                    <div className="mobile-sheet-actions">
-                      <Link href={activeProjectId ? `/quotes?project=${activeProjectId}` : "/quotes"}>Build Estimate</Link>
-                      <Link className="secondary" href={activeProjectId ? `/quotes?project=${activeProjectId}` : "/quotes"}>Open Full Quote</Link>
                     </div>
                   </>
                 ) : null}
@@ -1727,61 +1714,70 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                       </span>
                       <small>{quotedZoneNames.includes(selectedMobileZone.name) ? "Added to quote" : "Not quoted"}</small>
                     </div>
-                    <div className="mobile-shape-fields">
-                      <label>
-                        Drawing name
-                        <input
-                          value={selectedMobileZone.name}
-                          onChange={(event) => sendMobileMapCommand("rename-selected", event.target.value)}
-                        />
-                      </label>
-                      <label>
-                        Service type
-                        <select
-                          value={selectedMobileZone.serviceTypeId}
-                          onChange={(event) => sendMobileMapCommand("service-selected", event.target.value)}
-                        >
-                          {serviceTypes.filter((service) => service.id !== "property-boundary").map((service) => (
-                            <option value={service.id} key={service.id}>{service.label}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        Color
-                        <input
-                          type="color"
-                          value={selectedMobileZone.color ?? zoneColors[selectedMobileZone.type]}
-                          onChange={(event) => sendMobileMapCommand("color-selected", event.target.value)}
-                        />
-                      </label>
-                      <div className="mobile-shape-location">
-                        <span>Location</span>
-                        <strong>{selectedMobileZone.address || projectForm.address || address || "Address unavailable"}</strong>
-                        <small>
-                          {typeof selectedMobileZone.latitude === "number" && typeof selectedMobileZone.longitude === "number"
-                            ? `${selectedMobileZone.latitude.toFixed(6)}, ${selectedMobileZone.longitude.toFixed(6)}`
-                            : selectedMobileZone.centroid
-                              ? `${selectedMobileZone.centroid.latitude.toFixed(6)}, ${selectedMobileZone.centroid.longitude.toFixed(6)}`
-                              : "Coordinates unavailable"}
-                        </small>
-                      </div>
+                    <div className="mobile-shape-facts">
+                      <span>Measurement<strong>{formatZoneMeasurement(selectedMobileZone)}</strong></span>
+                      <span>Project<strong>{activeProjectId ? "Saved" : "Not saved"}</strong></span>
                     </div>
-                    <div className="mobile-sheet-actions mobile-shape-actions">
+                    <div className="mobile-shape-location">
+                      <span>Location</span>
+                      <strong>{selectedMobileZone.address || projectForm.address || address || "Address unavailable"}</strong>
+                      <small>
+                        {typeof selectedMobileZone.latitude === "number" && typeof selectedMobileZone.longitude === "number"
+                          ? `${selectedMobileZone.latitude.toFixed(6)}, ${selectedMobileZone.longitude.toFixed(6)}`
+                          : selectedMobileZone.centroid
+                            ? `${selectedMobileZone.centroid.latitude.toFixed(6)}, ${selectedMobileZone.centroid.longitude.toFixed(6)}`
+                            : "Coordinates unavailable"}
+                      </small>
+                    </div>
+                    <div className="mobile-sheet-actions mobile-shape-primary-actions">
                       {activeProjectId ? (
                         <Link href={`/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(selectedMobileZone.id)}`}>Add to Quote</Link>
                       ) : (
-                        <button type="button" onClick={() => void handleSaveProject()}>Save before quote</button>
+                        <button type="button" onClick={() => void handleSaveProject()}>Save to Project</button>
                       )}
                       <Link className="secondary" href="/drawings">Open Drawing</Link>
-                      <button type="button" className="secondary" onClick={() => sendMobileMapCommand("zoom-selected")}>Zoom To</button>
-                      <button type="button" className="secondary" onClick={() => sendMobileMapCommand("toggle-selected")}>
-                        {selectedMobileZone.visible === false ? "Show" : "Hide"}
-                      </button>
-                      <button type="button" className="danger" onClick={() => {
-                        sendMobileMapCommand("delete-selected");
-                        setMobileSheet(null);
-                      }}>Delete</button>
                     </div>
+                    <details className="mobile-shape-details">
+                      <summary>Edit drawing details</summary>
+                      <div className="mobile-shape-fields">
+                        <label>
+                          Drawing name
+                          <input
+                            value={selectedMobileZone.name}
+                            onChange={(event) => sendMobileMapCommand("rename-selected", event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          Service type
+                          <select
+                            value={selectedMobileZone.serviceTypeId}
+                            onChange={(event) => sendMobileMapCommand("service-selected", event.target.value)}
+                          >
+                            {serviceTypes.filter((service) => service.id !== "property-boundary").map((service) => (
+                              <option value={service.id} key={service.id}>{service.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Color
+                          <input
+                            type="color"
+                            value={selectedMobileZone.color ?? zoneColors[selectedMobileZone.type]}
+                            onChange={(event) => sendMobileMapCommand("color-selected", event.target.value)}
+                          />
+                        </label>
+                      </div>
+                      <div className="mobile-sheet-actions mobile-shape-actions">
+                        <button type="button" className="secondary" onClick={() => sendMobileMapCommand("zoom-selected")}>Zoom To</button>
+                        <button type="button" className="secondary" onClick={() => sendMobileMapCommand("toggle-selected")}>
+                          {selectedMobileZone.visible === false ? "Show" : "Hide"}
+                        </button>
+                        <button type="button" className="danger" onClick={() => {
+                          sendMobileMapCommand("delete-selected");
+                          setMobileSheet(null);
+                        }}>Delete</button>
+                      </div>
+                    </details>
                   </>
                 ) : null}
               </div>
