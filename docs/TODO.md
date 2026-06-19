@@ -2,6 +2,12 @@
 
 Last updated: June 19, 2026.
 
+## Completed — Landing Header Fit
+
+- [x] Remove the top landing-page CTA button.
+- [x] Simplify the landing header grid after removing the CTA.
+- [x] Verify the landing page has no horizontal overflow at 320px, 375px, 393px, 768px, or 1440px.
+
 ## Completed — Compact Authentication Pages
 
 - [x] Remove “AcreX Early Access” text from the application.

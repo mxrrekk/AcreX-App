@@ -10833,7 +10833,7 @@ img {
   position: relative;
   z-index: 20;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 28px;
   align-items: center;
   min-height: 74px;
@@ -10901,11 +10901,6 @@ img {
   border-color: rgba(255, 255, 255, 0.13);
   color: #e6eee8;
   background: rgba(255, 255, 255, 0.04);
-}
-
-.home-header-cta {
-  min-width: 108px;
-  min-height: 42px;
 }
 
 .home-hero {
@@ -11414,7 +11409,7 @@ img {
   }
 
   .home-header {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .home-hero,
@@ -11460,12 +11455,6 @@ img {
 
   .home-logo {
     height: 34px;
-  }
-
-  .home-header-cta {
-    min-width: 96px;
-    min-height: 40px;
-    padding-inline: 13px;
   }
 
   .home-hero {

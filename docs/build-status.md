@@ -4,7 +4,7 @@ Last reviewed: June 19, 2026.
 
 ## Current Status
 
-The authentication cleanup is complete. “AcreX Early Access” has been removed, signup uses a back arrow to the information page instead of duplicate logos, and both auth pages are compact while preserving existing Supabase behavior.
+The landing header fit adjustment is complete. The top CTA has been removed and the page width now matches every tested viewport without horizontal sliding.
 
 ## Verification
 
@@ -38,6 +38,8 @@ The authentication cleanup is complete. “AcreX Early Access” has been remove
 - Signup identity: no AcreX logo is rendered on signup; login retains the shared AcreX logo
 - iPhone SE auth regression: 375×667 signup card fits in the viewport with no horizontal overflow
 - Desktop signup regression: form card reduced to approximately 554px tall with no removed fields
+- Landing header: top CTA removed with the logo and desktop information navigation retained
+- Landing width regression: document and body widths exactly matched 320px, 375px, 393px, 768px, and 1440px viewports
 
 ## Remaining Release Work
 

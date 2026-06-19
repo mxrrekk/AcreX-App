@@ -87,7 +87,6 @@ export function LandingPage() {
           <a href="#how-it-works">How it works</a>
           <Link href="/login">Login</Link>
         </nav>
-        <Link className="home-button home-button-primary home-header-cta" href="/signup">Try AcreX</Link>
       </header>
 
       <section className="home-hero">
