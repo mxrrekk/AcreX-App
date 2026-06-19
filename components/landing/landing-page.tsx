@@ -37,6 +37,15 @@ const benefitCards: Array<{ icon: IconName; title: string }> = [
   { icon: "services", title: "Built for multiple outdoor services" }
 ];
 
+const capabilityCards: Array<{ icon: IconName; title: string; copy: string }> = [
+  { icon: "map", title: "Search a property", copy: "Open the job location on the map." },
+  { icon: "draw", title: "Draw work areas", copy: "Mark each service area clearly." },
+  { icon: "measure", title: "Measure the work", copy: "Calculate acreage, area, and footage." },
+  { icon: "folder", title: "Save projects", copy: "Keep drawings and job details together." },
+  { icon: "quote", title: "Build quotes", copy: "Turn measurements into editable estimates." },
+  { icon: "sparkles", title: "Use AI support", copy: "Get estimating suggestions while staying in control." }
+];
+
 function LandingIcon({ name }: { name: IconName }) {
   const common = {
     fill: "none",
@@ -120,15 +129,10 @@ export function LandingPage() {
           <span className="home-kicker">What AcreX does</span>
           <h2>One clear workflow for property-based work.</h2>
           <div className="home-capability-list">
-            {[
-              ["Search a property", "Start with the place where the work will happen."],
-              ["Draw and measure", "Mark acreage, square footage, and linear footage."],
-              ["Save the project", "Keep drawings, customer context, and job details together."],
-              ["Build the quote", "Create editable estimates with pricing and AI support."]
-            ].map(([title, copy], index) => (
-              <article key={title}>
-                <span>{index + 1}</span>
-                <div><strong>{title}</strong><p>{copy}</p></div>
+            {capabilityCards.map((capability) => (
+              <article key={capability.title}>
+                <span><LandingIcon name={capability.icon} /></span>
+                <div><strong>{capability.title}</strong><p>{capability.copy}</p></div>
               </article>
             ))}
           </div>

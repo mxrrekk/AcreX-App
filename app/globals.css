@@ -11091,17 +11091,21 @@ img {
 
 .home-capability-list {
   display: grid;
-  gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   margin-top: 26px;
 }
 
 .home-capability-list article {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  gap: 13px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
   align-items: start;
-  padding: 13px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  min-height: 88px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.022);
+  padding: 12px;
 }
 
 .home-capability-list article > span {
@@ -11110,10 +11114,13 @@ img {
   height: 32px;
   place-items: center;
   border-radius: 10px;
-  color: #091108;
-  background: #80d965;
-  font-size: 0.7rem;
-  font-weight: 950;
+  color: #8adf6d;
+  background: rgba(128, 217, 101, 0.1);
+}
+
+.home-capability-list article > span svg {
+  width: 17px;
+  height: 17px;
 }
 
 .home-capability-list article > div {
@@ -11403,11 +11410,11 @@ img {
 
   .home-hero {
     gap: 28px;
-    padding: 42px 0 50px;
+    padding: 36px 0 44px;
   }
 
   .home-hero h1 {
-    font-size: clamp(2.4rem, 11.5vw, 3.45rem);
+    font-size: clamp(2.25rem, 9.8vw, 3rem);
     line-height: 1;
   }
 
@@ -11455,7 +11462,7 @@ img {
   }
 
   .home-section {
-    padding: 52px 0;
+    padding: 44px 0;
   }
 
   .home-photo-card {
@@ -11468,22 +11475,36 @@ img {
     font-size: clamp(1.95rem, 9vw, 2.75rem);
   }
 
-  .home-audience-grid,
   .home-step-grid,
   .home-benefit-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .home-audience-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .home-audience-grid article {
-    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    min-height: 154px;
+    padding: 14px;
+  }
+
+  .home-audience-grid h3 {
+    font-size: 0.82rem;
+  }
+
+  .home-audience-grid p {
+    font-size: 0.7rem;
   }
 
   .home-step-grid article {
-    min-height: 190px;
+    min-height: 168px;
   }
 
   .home-step-icon {
-    margin-bottom: 26px;
+    margin-bottom: 18px;
   }
 
   .home-benefits {
@@ -11516,6 +11537,19 @@ img {
 
   .home-footer nav {
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 370px) {
+  .home-actions,
+  .home-audience-grid,
+  .home-capability-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-audience-grid article {
+    grid-template-columns: 42px minmax(0, 1fr);
+    min-height: 0;
   }
 }
 
