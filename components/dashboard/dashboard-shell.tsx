@@ -10,7 +10,7 @@ import type { Feature, Polygon } from "geojson";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatAcres, formatFeet, formatSquareFeet } from "@/lib/geo/format";
 import type { ProjectMeasurements } from "@/lib/geo/measurements";
-import { mapStyleOptions, type MapStyle } from "@/lib/map/styles";
+import { mapStyleOptions, mapStyles, type MapStyle } from "@/lib/map/styles";
 import {
   createChecklistFromService,
   defaultProjectTags,
@@ -107,7 +107,7 @@ const emptyProjectForm: ProjectFormState = {
 
 const projectStatuses: ProjectStatus[] = ["Draft", "Estimating", "Quoted", "Won", "Lost", "Completed", "Archived"];
 type DashboardPanelKey = "search" | "layers" | "measurements" | "quote" | "project";
-type MobileSheetKey = "draw" | "project" | "quote" | "more" | "shape";
+type MobileSheetKey = "draw" | "project" | "quote" | "layers" | "more" | "shape";
 type MobileSheetSize = "collapsed" | "half" | "full";
 type MobileMapCommand = {
   id: number;
@@ -1477,6 +1477,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
               initialMapStyle={preferredMapStyle}
               onMapStyleChange={setPreferredMapStyle}
               onViewModeChange={setIs3DMapView}
+              onMobileNotice={showToast}
               quotedZoneNames={quotedZoneNames}
               mobileCommand={mobileMapCommand}
               searchMountId="dashboard-search-mount"
@@ -1485,23 +1486,17 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
           </section>
 
           <div className="mobile-map-controls" aria-label="Map controls">
-            <button type="button" onClick={() => sendMobileMapCommand("layers")} aria-label="Open map layers">
-              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 4 8 4-8 4-8-4 8-4Zm-8 9 8 4 8-4M4 18l8 4 8-4" /></svg>
-            </button>
-            <button type="button" onClick={() => sendMobileMapCommand("locate")} aria-label="Locate me">
-              <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg>
-            </button>
             <button
               type="button"
-              className={is3DMapView ? "active" : ""}
-              onClick={() => sendMobileMapCommand("toggle-3d")}
-              aria-label={is3DMapView ? "Switch to 2D map" : "Switch to 3D map"}
-              aria-pressed={is3DMapView}
+              className={mobileSheet === "layers" ? "active" : ""}
+              onClick={() => openMobileSheet("layers")}
+              aria-label="Open map view controls"
+              aria-expanded={mobileSheet === "layers"}
             >
-              <strong>{is3DMapView ? "2D" : "3D"}</strong>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 4 8 4-8 4-8-4 8-4Zm-8 9 8 4 8-4M4 18l8 4 8-4" /></svg>
             </button>
-            <button type="button" onClick={() => sendMobileMapCommand("reset-view")} aria-label="Reset map view">
-              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4v6h6M20 20v-6h-6M5.5 15a7 7 0 0 0 11.8 2M18.5 9A7 7 0 0 0 6.7 7" /></svg>
+            <button type="button" onClick={() => sendMobileMapCommand("locate")} aria-label="Show my location">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg>
             </button>
           </div>
 
@@ -1555,6 +1550,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                     {mobileSheet === "draw" ? "Draw a service" :
                       mobileSheet === "project" ? "Current project" :
                       mobileSheet === "quote" ? "Quote snapshot" :
+                      mobileSheet === "layers" ? "Map view" :
                       mobileSheet === "shape" ? "Drawing inspector" : "More"}
                   </span>
                   <strong>
@@ -1566,6 +1562,8 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                           ? formatCurrency(activeProjectQuoteTotal || recommendedQuote)
                           : mobileSheet === "draw"
                             ? "Choose what to measure"
+                            : mobileSheet === "layers"
+                              ? mapStyles[preferredMapStyle].label
                             : "Workspace shortcuts"}
                   </strong>
                 </div>
@@ -1666,6 +1664,57 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                       <Link href="/settings?tab=account">Account</Link>
                     </div>
                   </>
+                ) : null}
+
+                {mobileSheet === "layers" ? (
+                  <div className="mobile-layer-workspace">
+                    <section className="mobile-map-style-picker" aria-label="Map style">
+                      <span>Map style</span>
+                      <div>
+                        {mapStyleOptions.map((style) => (
+                          <button
+                            type="button"
+                            className={preferredMapStyle === style.id ? "active" : ""}
+                            key={style.id}
+                            onClick={() => {
+                              setPreferredMapStyle(style.id);
+                              sendMobileMapCommand("map-style", style.id);
+                            }}
+                          >
+                            {style.label}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                    <div className="mobile-layer-actions">
+                      <button
+                        type="button"
+                        onClick={() => sendMobileMapCommand("layers")}
+                        disabled={parcelLookup.status !== "found"}
+                      >
+                        <span>Parcel boundaries</span>
+                        <small>
+                          {parcelLookup.status === "found"
+                            ? "Show or hide parcel lines"
+                            : parcelLookup.status === "disabled"
+                              ? "Provider not configured"
+                              : "No parcel data at this location"}
+                        </small>
+                      </button>
+                      <button
+                        type="button"
+                        className={is3DMapView ? "active" : ""}
+                        onClick={() => sendMobileMapCommand("toggle-3d")}
+                      >
+                        <span>{is3DMapView ? "Return to 2D" : "Enable 3D terrain"}</span>
+                        <small>{is3DMapView ? "North-up drawing view" : "Tilt and rotate the property"}</small>
+                      </button>
+                      <button type="button" onClick={() => sendMobileMapCommand("reset-view")}>
+                        <span>Reset view</span>
+                        <small>Return to 2D and north-up</small>
+                      </button>
+                    </div>
+                  </div>
                 ) : null}
 
                 {mobileSheet === "shape" && selectedMobileZone ? (

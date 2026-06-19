@@ -19,6 +19,10 @@ The full mobile layout phase is complete. Phone and portrait-tablet screens use 
 - Map Draw sheet verified with Grass, Brush, Woods, Fence, Driveway, House Pad, Exclusion, and Custom
 - Selecting a drawing service closes the sheet and sends the drawing command
 - Mobile Quote tabs, editable line cards, fixed summary actions, Settings forms, More menu, and navigation routes verified
+- Mobile Map viewport regression: 393×852 rendered document, body, and dashboard bounds at exactly 393×852 with `scrollX=0` and `scrollY=0`
+- Mobile Map View regression: the floating view control opened a real sheet; Satellite, Satellite Streets, Outdoors, Light, and Dark switched in place; 3D and Reset View returned expected state messages
+- Mobile Locate regression: denied browser location produced explicit device-settings guidance instead of failing silently; successful coordinates now create a persistent green map marker
+- iOS location readiness: `NSLocationWhenInUseUsageDescription` is present, the plist validates, and the iPhone 17 simulator build passes
 
 ## Remaining Release Work
 

@@ -50,6 +50,7 @@ type AcrexMapProps = {
   initialMapStyle?: MapStyle;
   onMapStyleChange?: (style: MapStyle) => void;
   onViewModeChange?: (is3D: boolean) => void;
+  onMobileNotice?: (message: string) => void;
   quotedZoneNames?: string[];
   mobileCommand?: {
     id: number;
@@ -475,6 +476,7 @@ export function AcrexMap({
   initialMapStyle = "satellite-streets",
   onMapStyleChange,
   onViewModeChange,
+  onMobileNotice,
   quotedZoneNames = [],
   mobileCommand
 }: AcrexMapProps) {
@@ -484,6 +486,7 @@ export function AcrexMap({
   const selectedZoneNameInputRef = useRef<HTMLInputElement | null>(null);
   const drawRef = useRef<MapboxDraw | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
+  const userLocationRef = useRef<[number, number] | null>(null);
   const onMeasurementsChangeRef = useRef(onMeasurementsChange);
   const onAddressChangeRef = useRef(onAddressChange);
   const onPolygonChangeRef = useRef(onPolygonChange);
@@ -1034,6 +1037,49 @@ export function AcrexMap({
 
   function resetMapView() {
     setMapViewMode(false, { announce: true, resetCenter: false });
+  }
+
+  function showUserLocation(longitude: number, latitude: number) {
+    const map = mapRef.current;
+    if (!map) return;
+    const pointData: FeatureCollection<Point> = {
+      type: "FeatureCollection",
+      features: [{
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [longitude, latitude] },
+        properties: {}
+      }]
+    };
+    userLocationRef.current = [longitude, latitude];
+
+    const existingSource = map.getSource("acrex-user-location") as { setData?: (data: FeatureCollection<Point>) => void } | undefined;
+    if (existingSource) {
+      existingSource.setData?.(pointData);
+      return;
+    }
+
+    map.addSource("acrex-user-location", { type: "geojson", data: pointData });
+    map.addLayer({
+      id: "acrex-user-location-halo",
+      type: "circle",
+      source: "acrex-user-location",
+      paint: {
+        "circle-radius": 14,
+        "circle-color": "#83d867",
+        "circle-opacity": 0.2
+      }
+    });
+    map.addLayer({
+      id: "acrex-user-location-dot",
+      type: "circle",
+      source: "acrex-user-location",
+      paint: {
+        "circle-radius": 6,
+        "circle-color": "#83d867",
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 3
+      }
+    });
   }
 
   function setParcelVisibility(visible: boolean) {
@@ -2240,6 +2286,9 @@ export function AcrexMap({
       ensure3DResources(is3DViewRef.current);
       updateParcelSources(selectedParcelRef.current);
       syncLayerVisibility();
+      if (userLocationRef.current) {
+        showUserLocation(userLocationRef.current[0], userLocationRef.current[1]);
+      }
       map.resize();
     });
   }
@@ -2433,16 +2482,28 @@ export function AcrexMap({
       return;
     }
     if (mobileCommand.action === "locate") {
-      if (!navigator.geolocation || !mapRef.current) return;
+      if (!navigator.geolocation || !mapRef.current) {
+        onMobileNotice?.("Location is not available on this device.");
+        return;
+      }
+      onMobileNotice?.("Finding your location…");
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          showUserLocation(position.coords.longitude, position.coords.latitude);
           mapRef.current?.flyTo({
             center: [position.coords.longitude, position.coords.latitude],
             zoom: Math.max(mapRef.current?.getZoom() ?? 14, 15),
             essential: true
           });
+          onMobileNotice?.("Location found.");
         },
-        () => undefined,
+        (error) => {
+          onMobileNotice?.(
+            error.code === error.PERMISSION_DENIED
+              ? "Allow AcreX location access in device settings."
+              : "Your location could not be determined."
+          );
+        },
         { enableHighAccuracy: true, timeout: 8000 }
       );
       return;
@@ -2477,7 +2538,7 @@ export function AcrexMap({
     }
   // Command IDs intentionally trigger imperative Mapbox actions.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mobileCommand?.id]);
+  }, [mobileCommand?.id, onMobileNotice]);
 
   function toggleLayer(type: ZoneType) {
     setLayerVisibility((current) => {

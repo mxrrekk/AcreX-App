@@ -9950,11 +9950,28 @@ img {
 }
 
 @media (max-width: 1024px) and (orientation: portrait) {
+  html:has(.dashboard-page),
+  body:has(.dashboard-page),
+  body:has(.dashboard-page) > .page-transition {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   .dashboard-page,
   .dashboard-page.is-sidebar-collapsed {
+    position: fixed;
+    inset: 0;
     display: block;
-    min-height: 100dvh;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
     overflow: hidden;
+    overscroll-behavior: none;
     background: #050907;
   }
 
@@ -10075,27 +10092,33 @@ img {
     top: calc(max(12px, env(safe-area-inset-top)) + 64px);
     right: 14px;
     display: grid;
-    grid-template-columns: repeat(2, 44px);
+    grid-template-columns: 46px;
     gap: 8px;
   }
 
   .mobile-map-controls button {
+    position: relative;
     display: grid;
-    width: 44px;
-    height: 44px;
+    width: 46px;
+    height: 46px;
     place-items: center;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 15px;
     color: #edf5ef;
-    background: rgba(8, 15, 12, 0.82);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(18px);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent),
+      rgba(6, 13, 10, 0.9);
+    box-shadow:
+      0 12px 30px rgba(0, 0, 0, 0.32),
+      inset 0 1px rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(22px) saturate(1.15);
   }
 
   .mobile-map-controls button.active {
     border-color: rgba(131, 216, 103, 0.32);
     color: #071007;
-    background: var(--app-green);
+    background: linear-gradient(180deg, #a1e988, var(--app-green));
+    box-shadow: 0 12px 32px rgba(78, 170, 62, 0.24);
   }
 
   .mobile-map-controls strong {
@@ -10126,8 +10149,12 @@ img {
     margin: 0 auto;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 22px;
-    background: rgba(7, 13, 10, 0.88);
-    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
+      rgba(6, 12, 9, 0.94);
+    box-shadow:
+      0 20px 54px rgba(0, 0, 0, 0.46),
+      inset 0 1px rgba(255, 255, 255, 0.045);
     padding: 6px;
     backdrop-filter: blur(24px) saturate(1.15);
   }
@@ -10172,8 +10199,9 @@ img {
   }
 
   .mobile-map-action-bar button.active {
-    color: #eaffdf;
-    background: rgba(131, 216, 103, 0.11);
+    color: #efffe9;
+    background: linear-gradient(180deg, rgba(131, 216, 103, 0.18), rgba(131, 216, 103, 0.08));
+    box-shadow: inset 0 0 0 1px rgba(131, 216, 103, 0.13);
   }
 
   .mobile-map-sheet {
@@ -10408,16 +10436,14 @@ img {
   }
 
   .mobile-map-style-picker > div {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
-    overflow-x: auto;
     padding-bottom: 2px;
-    scrollbar-width: none;
   }
 
   .mobile-map-style-picker button {
     min-height: 42px;
-    flex: 0 0 auto;
     border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: 12px;
     color: #aeb9b2;
@@ -10431,6 +10457,52 @@ img {
     border-color: rgba(131, 216, 103, 0.25);
     color: #eaffdf;
     background: rgba(131, 216, 103, 0.11);
+  }
+
+  .mobile-layer-workspace {
+    display: grid;
+    gap: 13px;
+  }
+
+  .mobile-layer-actions {
+    display: grid;
+    gap: 8px;
+  }
+
+  .mobile-layer-actions button {
+    display: grid;
+    min-height: 58px;
+    gap: 3px;
+    align-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    color: #e4eee7;
+    background: rgba(255, 255, 255, 0.035);
+    padding: 10px 13px;
+    text-align: left;
+  }
+
+  .mobile-layer-actions button.active {
+    border-color: rgba(131, 216, 103, 0.25);
+    background: rgba(131, 216, 103, 0.09);
+  }
+
+  .mobile-layer-actions button:disabled {
+    cursor: not-allowed;
+    color: #7f8b83;
+    background: rgba(255, 255, 255, 0.02);
+    opacity: 0.7;
+  }
+
+  .mobile-layer-actions span {
+    font-size: 0.82rem;
+    font-weight: 900;
+  }
+
+  .mobile-layer-actions small {
+    color: #8e9b93;
+    font-size: 0.68rem;
+    line-height: 1.35;
   }
 
   .mobile-more-links button {
