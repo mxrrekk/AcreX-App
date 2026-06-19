@@ -2,6 +2,16 @@
 
 Last updated: June 19, 2026.
 
+## Completed — Compact Authentication Pages
+
+- [x] Remove “AcreX Early Access” text from the application.
+- [x] Replace signup-page logo links with one back arrow to the public information page.
+- [x] Remove the duplicate signup logo while retaining the login-page AcreX identity.
+- [x] Hide the long signup marketing panel on phones and tablets.
+- [x] Compact signup fields into a clear two-column layout where space allows.
+- [x] Keep all existing Supabase signup and login fields, validation, and routing unchanged.
+- [x] Verify signup and login fit cleanly on an iPhone SE-sized viewport without horizontal overflow.
+
 ## Completed — Compact Landing Page Rebuild
 
 - [x] Rebuild the public homepage without changing authenticated application functionality.

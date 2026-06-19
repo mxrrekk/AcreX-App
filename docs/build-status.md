@@ -4,7 +4,7 @@ Last reviewed: June 19, 2026.
 
 ## Current Status
 
-The compact landing-page rebuild is complete. The homepage now explains AcreX in one short visual flow with clear audience, workflow, benefit, and CTA sections while leaving all authenticated app functionality unchanged.
+The authentication cleanup is complete. “AcreX Early Access” has been removed, signup uses a back arrow to the information page instead of duplicate logos, and both auth pages are compact while preserving existing Supabase behavior.
 
 ## Verification
 
@@ -33,6 +33,11 @@ The compact landing-page rebuild is complete. The homepage now explains AcreX in
 - Landing CTA routes: `/signup`, `/login`, `/terms`, `/privacy`, and support email verified
 - Landing responsive regression: 393px phone and 1440px desktop layouts have exact viewport-width documents with no horizontal overflow
 - Landing hero regression: image and text remain separate on phone and desktop with no overlap
+- Auth text audit: no “Early Access” text remains in tracked application source
+- Signup navigation: the back arrow routes directly to `/`
+- Signup identity: no AcreX logo is rendered on signup; login retains the shared AcreX logo
+- iPhone SE auth regression: 375×667 signup card fits in the viewport with no horizontal overflow
+- Desktop signup regression: form card reduced to approximately 554px tall with no removed fields
 
 ## Remaining Release Work
 

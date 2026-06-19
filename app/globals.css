@@ -1435,13 +1435,14 @@ img {
 }
 
 .auth-page {
+  position: relative;
   min-height: 100vh;
 }
 
 .login-auth-page {
   display: grid;
   place-items: center;
-  padding: 32px 18px;
+  padding: 20px 18px;
   background:
     radial-gradient(circle at 78% 18%, rgba(127, 217, 87, 0.2), transparent 28%),
     linear-gradient(90deg, rgba(3, 8, 7, 0.92), rgba(3, 8, 7, 0.72)),
@@ -1452,17 +1453,47 @@ img {
 .signup-auth-page {
   display: grid;
   grid-template-columns: minmax(390px, 0.92fr) minmax(0, 1.08fr);
+  min-height: 100dvh;
   background:
     radial-gradient(circle at 72% 12%, rgba(127, 217, 87, 0.18), transparent 26%),
     #f4f6f1;
 }
 
+.auth-home-link {
+  position: absolute;
+  z-index: 4;
+  top: 22px;
+  left: 24px;
+  display: inline-flex;
+  min-height: 42px;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 13px;
+  color: #f1f7f2;
+  background: rgba(4, 10, 7, 0.42);
+  padding: 0 13px;
+  font-size: 0.76rem;
+  font-weight: 850;
+  backdrop-filter: blur(14px);
+}
+
+.auth-home-link svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
 .auth-brand-panel {
   display: grid;
-  align-content: space-between;
-  gap: 40px;
-  min-height: 100vh;
-  padding: clamp(28px, 5vw, 62px);
+  align-content: center;
+  gap: 28px;
+  min-height: 100dvh;
+  padding: clamp(72px, 7vw, 100px) clamp(28px, 5vw, 62px) clamp(28px, 5vw, 62px);
   color: #fff;
   background:
     radial-gradient(circle at 22% 20%, rgba(127, 217, 87, 0.18), transparent 34%),
@@ -1472,9 +1503,9 @@ img {
 
 .auth-brand-panel h1 {
   max-width: 560px;
-  margin: 0 0 18px;
-  font-size: clamp(2.45rem, 5.3vw, 5rem);
-  line-height: 0.95;
+  margin: 0 0 14px;
+  font-size: clamp(2.35rem, 4.7vw, 4.5rem);
+  line-height: 0.97;
 }
 
 .auth-brand-panel p:last-child {
@@ -1486,7 +1517,7 @@ img {
 
 .auth-benefit-list {
   display: grid;
-  gap: 12px;
+  gap: 9px;
   max-width: 520px;
   padding: 0;
   margin: 0;
@@ -1518,13 +1549,14 @@ img {
 .signup-auth-page .auth-card {
   align-self: center;
   justify-self: center;
+  margin-block: 20px;
 }
 
 .auth-card {
   display: grid;
   width: min(100% - 36px, 500px);
-  gap: 16px;
-  padding: clamp(26px, 4vw, 38px);
+  gap: 12px;
+  padding: clamp(22px, 3vw, 32px);
   border: 1px solid rgba(10, 19, 15, 0.12);
   border-radius: 16px;
   color: var(--dark-text);
@@ -1546,7 +1578,7 @@ img {
 .auth-card h1 {
   margin: 0;
   color: #101711;
-  font-size: clamp(2rem, 6vw, 2.85rem);
+  font-size: clamp(1.9rem, 5vw, 2.55rem);
   line-height: 1;
 }
 
@@ -1581,12 +1613,21 @@ img {
 
 .auth-form {
   display: grid;
-  gap: 14px;
+  gap: 10px;
+}
+
+.signup-auth-page .auth-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.signup-auth-page .auth-form label:nth-child(3),
+.signup-auth-page .auth-form button {
+  grid-column: 1 / -1;
 }
 
 .auth-form label {
   display: grid;
-  gap: 7px;
+  gap: 5px;
   color: #243126;
   font-size: 0.92rem;
   font-weight: 780;
@@ -1594,7 +1635,7 @@ img {
 
 .auth-form input,
 .auth-form select {
-  min-height: 50px;
+  min-height: 46px;
   width: 100%;
   border: 1px solid rgba(16, 23, 17, 0.14);
   border-radius: 8px;
@@ -1610,8 +1651,8 @@ img {
     linear-gradient(45deg, transparent 50%, #597064 50%),
     linear-gradient(135deg, #597064 50%, transparent 50%);
   background-position:
-    calc(100% - 18px) 22px,
-    calc(100% - 12px) 22px;
+    calc(100% - 18px) 20px,
+    calc(100% - 12px) 20px;
   background-repeat: no-repeat;
   background-size: 6px 6px;
 }
@@ -8331,15 +8372,28 @@ img {
   }
 
   .auth-brand-panel {
-    min-height: auto;
+    display: none;
   }
 
   .signup-auth-page {
+    display: grid;
+    min-height: 100dvh;
+    place-items: center;
+    padding: 66px 14px 14px;
     background: #f4f6f1;
   }
 
   .signup-auth-page .auth-card {
-    margin: 34px auto;
+    width: min(100%, 500px);
+    margin: 0;
+  }
+
+  .auth-home-link {
+    top: 14px;
+    left: 14px;
+    border-color: rgba(16, 23, 17, 0.12);
+    color: #26332a;
+    background: rgba(255, 255, 255, 0.82);
   }
 
   .dashboard-page,
@@ -8781,8 +8835,14 @@ img {
     width: min(100% - 28px, 470px);
   }
 
-  .auth-brand-panel {
-    padding: 28px 18px;
+  .signup-auth-page .auth-card {
+    gap: 10px;
+    padding: 20px;
+  }
+
+  .signup-auth-page .auth-copy {
+    font-size: 0.84rem;
+    line-height: 1.4;
   }
 
   .dashboard-header {

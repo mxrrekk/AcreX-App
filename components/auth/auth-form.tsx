@@ -106,10 +106,17 @@ export function AuthForm({ mode }: AuthFormProps) {
   return (
     <main className={isSignup ? "auth-page signup-auth-page" : "auth-page login-auth-page"}>
       {isSignup ? (
+        <Link className="auth-home-link" href="/" aria-label="Back to AcreX information page">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="m14.5 5-7 7 7 7M8 12h10" />
+          </svg>
+          <span>Back to AcreX</span>
+        </Link>
+      ) : null}
+
+      {isSignup ? (
         <aside className="auth-brand-panel">
-          <AcrexLogo className="auth-logo dark-logo" width={178} height={54} priority />
           <div>
-            <p className="section-kicker">Acrex Early Access</p>
             <h1>Build quotes from the property, not from guesswork.</h1>
             <p>Set up your contractor workspace for measuring acreage, marking work zones, and quoting jobs faster.</p>
           </div>
@@ -122,7 +129,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       ) : null}
 
       <section className="auth-card">
-        <AcrexLogo className="auth-logo" width={150} height={45} priority />
+        {!isSignup ? <AcrexLogo className="auth-logo" width={150} height={45} priority /> : null}
         <p className="section-kicker">{isSignup ? "Create workspace" : "Acrex account"}</p>
         <h1>{isSignup ? "Create your account" : "Welcome back"}</h1>
         <p className="auth-copy">
@@ -148,7 +155,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                   value={fullName}
                   onChange={(event) => setFullName(event.target.value)}
                   autoComplete="name"
-                  placeholder="Your full name"
+                  placeholder="Full name"
                   required
                 />
               </label>
@@ -159,7 +166,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                   value={companyName}
                   onChange={(event) => setCompanyName(event.target.value)}
                   autoComplete="organization"
-                  placeholder="Company or crew name"
+                  placeholder="Company name"
                   required
                 />
               </label>
@@ -185,7 +192,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               autoComplete="email"
-              placeholder="you@company.com"
+              placeholder={isSignup ? "Email address" : "you@company.com"}
               required
             />
           </label>
@@ -197,7 +204,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               onChange={(event) => setPassword(event.target.value)}
               autoComplete={isSignup ? "new-password" : "current-password"}
               minLength={6}
-              placeholder={isSignup ? "Create a password" : "Enter your password"}
+              placeholder={isSignup ? "6+ characters" : "Enter your password"}
               required
             />
           </label>
