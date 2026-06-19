@@ -40,6 +40,7 @@ STRIPE_SECRET_KEY=your_server_only_stripe_secret_key_here
 STRIPE_WEBHOOK_SECRET=your_server_only_stripe_webhook_secret_here
 STRIPE_PRO_PRICE_ID=your_stripe_pro_monthly_price_id_here
 STRIPE_BUSINESS_PRICE_ID=your_stripe_business_monthly_price_id_here
+GEMINI_API_KEY=your_server_only_gemini_api_key_here
 ```
 
 Required for core app functionality:
@@ -61,6 +62,13 @@ Optional server-only parcel provider variables:
 - `PARCEL_PROVIDER`
 - `REGRID_API_KEY`
 - `REPORTALL_API_KEY`
+
+Required for the AI Estimator:
+
+- `GEMINI_API_KEY`
+
+Add `GEMINI_API_KEY` to your deployment provider's environment variables or
+secrets. Keep it server-only; do not prefix it with `NEXT_PUBLIC_`.
 
 Do not commit `.env.local`. Use `.env.example` as the deployment reference.
 
