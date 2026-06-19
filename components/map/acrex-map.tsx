@@ -50,6 +50,7 @@ type AcrexMapProps = {
   initialMapStyle?: MapStyle;
   onMapStyleChange?: (style: MapStyle) => void;
   onViewModeChange?: (is3D: boolean) => void;
+  quotedZoneNames?: string[];
   mobileCommand?: {
     id: number;
     action:
@@ -474,6 +475,7 @@ export function AcrexMap({
   initialMapStyle = "satellite-streets",
   onMapStyleChange,
   onViewModeChange,
+  quotedZoneNames = [],
   mobileCommand
 }: AcrexMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -599,6 +601,7 @@ export function AcrexMap({
 
   const selectedZones = workZones.filter((zone) => selectedZoneIds.includes(zone.id));
   const selectedZone = selectedZones.length === 1 ? selectedZones[0] : null;
+  const selectedZoneIsQuoted = Boolean(selectedZone && quotedZoneNames.includes(selectedZone.name));
   const allExplorerGroups = explorerGroupOrder
     .map((type) => ({
       type,
@@ -2793,9 +2796,14 @@ export function AcrexMap({
             {selectedZone ? (
               <div className="project-explorer-selected">
                 <div className="zone-inspector-title">
-                  <i style={{ background: selectedZone.color ?? zoneColors[selectedZone.type] }} />
-                  <strong>{selectedZone.name}</strong>
-                  <small>{selectedZone.serviceTypeLabel ?? zoneLabels[selectedZone.type]}</small>
+                  <i style={{ background: selectedZone.color ?? zoneColors[selectedZone.type] }} aria-hidden="true" />
+                  <span>
+                    <strong>{selectedZone.name}</strong>
+                    <small>{selectedZone.serviceTypeLabel ?? zoneLabels[selectedZone.type]}</small>
+                  </span>
+                  <em className={selectedZoneIsQuoted ? "is-quoted" : ""}>
+                    {selectedZoneIsQuoted ? "Quoted" : "Not quoted"}
+                  </em>
                 </div>
                 <dl className="zone-inspector-details">
                   <div>
@@ -2804,7 +2812,9 @@ export function AcrexMap({
                   </div>
                   <div>
                     <dt>Location</dt>
-                    <dd>{selectedZone.address ?? "Resolving drawing location..."}</dd>
+                    <dd title={selectedZone.address ?? undefined}>
+                      {selectedZone.address ?? "Resolving drawing location..."}
+                    </dd>
                   </div>
                   <div>
                     <dt>Coordinates</dt>
@@ -2814,49 +2824,69 @@ export function AcrexMap({
                         : "Resolving..."}
                     </dd>
                   </div>
+                  <div>
+                    <dt>Quote status</dt>
+                    <dd>{selectedZoneIsQuoted ? "Added to quote" : "Available"}</dd>
+                  </div>
                 </dl>
-                <label className="project-explorer-inline-field">
-                  <span>Drawing name</span>
-                  <input
-                    ref={selectedZoneNameInputRef}
-                    value={selectedZone.name}
-                    onChange={(event) => updateSelectedZoneProperty("zoneName", event.target.value)}
-                  />
-                </label>
-                <label className="project-explorer-inline-field">
-                  <span>Service type</span>
-                  <select
-                    value={selectedZone.serviceTypeId ?? getServiceTypeByZoneType(selectedZone.type).id}
-                    onChange={(event) => handleSelectedZoneServiceTypeChange(event.target.value)}
-                  >
-                    {serviceTypes.filter((serviceType) => serviceType.id !== "property-boundary").map((serviceType) => (
-                      <option key={serviceType.id} value={serviceType.id}>
-                        {serviceType.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="project-explorer-inline-field">
-                  <span>Color</span>
-                  <input
-                    type="color"
-                    value={selectedZone.color ?? zoneColors[selectedZone.type]}
-                    onChange={(event) => updateSelectedZoneColor(event.target.value)}
-                  />
-                </label>
+                <div className="project-explorer-fields">
+                  <label className="project-explorer-inline-field">
+                    <span>Drawing name</span>
+                    <input
+                      ref={selectedZoneNameInputRef}
+                      value={selectedZone.name}
+                      onChange={(event) => updateSelectedZoneProperty("zoneName", event.target.value)}
+                    />
+                  </label>
+                  <label className="project-explorer-inline-field">
+                    <span>Service type</span>
+                    <select
+                      value={selectedZone.serviceTypeId ?? getServiceTypeByZoneType(selectedZone.type).id}
+                      onChange={(event) => handleSelectedZoneServiceTypeChange(event.target.value)}
+                    >
+                      {serviceTypes.filter((serviceType) => serviceType.id !== "property-boundary").map((serviceType) => (
+                        <option key={serviceType.id} value={serviceType.id}>
+                          {serviceType.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="project-explorer-color-field">
+                    <span>Color</span>
+                    <span className="project-explorer-color-control">
+                      <i style={{ background: selectedZone.color ?? zoneColors[selectedZone.type] }} aria-hidden="true" />
+                      <strong>{selectedZone.color ?? zoneColors[selectedZone.type]}</strong>
+                      <input
+                        aria-label="Choose drawing color"
+                        type="color"
+                        value={selectedZone.color ?? zoneColors[selectedZone.type]}
+                        onChange={(event) => updateSelectedZoneColor(event.target.value)}
+                      />
+                    </span>
+                  </label>
+                </div>
                 <div className="project-explorer-actions">
-                  <button type="button" onClick={() => void onSaveProject?.()} disabled={!onSaveProject || isSavingProject}>
-                    {isSavingProject ? "Saving..." : "Save Project"}
-                  </button>
+                  {activeProjectId ? (
+                    <a
+                      className="primary"
+                      href={selectedZoneIsQuoted
+                        ? `/quotes?project=${activeProjectId}`
+                        : `/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(selectedZone.id)}`}
+                    >
+                      {selectedZoneIsQuoted ? "Open Quote" : "Add to Quote"}
+                    </a>
+                  ) : null}
+                  {activeProjectId ? (
+                    <a href={`/projects/${activeProjectId}`}>Open Project</a>
+                  ) : (
+                    <button type="button" onClick={() => void onSaveProject?.()} disabled={!onSaveProject || isSavingProject}>
+                      {isSavingProject ? "Saving..." : "Save to Project"}
+                    </button>
+                  )}
                   <button type="button" onClick={zoomToSelectedZone}>Zoom To</button>
                   <button type="button" onClick={toggleSelectedZoneVisibility}>
                     {selectedZone.visible === false ? "Show" : "Hide"}
                   </button>
-                  {activeProjectId ? (
-                    <a href={`/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(selectedZone.id)}`}>
-                      Add to Quote
-                    </a>
-                  ) : null}
                   <button className="danger" type="button" onClick={deleteSelectedZone}>
                     Delete
                   </button>

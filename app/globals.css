@@ -2301,16 +2301,16 @@ img {
   z-index: 18;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  width: min(326px, calc(100% - 220px));
-  max-height: min(68vh, 570px);
+  width: min(306px, calc(100% - 220px));
+  max-height: min(72vh, 590px);
   overflow: hidden;
-  border: 1px solid rgba(191, 225, 190, 0.18);
-  border-radius: 16px;
+  border: 1px solid rgba(191, 225, 190, 0.14);
+  border-radius: 18px;
   color: #f4fbf6;
   background:
-    linear-gradient(145deg, rgba(18, 27, 24, 0.97), rgba(7, 12, 11, 0.96));
+    linear-gradient(145deg, rgba(17, 25, 22, 0.965), rgba(7, 12, 11, 0.95));
   box-shadow:
-    0 22px 52px rgba(0, 0, 0, 0.42),
+    0 24px 60px rgba(0, 0, 0, 0.38),
     0 1px 0 rgba(255, 255, 255, 0.05) inset;
   backdrop-filter: blur(22px) saturate(125%);
   animation: inspector-enter 160ms ease-out;
@@ -2331,21 +2331,22 @@ img {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 11px 12px;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 10px 11px;
 }
 
 .project-explorer-heading > div {
   display: grid;
-  gap: 3px;
+  gap: 2px;
+  min-width: 0;
 }
 
 .project-explorer-heading-actions {
   display: flex !important;
   grid-auto-flow: column;
   align-items: center;
-  gap: 6px !important;
+  gap: 4px !important;
 }
 
 .project-explorer-heading span,
@@ -2358,18 +2359,21 @@ img {
 }
 
 .project-explorer-heading strong {
+  overflow: hidden;
   color: #f4fbf6;
-  font-size: 0.86rem;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .project-explorer-heading button {
-  min-height: 27px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  min-height: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 999px;
   color: #dce6df;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 0 9px;
-  font-size: 0.62rem;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 0 8px;
+  font-size: 0.58rem;
   font-weight: 900;
   cursor: pointer;
 }
@@ -2385,19 +2389,65 @@ img {
 
 .project-explorer-selected {
   display: grid;
-  gap: 10px;
-  padding: 11px;
+  gap: 9px;
+  padding: 10px;
   overflow-y: auto;
 }
 
-.project-explorer-selected .zone-inspector-details {
-  margin: 0;
+.project-explorer-fields {
+  display: grid;
+  gap: 8px;
 }
 
-.project-explorer-selected .project-explorer-inline-field input[type="color"] {
-  width: 100%;
+.project-explorer-color-field {
+  display: grid;
+  gap: 4px;
+}
+
+.project-explorer-color-field > span:first-child {
+  color: #91a097;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.project-explorer-color-control {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 30px;
+  gap: 8px;
+  align-items: center;
   min-height: 34px;
-  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 3px 4px 3px 8px;
+}
+
+.project-explorer-color-control > i {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.56);
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+
+.project-explorer-color-control strong {
+  color: #aeb9b2;
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.project-explorer-color-control input[type="color"] {
+  width: 30px;
+  min-height: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
 }
 
 .project-explorer-group {
@@ -2564,7 +2614,7 @@ img {
 
 .project-explorer-inline-field span {
   color: #91a097;
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2573,72 +2623,142 @@ img {
 .project-explorer-inline-field input,
 .project-explorer-inline-field select {
   width: 100%;
-  min-height: 34px;
-  border: 1px solid rgba(127, 217, 87, 0.26);
+  min-height: 33px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 9px;
   color: #f4fbf6;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.035);
   padding: 0 9px;
   font: inherit;
   font-size: 0.74rem;
 }
 
 .project-explorer-selected .zone-inspector-title {
-  grid-template-columns: 9px minmax(0, 1fr);
-  gap: 7px 9px;
-  border: 1px solid rgba(127, 217, 87, 0.13);
-  border-radius: 11px;
-  background: rgba(127, 217, 87, 0.055);
-  padding: 9px;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 8px;
 }
 
 .project-explorer-selected .zone-inspector-title i {
-  grid-row: 1 / 3;
-  width: 8px;
-  height: 100%;
-  min-height: 34px;
+  width: 7px;
+  height: 32px;
+  border-radius: 999px;
+}
+
+.project-explorer-selected .zone-inspector-title > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
 }
 
 .project-explorer-selected .zone-inspector-title strong,
 .project-explorer-selected .zone-inspector-title small {
-  grid-column: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-explorer-selected .zone-inspector-title strong {
+  font-size: 0.78rem;
+}
+
+.project-explorer-selected .zone-inspector-title small {
+  color: #8f9d94;
+  font-size: 0.62rem;
+}
+
+.project-explorer-selected .zone-inspector-title em {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  color: #94a097;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 4px 7px;
+  font-size: 0.54rem;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.project-explorer-selected .zone-inspector-title em.is-quoted {
+  border-color: rgba(127, 217, 87, 0.2);
+  color: #dfffd6;
+  background: rgba(127, 217, 87, 0.08);
 }
 
 .project-explorer-selected .zone-inspector-details {
-  grid-template-columns: 1fr;
-  gap: 0;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.025);
-  padding: 3px 9px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.055);
 }
 
 .project-explorer-selected .zone-inspector-details > div {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  align-items: start;
-  gap: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 7px 0;
+  gap: 3px;
+  min-width: 0;
+  border: 0;
+  background: rgba(7, 12, 11, 0.9);
+  padding: 8px;
 }
 
-.project-explorer-selected .zone-inspector-details > div:last-child {
-  border-bottom: 0;
+.project-explorer-selected .zone-inspector-details dt {
+  color: #78867d;
+  font-size: 0.52rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .project-explorer-selected .zone-inspector-details dd {
+  min-width: 0;
+  margin: 0;
   overflow-wrap: anywhere;
-  text-align: right;
+  color: #e9f1eb;
+  font-size: 0.67rem;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: left;
 }
 
 .project-explorer-selected .project-explorer-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
   padding-left: 0;
 }
 
+.project-explorer-selected .project-explorer-actions a,
+.project-explorer-selected .project-explorer-actions button {
+  min-height: 31px;
+  border-radius: 9px;
+  font-size: 0.61rem;
+}
+
+.project-explorer-selected .project-explorer-actions .primary {
+  grid-column: 1 / -1;
+  border-color: rgba(127, 217, 87, 0.36);
+  color: #071007;
+  background: var(--green);
+}
+
+.project-explorer-selected .project-explorer-actions .primary:hover {
+  color: #071007;
+  background: #91e36e;
+}
+
 .project-explorer-selected .project-explorer-actions .danger {
-  grid-column: span 3;
+  grid-column: 1 / -1;
+  min-height: 29px;
+  background: transparent;
 }
 
 .project-explorer-empty {

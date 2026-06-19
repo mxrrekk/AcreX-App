@@ -1474,6 +1474,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
               initialMapStyle={preferredMapStyle}
               onMapStyleChange={setPreferredMapStyle}
               onViewModeChange={setIs3DMapView}
+              quotedZoneNames={quotedZoneNames}
               mobileCommand={mobileMapCommand}
               searchMountId="dashboard-search-mount"
               useParcelRequestKey={useParcelRequestKey}
