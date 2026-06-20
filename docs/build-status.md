@@ -6,6 +6,8 @@ Last reviewed: June 19, 2026.
 
 The production QA and polish pass is complete. AcreX now has verified public/auth routing, responsive dashboard workflows, a stable mobile map inspector, functional quote preview/export, cleaner destructive actions, persistent settings defaults, and corrected desktop/mobile layout defects.
 
+Vercel deployment compatibility was also corrected: cloud builds now emit the standard `.next` directory, while local production builds continue using `.next-build` to avoid colliding with the running iOS development server.
+
 ## Verification
 
 - `npm run lint`: passing

@@ -25,6 +25,7 @@ Last updated: June 19, 2026.
 - [x] Add accessible labels to unlabeled project filters and invoice status controls.
 - [x] Verify the configured Gemini key and `gemini-3.5-flash` endpoint server-side without exposing the key.
 - [x] Run lint, TypeScript, production build, browser route/workflow checks, and iOS simulator validation.
+- [x] Restore Vercel’s standard `.next` output while retaining the separate local production build directory used by iOS development.
 
 ## Completed — Compact Authentication Pages
 
