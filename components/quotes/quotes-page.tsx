@@ -55,6 +55,7 @@ type QuotesPageProps = {
   projects: ProjectRecord[];
   clients: ClientRecord[];
   savedQuotes: QuoteRecord[];
+  initialQuoteId?: string | null;
   initialProjectId?: string | null;
   initialMeasurementId?: string | null;
   errorMessage?: string | null;
@@ -676,17 +677,24 @@ export function QuotesPage({
   projects,
   clients,
   savedQuotes,
+  initialQuoteId,
   initialProjectId,
   initialMeasurementId,
   errorMessage
 }: QuotesPageProps) {
-  const initialProject = initialProjectId
-    ? projects.find((project) => project.id === initialProjectId) ?? null
+  const requestedSavedQuote = initialQuoteId
+    ? savedQuotes.find((quote) => quote.id === initialQuoteId) ?? null
+    : null;
+  const initialProject = requestedSavedQuote?.project_id
+    ? projects.find((project) => project.id === requestedSavedQuote.project_id) ?? null
+    : initialProjectId
+      ? projects.find((project) => project.id === initialProjectId) ?? null
     : projects[0] ?? null;
-  const initialSavedQuote = savedQuotes.find((quote) => quote.project_id === initialProject?.id) ?? null;
+  const initialSavedQuote = requestedSavedQuote ?? savedQuotes.find((quote) => quote.project_id === initialProject?.id) ?? null;
   const initialSavedPayload = parseSavedQuotePayload(initialSavedQuote);
   const autoAddedMeasurementRef = useRef<string | null>(null);
   const autoEstimateAttemptRef = useRef<string | null>(null);
+  const pendingQuoteActionRef = useRef<{ quote: QuoteRecord; duplicate: boolean } | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState(initialProject?.id ?? "");
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -734,12 +742,91 @@ export function QuotesPage({
   const [aiEditState, setAiEditState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [aiEditMessage, setAiEditMessage] = useState("");
   const [activeTab, setActiveTab] = useState<QuoteWorkspaceTab>("ai");
+  const [resourceView, setResourceView] = useState<"workspace" | "saved">("workspace");
+  const [savedQuoteSearch, setSavedQuoteSearch] = useState("");
+  const [deletedSavedQuoteIds, setDeletedSavedQuoteIds] = useState<Set<string>>(() => new Set());
   const [mobileQuotePanel, setMobileQuotePanel] = useState<MobileQuotePanel>(null);
   const [editingLineItemId, setEditingLineItemId] = useState<string | null>(null);
   const [advancedOptionsOpen, setAdvancedOptionsOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [areMobileQuestionsOpen, setAreMobileQuestionsOpen] = useState(false);
   const [isDeletingQuote, setIsDeletingQuote] = useState(false);
+  const filteredSavedQuotes = useMemo(() => {
+    const term = savedQuoteSearch.trim().toLowerCase();
+    const visibleQuotes = savedQuotes.filter((quote) => !deletedSavedQuoteIds.has(quote.id));
+    if (!term) return visibleQuotes;
+    return visibleQuotes.filter((quote) =>
+      [
+        quote.quote_number,
+        quote.project_name ?? "",
+        quote.client_name ?? "",
+        quote.address ?? "",
+        quote.status
+      ].join(" ").toLowerCase().includes(term)
+    );
+  }, [deletedSavedQuoteIds, savedQuoteSearch, savedQuotes]);
+
+  async function deleteSavedQuoteFromBrowser(quote: QuoteRecord) {
+    if (!window.confirm(`Delete draft quote ${quote.quote_number}?`)) return;
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      setSaveMessage("Supabase is not configured.");
+      return;
+    }
+    const result = await cascadeDeleteQuote({ supabase, userId, quote });
+    if (!result.ok) {
+      setSaveMessage(result.message);
+      return;
+    }
+    setDeletedSavedQuoteIds((current) => new Set(current).add(quote.id));
+    if (savedQuoteId === quote.id) {
+      setSavedQuoteId(null);
+      setLineItems([]);
+      setMaterials([]);
+      setCostLines([]);
+    }
+    setSaveMessage("Quote deleted.");
+    publishDataChange({ type: "quote-deleted", projectId: quote.project_id, quoteId: quote.id });
+  }
+
+  const loadSavedQuoteIntoWorkspace = useCallback((quote: QuoteRecord, duplicate = false) => {
+    const payload = parseSavedQuotePayload(quote);
+    setSavedQuoteId(duplicate ? null : quote.id);
+    setQuoteNumber(duplicate ? `Q-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}` : quote.quote_number);
+    setStatus(duplicate ? "Draft" : uiStatusFromQuote(quote.status));
+    setLineItems((payload.lineItems ?? []).map((item) => duplicate ? { ...item, id: createId("line") } : item));
+    setMaterials((payload.materials ?? []).map((item) => duplicate ? { ...item, id: createId("material") } : item));
+    setCostLines((payload.costLines ?? []).map((item) => duplicate ? { ...item, id: createId("cost") } : item));
+    setDiscount(payload.discount ? String(payload.discount) : "");
+    setTaxPercent(payload.taxPercent ? String(payload.taxPercent) : "");
+    setDepositPercent(payload.depositPercent ? String(payload.depositPercent) : "");
+    setNotes({
+      scopeOfWork: payload.scopeOfWork ?? "",
+      customerNotes: payload.customerNotes ?? "",
+      exclusions: payload.exclusions ?? "",
+      paymentTerms: payload.paymentTerms ?? "",
+      estimatedTimeline: payload.estimatedTimeline ?? ""
+    });
+    setSiteConditions({ ...emptySiteConditions, ...(payload.siteConditions ?? {}) });
+    setSaveState(duplicate ? "idle" : "saved");
+    setSaveMessage(duplicate ? `Duplicated ${quote.quote_number}. Save to create a new quote.` : "");
+    setAiSuggestion(null);
+    setAiBuildState("idle");
+    setAiBuildMessage("");
+    setResourceView("workspace");
+    setActiveTab("quote");
+    autoEstimateAttemptRef.current = null;
+  }, []);
+
+  const activateSavedQuote = useCallback((quote: QuoteRecord, duplicate = false) => {
+    pendingQuoteActionRef.current = { quote, duplicate };
+    if (quote.project_id && quote.project_id !== selectedProjectId) {
+      setSelectedProjectId(quote.project_id);
+      return;
+    }
+    pendingQuoteActionRef.current = null;
+    loadSavedQuoteIntoWorkspace(quote, duplicate);
+  }, [loadSavedQuoteIntoWorkspace, selectedProjectId]);
   const handleExternalDataChange = useCallback(
     (change: { type: string }) => {
       if (change.type === "settings-saved") {
@@ -799,7 +886,18 @@ export function QuotesPage({
 
   useEffect(() => {
     if (!selectedProject) return;
-    const savedQuote = savedQuotes.find((quote) => quote.project_id === selectedProject.id) ?? null;
+    const pendingAction = pendingQuoteActionRef.current;
+    if (pendingAction && pendingAction.quote.project_id === selectedProject.id) {
+      pendingQuoteActionRef.current = null;
+      loadSavedQuoteIntoWorkspace(pendingAction.quote, pendingAction.duplicate);
+      return;
+    }
+    const savedQuote =
+      (initialQuoteId
+        ? savedQuotes.find((quote) => quote.id === initialQuoteId && quote.project_id === selectedProject.id)
+        : null) ??
+      savedQuotes.find((quote) => quote.project_id === selectedProject.id) ??
+      null;
     const payload = parseSavedQuotePayload(savedQuote);
     setSavedQuoteId(savedQuote?.id ?? null);
     setQuoteNumber(savedQuote?.quote_number ?? `Q-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`);
@@ -824,7 +922,7 @@ export function QuotesPage({
     setAiBuildState("idle");
     setAiBuildMessage("");
     autoEstimateAttemptRef.current = null;
-  }, [savedQuotes, selectedProject]);
+  }, [initialQuoteId, loadSavedQuoteIntoWorkspace, savedQuotes, selectedProject]);
 
   const availableMeasurements = useMemo(() => getFeatureMeasurements(selectedProject), [selectedProject]);
   const measurementGroups = useMemo(() => {
@@ -2012,9 +2110,61 @@ export function QuotesPage({
           </div>
         </header>
 
+        <nav className="resource-view-tabs" aria-label="Quote views">
+          <button type="button" className={resourceView === "workspace" ? "active" : ""} onClick={() => setResourceView("workspace")}>
+            Quote Workspace
+          </button>
+          <button type="button" className={resourceView === "saved" ? "active" : ""} onClick={() => setResourceView("saved")}>
+            Saved Quotes <span>{savedQuotes.filter((quote) => !deletedSavedQuoteIds.has(quote.id)).length}</span>
+          </button>
+        </nav>
+
         {errorMessage ? <p className="projects-error">{errorMessage}</p> : null}
         {saveMessage ? <p className={saveState === "error" ? "projects-error" : "projects-success"}>{saveMessage}</p> : null}
 
+        {resourceView === "saved" ? (
+          <section className="saved-resource-browser" aria-label="Saved quotes">
+            <header>
+              <div><span>Saved Quotes</span><strong>Browse existing estimates</strong></div>
+              <input
+                type="search"
+                value={savedQuoteSearch}
+                onChange={(event) => setSavedQuoteSearch(event.target.value)}
+                placeholder="Search quotes..."
+              />
+            </header>
+            <div className="saved-resource-list">
+              {filteredSavedQuotes.length ? filteredSavedQuotes.map((quote) => (
+                <article key={quote.id}>
+                  <div>
+                    <strong>{quote.quote_number}</strong>
+                    <span>{quote.project_name || "No project"} · {quote.client_name || "No customer"}</span>
+                    <small>{quote.address || "No address"} · Updated {new Date(quote.updated_at).toLocaleDateString()}</small>
+                  </div>
+                  <span className={`project-status-pill status-${quote.status.toLowerCase()}`}>{quote.status}</span>
+                  <strong>{formatCurrency(quote.total)}</strong>
+                  <div className="saved-resource-actions">
+                    <button type="button" onClick={() => activateSavedQuote(quote)}>Open / Edit</button>
+                    <button type="button" onClick={() => activateSavedQuote(quote, true)}>Duplicate</button>
+                    {quote.project_id ? <Link href={`/projects/${quote.project_id}`}>Project</Link> : null}
+                    {quote.status === "Draft" ? (
+                      <button type="button" className="danger-button" onClick={() => void deleteSavedQuoteFromBrowser(quote)}>Delete</button>
+                    ) : null}
+                  </div>
+                </article>
+              )) : (
+                <div className="projects-empty-state">
+                  <strong>No saved quotes found</strong>
+                  <span>Create an estimate in the Quote Workspace, then save it here.</span>
+                  <button type="button" className="empty-state-action" onClick={() => setResourceView("workspace")}>Open Quote Workspace</button>
+                </div>
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {resourceView === "workspace" ? (
+        <>
         <section className="quote-quick-context" aria-label="Quick quote context">
           <div className="quote-quick-identity">
             <span>Quote for</span>
@@ -3097,6 +3247,8 @@ export function QuotesPage({
             {saveState === "saving" ? "Saving…" : "Save"}
           </button>
         </aside>
+        </>
+        ) : null}
       </section>
       {isPreviewOpen ? (
         <div className="quote-preview-overlay" role="presentation">

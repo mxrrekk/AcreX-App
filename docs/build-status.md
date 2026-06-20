@@ -4,7 +4,7 @@ Last reviewed: June 20, 2026.
 
 ## Current Status
 
-The data-safety and backup foundation is complete. Every saved project can produce a versioned JSON backup designed for future import, including related geometry, financial records, file metadata, account settings, AI snapshots, activity, and integrity results.
+Projects, Quotes, and Invoices now open as action-first workspaces. Saved resources remain fully accessible through explicit Saved tabs and no longer dominate the default page.
 
 The production Supabase project has not received the additive table migration yet. Public REST checks return `PGRST205` for drawings, measurements, normalized quote/invoice lines, exports, attachments, settings, and AI snapshots. The `acrex-files` bucket already responds successfully. Existing project, quote, invoice, and local-settings workflows retain compatibility until an authorized migration is applied.
 
@@ -24,6 +24,13 @@ Measured projects now draft automatically when they have no saved quote content.
 - `npm run lint`: passing
 - `npm run build`: passing
 - `npm run test:safety`: passing
+- Projects default: one Start New Project workflow with no recent or saved-project list rendered
+- Saved Projects: search/filter and the existing open/delete behavior render only after Saved Projects is selected
+- Quotes default: AI quote workspace renders first; Saved Quotes renders one searchable resource browser on demand
+- Saved quote activation: quote-ID loading preserves project context; duplicate creates an unsaved editable copy
+- Invoices default: invoice builder renders first; Saved Invoices renders one searchable list on demand
+- Saved invoice activation: Open / Edit loads the linked quote, invoice number, due date, status, and notes into the builder
+- Responsive resource regression: Projects, Quotes, and Invoices fit 393px without horizontal overflow
 - Live storage acceptance harness: validates project/drawing/measurement/quote/invoice/file persistence, refresh reads, private file download, five cross-user table checks, storage isolation, and cleanup
 - Live acceptance execution: pending dedicated User A/User B test credentials and the production table migration
 - Project backup route: authenticated `/api/projects/[id]/export` returns a downloadable JSON document

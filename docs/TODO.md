@@ -2,6 +2,17 @@
 
 Last updated: June 20, 2026.
 
+## Completed — Workspace-First Saved Resources
+
+- [x] Make Projects open to a clean Start New Project workspace instead of the full saved list.
+- [x] Put project search, filters, open, and protected delete actions behind Saved Projects.
+- [x] Make Quotes open to the AI quote workspace and keep saved estimates behind Saved Quotes.
+- [x] Add saved quote search, status, project/customer/address, total, updated date, open/edit, duplicate, project, and delete actions.
+- [x] Support opening a specific quote by quote ID without losing its linked project context.
+- [x] Make Invoices open to the invoice builder and keep saved invoices behind Saved Invoices.
+- [x] Add saved invoice search, open/edit, project/quote links, status actions, print/email, and protected delete.
+- [x] Keep workspace/saved segmented controls fitted at mobile width with no horizontal overflow.
+
 ## Completed — Data Safety and Project Backups
 
 - [x] Add a versioned, restore-ready AcreX project backup format.

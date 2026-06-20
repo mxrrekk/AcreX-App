@@ -17,6 +17,7 @@ function normalizeClient(row: unknown): ClientRecord {
 type QuotesRouteProps = {
   searchParams?: {
     project?: string;
+    quote?: string;
     measurement?: string;
   };
 };
@@ -53,6 +54,7 @@ export default async function QuotesRoute({ searchParams }: QuotesRouteProps) {
       projects={(projects ?? []).map(normalizeProject)}
       clients={(clients ?? []).map(normalizeClient)}
       savedQuotes={(quotes ?? []) as QuoteRecord[]}
+      initialQuoteId={searchParams?.quote ?? null}
       initialProjectId={searchParams?.project ?? null}
       initialMeasurementId={searchParams?.measurement ?? null}
       errorMessage={projectsError?.message ?? clientsError?.message ?? quotesError?.message ?? null}

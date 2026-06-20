@@ -94,6 +94,9 @@ function getReadableInvoiceError(message: string) {
 }
 
 export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, initialQuoteId, errorMessage }: InvoicesPageProps) {
+  const [view, setView] = useState<"workspace" | "saved">("workspace");
+  const [savedSearch, setSavedSearch] = useState("");
+  const [activeInvoiceId, setActiveInvoiceId] = useState<string | null>(null);
   const [formState, setFormState] = useState<InvoiceFormState>(() => ({
     ...emptyInvoiceForm,
     quoteId: initialQuoteId && quotes.some((quote) => quote.id === initialQuoteId) ? initialQuoteId : ""
@@ -120,6 +123,19 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
     () => quotes.find((quote) => quote.id === formState.quoteId) ?? null,
     [formState.quoteId, quotes]
   );
+  const filteredInvoices = useMemo(() => {
+    const term = savedSearch.trim().toLowerCase();
+    if (!term) return savedInvoices;
+    return savedInvoices.filter((invoice) =>
+      [
+        invoice.invoice_number,
+        invoice.client_name ?? "",
+        invoice.project_name ?? "",
+        invoice.address ?? "",
+        invoice.status
+      ].join(" ").toLowerCase().includes(term)
+    );
+  }, [savedInvoices, savedSearch]);
 
   function handleQuoteChange(quoteId: string) {
     setFormState((current) => ({
@@ -131,11 +147,25 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
   }
 
   function resetForm() {
+    setActiveInvoiceId(null);
     setFormState({
       ...emptyInvoiceForm,
       invoiceNumber: generateInvoiceNumber(),
       dueDate: getDefaultDueDate()
     });
+  }
+
+  function openSavedInvoice(invoice: InvoiceRecord) {
+    setActiveInvoiceId(invoice.id);
+    setFormState({
+      quoteId: invoice.quote_id,
+      invoiceNumber: invoice.invoice_number,
+      dueDate: invoice.due_date ?? "",
+      status: invoice.status,
+      notes: invoice.notes ?? ""
+    });
+    setView("workspace");
+    setMessage(`Editing invoice ${invoice.invoice_number}.`);
   }
 
   async function handleSaveInvoice() {
@@ -160,6 +190,7 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
     setIsSaving(true);
 
     const payload = {
+      ...(activeInvoiceId ? { id: activeInvoiceId } : {}),
       user_id: userId,
       quote_id: selectedQuote.id,
       project_id: selectedQuote.project_id,
@@ -198,7 +229,10 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
     }
 
     const savedInvoice = normalizeInvoice(data);
-    setSavedInvoices((current) => [savedInvoice, ...current]);
+    setSavedInvoices((current) => [
+      savedInvoice,
+      ...current.filter((invoice) => invoice.id !== savedInvoice.id)
+    ]);
     if (savedInvoice.status !== "Draft") {
       const { error: quoteStatusError } = await supabase
         .from("quotes")
@@ -285,6 +319,7 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
       return;
     }
     setSavedInvoices((current) => current.filter((item) => item.id !== invoice.id));
+    if (activeInvoiceId === invoice.id) resetForm();
     setMessage("Invoice deleted.");
     publishDataChange({
       type: "invoice-deleted",
@@ -312,8 +347,18 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
           </div>
         </header>
 
+        <nav className="resource-view-tabs" aria-label="Invoice views">
+          <button type="button" className={view === "workspace" ? "active" : ""} onClick={() => setView("workspace")}>
+            Invoice Workspace
+          </button>
+          <button type="button" className={view === "saved" ? "active" : ""} onClick={() => setView("saved")}>
+            Saved Invoices <span>{savedInvoices.length}</span>
+          </button>
+        </nav>
+
         {message ? <p className="projects-error">{message}</p> : null}
 
+        {view === "workspace" ? (
         <section className="invoice-builder-grid">
           <section className="invoice-builder-card">
             <div className="quote-card-heading">
@@ -400,17 +445,26 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
               disabled={isSaving || !selectedQuote}
               title={!selectedQuote ? "Select a saved quote before creating an invoice." : undefined}
             >
-              {isSaving ? "Saving Invoice..." : selectedQuote ? "Save Invoice" : "Select Quote First"}
+              {isSaving
+                ? "Saving Invoice..."
+                : selectedQuote
+                  ? activeInvoiceId
+                    ? "Update Invoice"
+                    : "Save Invoice"
+                  : "Select Quote First"}
             </button>
           </aside>
         </section>
+        ) : null}
 
+        {view === "saved" ? (
         <section className="invoices-table-card">
           <div className="quote-card-heading">
             <div>
               <span>Saved Invoices</span>
               <strong>{savedInvoices.length} invoice{savedInvoices.length === 1 ? "" : "s"}</strong>
             </div>
+            <input type="search" value={savedSearch} onChange={(event) => setSavedSearch(event.target.value)} placeholder="Search invoices..." />
           </div>
 
           <div className="invoices-table">
@@ -424,8 +478,8 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
               <span />
             </div>
 
-            {savedInvoices.length ? (
-              savedInvoices.map((invoice) => (
+            {filteredInvoices.length ? (
+              filteredInvoices.map((invoice) => (
                 <article className="invoice-row" key={invoice.id}>
                   <strong>{invoice.invoice_number}</strong>
                   <span>{invoice.client_name || "No client"}</span>
@@ -434,6 +488,9 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
                   <span>{formatDate(invoice.due_date)}</span>
                   <span>{formatCurrency(invoice.total)}</span>
                   <div className="invoice-row-actions">
+                    <button type="button" onClick={() => openSavedInvoice(invoice)}>Open / Edit</button>
+                    {invoice.project_id ? <Link href={`/projects/${invoice.project_id}`}>Project</Link> : null}
+                    <Link href={`/quotes?quote=${encodeURIComponent(invoice.quote_id)}`}>Quote</Link>
                     <button type="button" onClick={() => window.print()}>
                       Print
                     </button>
@@ -470,6 +527,7 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
             )}
           </div>
         </section>
+        ) : null}
       </section>
       <MobileAppNav active="invoices" />
     </main>

@@ -70,6 +70,7 @@ function formatCurrency(value: number) {
 }
 
 export function ProjectsPage({ userId, userEmail, projects, clients, quotes, invoices, errorMessage }: ProjectsPageProps) {
+  const [view, setView] = useState<"workspace" | "saved">("workspace");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "All">("All");
   const [projectRows, setProjectRows] = useState<ProjectRecord[]>(projects);
@@ -109,8 +110,6 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
     });
     return statuses;
   }, [invoices]);
-  const recentProjects = projectRows.slice(0, 3);
-
   const filteredProjects = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
@@ -196,8 +195,9 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
       <section className="projects-workspace">
         <header className="projects-header">
           <div>
-            <span>Saved Work</span>
+            <span>Project Workspace</span>
             <h1>Projects</h1>
+            <p>Start a new property workflow or open saved work when you need it.</p>
           </div>
           <div className="projects-user-chip">
             <strong>{userEmail.slice(0, 1).toUpperCase()}</strong>
@@ -205,7 +205,27 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
           </div>
         </header>
 
-        <section className="projects-controls" aria-label="Project controls">
+        <nav className="resource-view-tabs" aria-label="Project views">
+          <button type="button" className={view === "workspace" ? "active" : ""} onClick={() => setView("workspace")}>
+            New Project
+          </button>
+          <button type="button" className={view === "saved" ? "active" : ""} onClick={() => setView("saved")}>
+            Saved Projects <span>{projectRows.length}</span>
+          </button>
+        </nav>
+
+        {message ? <p className="projects-error">{message}</p> : null}
+
+        {view === "workspace" ? (
+          <section className="resource-workspace-empty" aria-label="Start a project">
+            <span>New Project</span>
+            <h2>Measure a property and organize the job</h2>
+            <p>Search the map, draw the work, then save the measurements as a project.</p>
+            <Link className="projects-new-button" href="/dashboard">Start New Project</Link>
+          </section>
+        ) : (
+        <>
+        <section className="projects-controls" aria-label="Saved project controls">
           <input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
@@ -227,26 +247,9 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
             ))}
           </select>
           <Link className="projects-new-button" href="/dashboard">
-            New Project
+            Start New Project
           </Link>
         </section>
-
-        {message ? <p className="projects-error">{message}</p> : null}
-
-        {recentProjects.length ? (
-          <section className="recent-projects-strip" aria-label="Recent projects">
-            <div>
-              <span>Recent Projects</span>
-              <strong>Recently updated work</strong>
-            </div>
-            {recentProjects.map((project) => (
-              <Link href={`/projects/${project.id}`} key={project.id}>
-                <strong>{project.project_name}</strong>
-                <span>{project.address || project.service_type || "No address saved"}</span>
-              </Link>
-            ))}
-          </section>
-        ) : null}
 
         <section className="projects-table" aria-label="Saved projects">
           <div className="projects-table-header">
@@ -289,10 +292,12 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
             <div className="projects-empty-state">
               <strong>No projects found</strong>
               <span>Save a project from the dashboard or adjust your search/filter.</span>
-              <Link className="empty-state-action" href="/dashboard">Create Project</Link>
+              <Link className="empty-state-action" href="/dashboard">Start New Project</Link>
             </div>
           )}
         </section>
+        </>
+        )}
       </section>
       {pendingDeleteProject ? (
         <div className="modal-backdrop" role="presentation">
