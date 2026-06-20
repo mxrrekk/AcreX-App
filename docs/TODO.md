@@ -4,6 +4,12 @@ Last updated: June 20, 2026.
 
 ## Completed — Customer-Ready Invoice Workflow
 
+- [x] Redesign the desktop invoice workspace around a 34/66 details-to-preview split.
+- [x] Add one sticky action bar for total due, save, PDF, print, email, paid status, and full-screen preview.
+- [x] Make the live customer invoice the dominant workspace instead of presenting invoice creation as a settings form.
+- [x] Make mobile preview-first with a dedicated Invoice Details bottom sheet and four compact sticky actions.
+- [x] Add Saved Invoice search and status filtering plus open, duplicate, status, project, and protected delete actions.
+- [x] Remove invoice-number hydration mismatch by generating new numbers after client hydration.
 - [x] Convert saved quotes into customer-safe invoices with linked customer, project, company, line-item, tax, discount, deposit, and payment-term data.
 - [x] Filter deleted drawing references and contractor-only AI, confidence, warning, profit, debug, and pricing-assumption content from invoices.
 - [x] Add one authoritative invoice preview used for review, PDF/save-to-PDF, printing, and email preparation.

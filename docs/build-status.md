@@ -6,7 +6,7 @@ Last reviewed: June 20, 2026.
 
 Projects, Quotes, and Invoices now open as action-first workspaces. Saved resources remain fully accessible through explicit Saved tabs and no longer dominate the default page.
 
-The invoice workflow now converts saved quotes into a structured customer-safe invoice, restores saved invoice content in the same preview/editor, and uses that preview as the source for printing and PDF export. Gemini invoice polish is server-side, proposes wording changes for explicit approval, and cannot modify prices or quantities.
+The invoice workflow now converts saved quotes into a structured customer-safe invoice, restores saved invoice content in the same preview/editor, and uses that preview as the source for printing and PDF export. The desktop workspace gives most of the screen to the live invoice, while mobile opens directly to the preview and keeps details in a bottom sheet. Gemini invoice polish is server-side, proposes wording changes for explicit approval, and cannot modify prices or quantities.
 
 The production Supabase project has not received the additive table migration yet. Public REST checks return `PGRST205` for drawings, measurements, normalized quote/invoice lines, exports, attachments, settings, and AI snapshots. The `acrex-files` bucket already responds successfully. Existing project, quote, invoice, and local-settings workflows retain compatibility until an authorized migration is applied.
 
@@ -40,6 +40,12 @@ Measured projects now draft automatically when they have no saved quote content.
 - Invoice persistence: the structured customer invoice and copied invoice line items restore when the saved invoice is reopened
 - Invoice email fallback: the action is clearly disabled until a customer email exists
 - Invoice responsive regression: desktop and 393×852 mobile previews rendered with document width equal to viewport width and no horizontal overflow
+- Invoice layout hierarchy: desktop editor/preview rendered at approximately 34/66 with one sticky action bar and no separate total/save card
+- Mobile invoice hierarchy: preview renders first; Invoice Details opens as one fitted bottom sheet above mobile navigation
+- Mobile action regression: Save, Export PDF, Print, and Email fit one four-column row at 393px
+- Full-screen preview: opens the same invoice document used by the workspace and print/PDF rules
+- Saved invoice browser: separated from New Invoice with search, status filter, open, duplicate, project, status, and protected delete controls
+- Invoice runtime regression: fresh server render produced no hydration warnings or browser console errors
 - Responsive resource regression: Projects, Quotes, and Invoices fit 393px without horizontal overflow
 - Live storage acceptance harness: validates project/drawing/measurement/quote/invoice/file persistence, refresh reads, private file download, five cross-user table checks, storage isolation, and cleanup
 - Live acceptance execution: pending dedicated User A/User B test credentials and the production table migration
