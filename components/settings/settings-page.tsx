@@ -7,6 +7,7 @@ import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { publishDataChange } from "@/lib/data/sync";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
+import { serviceCatalog } from "@/lib/services/catalog";
 import {
   defaultUserSettings,
   loadUserSettings,
@@ -40,6 +41,19 @@ function numberValue(value: string) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
+
+const servicePricingFields = serviceCatalog
+  .filter((service) => service.settingsRateField)
+  .map((service) => [
+    service.settingsRateField as keyof AcrexUserSettings["pricing"],
+    `${service.quoteCategory} · ${
+      service.displayUnit === "acres"
+        ? "per acre"
+        : service.displayUnit === "linear feet"
+          ? "per linear foot"
+          : `per ${service.displayUnit}`
+    }`
+  ] as const);
 
 export function SettingsPage({ account }: SettingsPageProps) {
   const router = useRouter();
@@ -239,12 +253,8 @@ export function SettingsPage({ account }: SettingsPageProps) {
           </div>
           <div className="settings-field-grid">
             {[
-              ["brushClearingRate", "Brush clearing · per acre"],
-              ["mowingRate", "Mowing · per acre"],
-              ["fenceRate", "Fence · per linear foot"],
-              ["drivewayRate", "Driveway · per sq ft"],
-              ["housePadRate", "House pad · per sq ft"],
-              ["landClearingRate", "Land clearing · per acre"],
+              ...servicePricingFields,
+              ["mowingMinimumCharge", "Mowing minimum visit charge"],
               ["mobilizationFee", "Mobilization fee"],
               ["minimumJobCharge", "Minimum job charge"],
               ["laborRate", "Labor rate"],

@@ -134,6 +134,21 @@ Last updated: June 20, 2026.
 
 - [ ] Complete V1 release readiness: production Capacitor URL, icons, privacy declarations, App Store metadata, archive validation, and TestFlight upload.
 
+## Completed — Quote Service Matching and Pricing
+
+- [x] Centralize drawing, quote, AI, and Settings service matching in one service catalog.
+- [x] Restrict AI quote suggestions to selected measurements and explicit manual services.
+- [x] Prevent mowing, brush, fence, driveway, house pad, and land-clearing estimates from adding unrelated services.
+- [x] Generate service lines with the source drawing quantity and the catalog unit.
+- [x] Use the matching saved Settings rate as the primary quote rate.
+- [x] Keep rates editable and show `No pricing default set` when no saved rate exists.
+- [x] Filter AI materials and labor/equipment suggestions that belong to inactive services.
+- [x] Ask only the guided questions defined for the active service type.
+- [x] Group Available Measurements by service.
+- [x] Mark existing source-linked lines with conflicting services as possibly mismatched and require explicit removal.
+- [x] Include configured mobilization and fuel surcharge context without hardcoding final service prices.
+- [x] Add regression tests for mowing, brush, fence, mixed services, selected scope, saved defaults, and missing defaults.
+
 ## Completed — Cross-App Data Sync and Cascades
 
 - [x] Add one shared project/drawing/quote/invoice invalidation event path across routes and browser tabs.

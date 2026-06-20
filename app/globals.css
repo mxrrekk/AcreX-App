@@ -7618,6 +7618,32 @@ img {
   gap: 10px;
 }
 
+.quote-measurement-group {
+  display: grid;
+  gap: 8px;
+}
+
+.quote-measurement-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #aebcb3;
+  padding: 2px 4px;
+  font-size: 0.76rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.quote-measurement-group > header span {
+  display: grid;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  color: #dff7d7;
+  background: rgba(127, 217, 87, 0.12);
+}
+
 .quote-measurement-row {
   grid-template-columns: 12px minmax(0, 1fr) auto;
 }

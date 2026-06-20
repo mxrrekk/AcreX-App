@@ -19,10 +19,18 @@ import {
   type EstimateServiceType
 } from "@/lib/ai/estimate-questions";
 import {
+  calculateQuoteLine,
   getTemplateForZone,
   type ProfitInputs,
   type ServiceTemplate
 } from "@/lib/projects/pricing";
+import {
+  detectCatalogServices,
+  getCatalogServiceByZoneType,
+  resolveCatalogService,
+  serviceMatchesCatalog,
+  type ServiceCatalogEntry
+} from "@/lib/services/catalog";
 import {
   getUserSettingsStorageKey,
   normalizeUserSettings,
@@ -236,6 +244,7 @@ type EstimateContext = {
       materials: number;
       laborEquipment: number;
       mobilization: number;
+      fuelSurcharge: number;
       tax: number;
       depositRequired: number;
       grandTotal: number;
@@ -378,13 +387,8 @@ function normalizeZoneType(value: unknown): ZoneType | string {
 }
 
 function normalizeQuoteCategory(properties: SavedZoneProperties) {
-  if (properties.zoneType === "Brush") return "Forestry Mulching / Brush Clearing";
-  if (properties.zoneType === "Grass") return "Mowing";
-  if (properties.zoneType === "Fence") return "Fence Installation";
-  if (properties.zoneType === "Driveway") return "Gravel Driveway";
-  if (properties.zoneType === "HousePad") return "House Pad Prep";
-  if (properties.zoneType === "Woods") return "Land Clearing";
-  if (properties.zoneType === "Excluded") return "Non-billable";
+  const catalogService = getCatalogServiceByZoneType(properties.zoneType);
+  if (catalogService) return catalogService.quoteCategory;
   if (properties.quoteCategory) return String(properties.quoteCategory);
   if (properties.serviceTypeLabel) return properties.serviceTypeLabel;
   return "Custom";
@@ -401,23 +405,22 @@ function getFeatureMeasurements(project: ProjectRecord | null): MeasurementRow[]
     const zoneType = normalizeZoneType(properties.zoneType ?? properties.serviceType);
     const geometryType = properties.geometryType ?? properties.shapeType ?? (feature.geometry.type === "LineString" ? "line" : "polygon");
     const quoteCategory = normalizeQuoteCategory(properties);
-    const isLinear = geometryType === "line" || feature.geometry.type === "LineString" || zoneType === "Fence";
-    const isSqFt =
-      !isLinear &&
-      (properties.unit === "sq ft" || zoneType === "Driveway" || zoneType === "HousePad" || zoneType === "Building");
-    const quantity = isLinear
-      ? parseAmount(properties.lengthFt ?? properties.perimeterFeet)
-      : isSqFt
-        ? parseAmount(properties.areaSqFt ?? properties.squareFeet)
-        : parseAmount(properties.areaAcres ?? properties.acres);
-    const unit = isLinear ? "linear feet" : isSqFt ? "sq ft" : "acres";
+    const catalogService = getCatalogServiceByZoneType(zoneType);
+    const unit = catalogService?.displayUnit ??
+      (geometryType === "line" || feature.geometry.type === "LineString" ? "linear feet" : "acres");
+    const quantity =
+      unit === "linear feet"
+        ? parseAmount(properties.lengthFt ?? properties.perimeterFeet)
+        : unit === "sq ft"
+          ? parseAmount(properties.areaSqFt ?? properties.squareFeet)
+          : parseAmount(properties.areaAcres ?? properties.acres);
     const sourceId = String(feature.id ?? properties.createdAt ?? `${project.id}-${index}`);
     const label =
       properties.zoneName ??
       properties.label ??
       `${typeof zoneType === "string" ? zoneType.replace("HousePad", "House Pad") : "Work"} ${index + 1}`;
     const color = properties.color ?? zoneFallbackColors[String(zoneType)] ?? zoneFallbackColors.Custom;
-    const billable = zoneType !== "Excluded" && quoteCategory !== "Non-billable";
+    const billable = catalogService?.billable ?? (zoneType !== "Excluded" && quoteCategory !== "Non-billable");
 
     return {
       id: `${project.id}-${sourceId}`,
@@ -462,16 +465,11 @@ function loadSavedProfitInputs(userId: string) {
 
 function findRateTemplate(measurement: MeasurementRow, savedTemplates: ServiceTemplate[] | null) {
   if (!savedTemplates) return null;
-  const directMatch = savedTemplates.find(
-    (template) =>
-      template.active !== false &&
-      (template.serviceName === measurement.quoteCategory || template.serviceName === measurement.serviceType)
-  );
-
-  if (directMatch) return directMatch;
-
-  const zoneType = measurement.zoneType as ZoneType;
-  return getTemplateForZone(zoneType, savedTemplates);
+  const service = getCatalogServiceByZoneType(measurement.zoneType);
+  if (!service?.pricingTemplateId) return null;
+  return savedTemplates.find(
+    (template) => template.active !== false && template.id === service.pricingTemplateId
+  ) ?? null;
 }
 
 function normalizePricingUnit(unit: string) {
@@ -481,13 +479,15 @@ function normalizePricingUnit(unit: string) {
 }
 
 function createLineItemFromMeasurement(measurement: MeasurementRow, savedTemplates: ServiceTemplate[] | null): QuoteLineItem {
+  const service = getCatalogServiceByZoneType(measurement.zoneType);
+  const pricing = calculateQuoteLine({
+    serviceType: service?.key ?? "custom",
+    quantity: measurement.quantity,
+    unit: measurement.unit,
+    templates: savedTemplates
+  });
   const template = findRateTemplate(measurement, savedTemplates);
-  const matchingTemplate = template && normalizePricingUnit(template.unitType) === measurement.unit ? template : null;
-  const rate = matchingTemplate ? String(matchingTemplate.defaultUnitPrice || "") : "";
-  const serviceName =
-    measurement.quoteCategory === "Non-billable"
-      ? measurement.serviceType
-      : measurement.quoteCategory || measurement.serviceType || measurement.label;
+  const serviceName = pricing.serviceName;
   const source: MeasurementSource = {
     sourceId: measurement.sourceId,
     label: measurement.label,
@@ -504,10 +504,10 @@ function createLineItemFromMeasurement(measurement: MeasurementRow, savedTemplat
     sourceMeasurement: measurement.label,
     sourceId: measurement.sourceId,
     zoneType: String(measurement.zoneType),
-    quantity: quantityToInput(measurement.quantity, measurement.unit),
-    unit: measurement.unit,
-    rate,
-    notes: matchingTemplate?.notes ?? "",
+    quantity: quantityToInput(pricing.quantity, pricing.unit),
+    unit: pricing.unit,
+    rate: pricing.rate === null ? "" : String(pricing.rate),
+    notes: [template?.notes ?? "", ...pricing.missingInputs].filter(Boolean).join(" "),
     sourceSnapshot: sourceSnapshot(source),
     sourceManuallyEdited: false,
     sourceChangeAvailable: false,
@@ -599,31 +599,41 @@ const quoteWorkspaceTabs: Array<{ id: QuoteWorkspaceTab; label: string }> = [
 function detectProjectServices(
   project: ProjectRecord | null,
   measurements: MeasurementRow[],
-  lineItems: QuoteLineItem[],
-  notes: QuoteNotes,
-  siteNotes: string
+  lineItems: QuoteLineItem[]
 ) {
-  const selectedServices = detectEstimateServices([
-    ...lineItems.filter((item) => !item.sourceDeleted).flatMap((item) => [item.serviceName, item.zoneType]),
-    ...measurements
-      .filter((measurement) => lineItems.some((item) => item.sourceId === measurement.sourceId))
-      .flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, String(measurement.zoneType)])
-  ]);
-  if (selectedServices.length) return selectedServices;
+  const selectedSourceIds = new Set(
+    lineItems
+      .filter((item) => !item.sourceDeleted && item.sourceId)
+      .map((item) => item.sourceId)
+  );
+  const selectedMeasurements = measurements.filter((measurement) => selectedSourceIds.has(measurement.sourceId));
+  const manualServices = detectCatalogServices(
+    lineItems
+      .filter((item) => !item.sourceDeleted && !item.sourceId)
+      .flatMap((item) => [item.serviceName, item.zoneType])
+  );
+  const measurementScope = selectedMeasurements.length
+    ? selectedMeasurements
+    : measurements.filter((measurement) => measurement.billable);
+  const measurementServices = measurementScope
+    .map((measurement) =>
+      getCatalogServiceByZoneType(measurement.zoneType) ??
+      resolveCatalogService(measurement.quoteCategory, measurement.serviceType)
+    )
+    .filter((service): service is ServiceCatalogEntry => Boolean(service?.estimateService && service.billable));
+  const active = [...measurementServices, ...manualServices].filter(
+    (service, index, services) =>
+      service.estimateService &&
+      service.billable &&
+      services.findIndex((candidate) => candidate.key === service.key) === index
+  );
+  if (active.length) {
+    return active
+      .map((service) => service.estimateService)
+      .filter((service): service is EstimateServiceType => Boolean(service));
+  }
 
-  const measuredServices = detectEstimateServices([
-    project?.service_type,
-    ...measurements.flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, String(measurement.zoneType)])
-  ]);
-  if (measuredServices.length) return measuredServices;
-
-  return detectEstimateServices([
-    project?.project_name,
-    ...measurements.map((measurement) => measurement.label),
-    notes.scopeOfWork,
-    notes.customerNotes,
-    siteNotes
-  ]);
+  return detectEstimateServices([project?.service_type]);
 }
 
 function inferServiceQuestionAnswer(
@@ -809,7 +819,32 @@ export function QuotesPage({
   }, [savedQuotes, selectedProject]);
 
   const availableMeasurements = useMemo(() => getFeatureMeasurements(selectedProject), [selectedProject]);
+  const measurementGroups = useMemo(() => {
+    const groups = new Map<string, MeasurementRow[]>();
+    availableMeasurements.forEach((measurement) => {
+      const service = getCatalogServiceByZoneType(measurement.zoneType);
+      const label = service?.quoteCategory ?? measurement.quoteCategory;
+      groups.set(label, [...(groups.get(label) ?? []), measurement]);
+    });
+    return Array.from(groups, ([label, measurements]) => ({ label, measurements }));
+  }, [availableMeasurements]);
   const addedSourceIds = useMemo(() => new Set(lineItems.map((item) => item.sourceId).filter(Boolean)), [lineItems]);
+  const mismatchedLineIds = useMemo(() => {
+    const measurementsById = new Map(availableMeasurements.map((measurement) => [measurement.sourceId, measurement]));
+    return new Set(
+      lineItems
+        .filter((line) => {
+          if (!line.sourceId || line.sourceDeleted) return false;
+          const measurement = measurementsById.get(line.sourceId);
+          const sourceService = measurement ? getCatalogServiceByZoneType(measurement.zoneType) : null;
+          return Boolean(
+            sourceService &&
+            !serviceMatchesCatalog(sourceService, line.serviceName, line.zoneType)
+          );
+        })
+        .map((line) => line.id)
+    );
+  }, [availableMeasurements, lineItems]);
 
   useEffect(() => {
     if (!templatesLoaded) return;
@@ -861,8 +896,10 @@ export function QuotesPage({
     [costLines]
   );
   const subtotalBeforeAdjustments = serviceSubtotal + materialsSubtotal + laborEquipmentSubtotal + mobilization;
+  const fuelSurchargePercent = Math.max(0, Number(savedProfitInputs?.fuelSurchargePercent ?? 0));
+  const fuelSurchargeAmount = subtotalBeforeAdjustments * (fuelSurchargePercent / 100);
   const discountAmount = parseAmount(discount);
-  const taxableSubtotal = Math.max(subtotalBeforeAdjustments - discountAmount, 0);
+  const taxableSubtotal = Math.max(subtotalBeforeAdjustments + fuelSurchargeAmount - discountAmount, 0);
   const taxAmount = taxableSubtotal * (parseAmount(taxPercent) / 100);
   const grandTotal = taxableSubtotal + taxAmount;
   const depositRequired = grandTotal * (parseAmount(depositPercent) / 100);
@@ -887,8 +924,8 @@ export function QuotesPage({
       )}`
     : null;
   const detectedServices = useMemo(
-    () => detectProjectServices(selectedProject, availableMeasurements, lineItems, notes, siteConditions.notes),
-    [availableMeasurements, lineItems, notes, selectedProject, siteConditions.notes]
+    () => detectProjectServices(selectedProject, availableMeasurements, lineItems),
+    [availableMeasurements, lineItems, selectedProject]
   );
   const detectedProjectType = detectedServices.length ? detectedServices.join(" + ") : "Not detected";
   const serviceQuestionGroups = useMemo(() => {
@@ -1086,6 +1123,7 @@ export function QuotesPage({
           materials: materialsSubtotal,
           laborEquipment: laborEquipmentSubtotal,
           mobilization,
+          fuelSurcharge: fuelSurchargeAmount,
           tax: taxAmount,
           depositRequired,
           grandTotal
@@ -1123,6 +1161,7 @@ export function QuotesPage({
     materials,
     materialsSubtotal,
     mobilization,
+    fuelSurchargeAmount,
     notes,
     quoteNumber,
     savedProfitInputs,
@@ -2000,7 +2039,7 @@ export function QuotesPage({
                 </span>
                 <span className={hasPricingDefaults ? "ready" : ""}>
                   <small>Pricing defaults</small>
-                  <strong>{hasPricingDefaults ? "Settings rates found" : "No Settings rate"}</strong>
+                  <strong>{hasPricingDefaults ? "Settings rates found" : "No pricing default set"}</strong>
                   {hasPricingDefaults ? "Settings rates apply to new lines" : "Existing quote rates stay unchanged"}
                 </span>
                 <span className={estimateWarnings.length === 0 ? "ready" : ""}>
@@ -2227,7 +2266,13 @@ export function QuotesPage({
 
               <div className="available-measurements-list">
                 {availableMeasurements.length > 0 ? (
-                  availableMeasurements.map((measurement) => {
+                  measurementGroups.map((group) => (
+                    <section className="quote-measurement-group" key={group.label}>
+                      <header>
+                        <strong>{group.label}</strong>
+                        <span>{group.measurements.length}</span>
+                      </header>
+                      {group.measurements.map((measurement) => {
                     const isAdded = addedSourceIds.has(measurement.sourceId);
                     const existingLine = lineItems.find((item) => item.sourceId === measurement.sourceId);
                     const pricingTemplate = findRateTemplate(measurement, savedTemplates);
@@ -2254,7 +2299,7 @@ export function QuotesPage({
                                 : `Service changed from ${measurement.previousQuoteCategory || "the prior category"}. Review the quote line.`}
                             </small>
                           ) : !isAdded && !hasPricingDefault && measurement.billable ? (
-                            <small className="measurement-pricing-warning">No Settings rate configured</small>
+                            <small className="measurement-pricing-warning">No pricing default set</small>
                           ) : null}
                         </span>
                         {serviceChanged || sourceChanged ? (
@@ -2270,7 +2315,9 @@ export function QuotesPage({
                         )}
                       </div>
                     );
-                  })
+                      })}
+                    </section>
+                  ))
                 ) : (
                   <p className="quote-empty-state">No project measurements yet. Open the map, draw work areas, then return to build a quote.</p>
                 )}
@@ -2295,6 +2342,18 @@ export function QuotesPage({
                 >
                   Add Service Line
                 </button>
+                {mismatchedLineIds.size > 0 ? (
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={() => {
+                      setLineItems((items) => items.filter((item) => !mismatchedLineIds.has(item.id)));
+                      markQuoteUnsaved();
+                    }}
+                  >
+                    Remove Mismatched Lines
+                  </button>
+                ) : null}
               </div>
 
               <div className="quote-items-table quote-editor-table">
@@ -2319,6 +2378,7 @@ export function QuotesPage({
                         {item.sourceMeasurement}
                         {item.sourceDeleted || (item.sourceId && !availableSourceIds.has(item.sourceId)) ? " · Source drawing deleted" : ""}
                         {item.sourceChangeAvailable ? " · Source measurement changed — update available" : ""}
+                        {mismatchedLineIds.has(item.id) ? " · Possibly mismatched service" : ""}
                       </span>
                       <label className="quote-mobile-field"><span>Quantity</span><input aria-label="Quantity" value={item.quantity} inputMode="decimal" onChange={(event) => updateLineItem(item.id, { quantity: event.target.value })} /></label>
                       <label className="quote-mobile-field"><span>Unit</span><input aria-label="Unit" value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} /></label>
@@ -2662,6 +2722,9 @@ export function QuotesPage({
                 Mobilization <strong>{formatCurrency(mobilization)}</strong>
               </span>
               <span>
+                Fuel surcharge <strong>{formatCurrency(fuelSurchargeAmount)}</strong>
+              </span>
+              <span>
                 Discount <strong>-{formatCurrency(discountAmount)}</strong>
               </span>
               <span>
@@ -2782,6 +2845,7 @@ export function QuotesPage({
               </section>
               <section className="quote-preview-totals">
                 <div><span>Subtotal</span><strong>{formatCurrency(subtotalBeforeAdjustments)}</strong></div>
+                {fuelSurchargeAmount > 0 ? <div><span>Fuel surcharge</span><strong>{formatCurrency(fuelSurchargeAmount)}</strong></div> : null}
                 {discountAmount > 0 ? <div><span>Discount</span><strong>-{formatCurrency(discountAmount)}</strong></div> : null}
                 {taxAmount > 0 ? <div><span>Tax</span><strong>{formatCurrency(taxAmount)}</strong></div> : null}
                 <div><span>Grand total</span><strong>{formatCurrency(grandTotal)}</strong></div>

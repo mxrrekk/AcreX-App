@@ -49,6 +49,7 @@ import type { ClientRecord, DrawingLocationSource, InvoiceRecord, ProjectFormSta
 import { zoneColors, zoneLabels } from "@/lib/projects/zones";
 import { defaultUserSettings, loadUserSettings } from "@/lib/settings/user-settings";
 import { reconcileSourceLinkedLines, type MeasurementSource, type SourceLinkedLine } from "@/lib/quotes/source-sync";
+import { getCatalogServiceByZoneType } from "@/lib/services/catalog";
 
 type DashboardShellProps = {
   userId: string;
@@ -381,6 +382,7 @@ function normalizeQuote(row: unknown): QuoteRecord {
 
 function measurementSourcesFromZones(zones: WorkZone[], templates: ServiceTemplate[]): MeasurementSource[] {
   return zones.map((zone) => {
+    const catalogService = getCatalogServiceByZoneType(zone.type);
     const template = getTemplateForZone(zone.type, templates);
     const isLinear = zone.geometryType === "line" || zone.feature.geometry.type === "LineString" || zone.type === "Fence";
     const isSquareFeet =
@@ -395,7 +397,7 @@ function measurementSourcesFromZones(zones: WorkZone[], templates: ServiceTempla
     return {
       sourceId: zone.id,
       label: zone.name,
-      serviceName: zone.quoteCategory || zone.serviceTypeLabel || template.serviceName,
+      serviceName: catalogService?.quoteCategory || zone.quoteCategory || zone.serviceTypeLabel || template.serviceName,
       zoneType: zone.type,
       quantity,
       unit,

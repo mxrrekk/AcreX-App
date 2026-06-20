@@ -1,4 +1,5 @@
 import type { ProjectRecord, SavedZoneProperties, ZoneType } from "@/lib/projects/types";
+import { getCatalogServiceByZoneType } from "@/lib/services/catalog";
 
 export type ProjectDrawing = {
   id: string;
@@ -34,13 +35,8 @@ function numberValue(value: unknown) {
 }
 
 function quoteCategoryFor(properties: SavedZoneProperties) {
-  if (properties.zoneType === "Brush") return "Forestry Mulching / Brush Clearing";
-  if (properties.zoneType === "Grass") return "Mowing";
-  if (properties.zoneType === "Woods") return "Land Clearing";
-  if (properties.zoneType === "Fence") return "Fence Installation";
-  if (properties.zoneType === "Driveway") return "Gravel Driveway";
-  if (properties.zoneType === "HousePad") return "House Pad Prep";
-  if (properties.zoneType === "Excluded") return "Non-billable";
+  const catalogService = getCatalogServiceByZoneType(properties.zoneType);
+  if (catalogService) return catalogService.quoteCategory;
   if (properties.quoteCategory) return String(properties.quoteCategory);
   return properties.serviceTypeLabel ?? "Custom";
 }

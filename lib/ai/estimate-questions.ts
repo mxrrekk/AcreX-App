@@ -1,10 +1,8 @@
-export type EstimateServiceType =
-  | "Mowing"
-  | "Brush Clearing / Forestry Mulching"
-  | "Fence Installation"
-  | "Gravel Driveway"
-  | "House Pad"
-  | "Land Clearing";
+import { detectCatalogServices } from "@/lib/services/catalog";
+
+export type EstimateServiceType = NonNullable<
+  ReturnType<typeof detectCatalogServices>[number]["estimateService"]
+>;
 
 export type EstimateQuestion = {
   id: string;
@@ -86,20 +84,7 @@ export function estimateQuestionKey(service: EstimateServiceType, questionId: st
 }
 
 export function detectEstimateServices(values: Array<string | null | undefined>) {
-  const context = values.filter(Boolean).join(" ").toLowerCase();
-  const services: EstimateServiceType[] = [];
-  const add = (service: EstimateServiceType) => {
-    if (!services.includes(service)) services.push(service);
-  };
-
-  if (/\b(mow|mowing|grass|lawn)\b/.test(context)) add("Mowing");
-  if (/\b(forestry mulch|mulching|timber mulch|brush|underbrush|vegetation clearing)\b/.test(context)) {
-    add("Brush Clearing / Forestry Mulching");
-  }
-  if (/\b(fence|fencing|chain link|vinyl|aluminum)\b/.test(context)) add("Fence Installation");
-  if (/\b(driveway|gravel|culvert|road base|crusher run)\b/.test(context)) add("Gravel Driveway");
-  if (/\b(house pad|building pad|site pad)\b/.test(context)) add("House Pad");
-  if (/\b(land clearing|clear lot|lot clearing|tree clearing)\b/.test(context)) add("Land Clearing");
-
-  return services;
+  return detectCatalogServices(values)
+    .map((service) => service.estimateService)
+    .filter((service): service is EstimateServiceType => Boolean(service));
 }

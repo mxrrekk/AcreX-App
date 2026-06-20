@@ -1,4 +1,10 @@
 import type { QuoteService, ZoneType } from "@/lib/projects/types";
+import {
+  getCatalogServiceByKey,
+  getCatalogServiceByZoneType,
+  normalizeCatalogUnit,
+  type ServiceCatalogKey
+} from "@/lib/services/catalog";
 
 export type ServiceTemplate = {
   id: string;
@@ -75,6 +81,18 @@ export type ProjectEstimate = {
   estimatedCost: number;
   estimatedProfit: number;
   profitMargin: number;
+};
+
+export type QuoteLinePricingResult = {
+  serviceType: ServiceCatalogKey;
+  serviceName: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  rate: number | null;
+  subtotal: number | null;
+  assumptions: string[];
+  missingInputs: string[];
 };
 
 export const serviceTemplatesStorageKey = "acrex-service-templates";
@@ -268,7 +286,83 @@ export function mergeServiceTemplates(templates: Partial<ServiceTemplate>[] | nu
 
 export function getTemplateForZone(type: ZoneType, templates: ServiceTemplate[] = defaultServiceTemplates) {
   const activeTemplates = templates.filter((template) => template.active !== false);
-  return activeTemplates.find((template) => template.billableZoneTypes.includes(type)) ?? activeTemplates.find((template) => template.id === "custom") ?? defaultServiceTemplates[defaultServiceTemplates.length - 1];
+  const catalogService = getCatalogServiceByZoneType(type);
+  const exactTemplate = catalogService?.pricingTemplateId
+    ? activeTemplates.find((template) => template.id === catalogService.pricingTemplateId)
+    : null;
+  return exactTemplate ??
+    activeTemplates.find((template) => template.id === "custom") ??
+    defaultServiceTemplates[defaultServiceTemplates.length - 1];
+}
+
+export function calculateQuoteLine({
+  serviceType,
+  quantity,
+  unit,
+  templates,
+  jobConditions = {}
+}: {
+  serviceType: ServiceCatalogKey;
+  quantity: number;
+  unit: string;
+  templates: ServiceTemplate[] | null;
+  jobConditions?: Record<string, string | number | boolean | null | undefined>;
+}): QuoteLinePricingResult {
+  const service = getCatalogServiceByKey(serviceType);
+  const assumptions: string[] = [];
+  const missingInputs: string[] = [];
+
+  if (!service || !service.billable) {
+    return {
+      serviceType,
+      serviceName: service?.quoteCategory ?? "Custom",
+      description: service?.description ?? "Custom service",
+      quantity,
+      unit: normalizeCatalogUnit(unit),
+      rate: null,
+      subtotal: null,
+      assumptions,
+      missingInputs: ["Select a billable service type."]
+    };
+  }
+
+  const normalizedUnit = normalizeCatalogUnit(unit);
+  const template = service.pricingTemplateId
+    ? templates?.find((item) => item.active !== false && item.id === service.pricingTemplateId) ?? null
+    : null;
+  const expectedUnit = service.displayUnit;
+  if (normalizedUnit !== expectedUnit) {
+    missingInputs.push(`Expected ${expectedUnit}; verify the measurement unit.`);
+  }
+
+  const rate = template && template.defaultUnitPrice > 0 ? template.defaultUnitPrice : null;
+  if (rate === null) {
+    missingInputs.push("No pricing default set.");
+  } else {
+    assumptions.push(`Used the saved ${service.quoteCategory} rate of $${rate.toFixed(2)} per ${expectedUnit}.`);
+  }
+  if (template?.minimumCharge && template.minimumCharge > 0) {
+    assumptions.push(`Saved minimum job charge: $${template.minimumCharge.toFixed(2)}.`);
+  }
+
+  const answeredConditions = Object.entries(jobConditions)
+    .filter(([, value]) => value !== "" && value !== null && value !== undefined)
+    .map(([key, value]) => `${key}: ${String(value)}`);
+  if (answeredConditions.length) {
+    assumptions.push(`Job conditions: ${answeredConditions.join(", ")}.`);
+  }
+
+  return {
+    serviceType,
+    serviceName: service.quoteCategory,
+    description: service.description,
+    quantity,
+    unit: expectedUnit,
+    rate,
+    subtotal: rate === null ? null : quantity * rate,
+    assumptions,
+    missingInputs
+  };
 }
 
 export function getTemplateQuantity(type: ZoneType, acres: number, squareFeet: number, perimeterFeet: number, template: ServiceTemplate) {

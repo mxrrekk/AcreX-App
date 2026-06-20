@@ -4,14 +4,26 @@ Last reviewed: June 20, 2026.
 
 ## Current Status
 
-The cross-app data synchronization pass is complete. AcreX now uses one mutation notification path, immediately persists saved-project drawing changes, refreshes related routes, reconciles source-linked quote lines, and protects finalized financial records during cascades.
+The quote pricing and AI service-matching pass is complete. AcreX now uses one canonical service catalog across drawings, Settings, quote line creation, guided questions, and server-side AI result enforcement. Selected mowing work can no longer become brush or forestry work, and equivalent isolation is enforced for every supported service.
 
-Vercel deployment compatibility was also corrected: cloud builds now emit the standard `.next` directory, while local production builds continue using `.next-build` to avoid colliding with the running iOS development server.
+The prior cross-app data synchronization and Vercel output fixes remain intact.
 
 ## Verification
 
 - `npm run lint`: passing
 - `npm run build`: passing
+- `npm run test:quote-services`: passing
+- `npm run test:data-sync`: passing
+- Quote service catalog: one authoritative mapping now drives drawing types, quote categories, units, Settings templates, and AI service detection
+- AI service enforcement: suggestions are rebuilt against selected source measurements and unrelated service lines, materials, and costs are removed before reaching the review panel
+- Mowing-only regression: returns Mowing at the exact measured acreage and never returns Brush, Forestry Mulching, Land Clearing, or their questions
+- Brush-only regression: returns Forestry Mulching / Brush Clearing only
+- Fence-only regression: returns Fence Installation at the exact measured linear footage
+- Mixed-service regression: Grass + Fence returns only Mowing + Fence Installation
+- Selected-scope regression: unselected project drawings remain reference-only when a quote has selected measurements
+- Settings-rate regression: matching saved service rates override generic AI pricing and calculate the measured total
+- No-default regression: manual line creation leaves the rate blank; AI may offer an editable range and starting rate with a visible assumption
+- Existing-quote safety: conflicting source-linked lines are marked `Possibly mismatched service` and remain until the user explicitly removes them
 - Static and dynamic routes: passing, including `/exports`
 - Browser console errors during final responsive check: none
 - Browser console warnings during final responsive check: none

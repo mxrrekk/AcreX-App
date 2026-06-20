@@ -1,3 +1,4 @@
+import { serviceCatalog } from "@/lib/services/catalog";
 import type { QuoteRateType, QuoteService, ShapeGeometryType, ZoneType } from "@/lib/projects/types";
 
 export type ActiveServiceType = {
@@ -13,116 +14,35 @@ export type ActiveServiceType = {
   description: string;
 };
 
-export const serviceTypes: ActiveServiceType[] = [
-  {
-    id: "property-boundary",
-    label: "Property Boundary",
-    shortLabel: "Property",
-    zoneType: "Property",
-    geometry: "polygon",
-    color: "#7fd957",
-    unit: "acre",
-    quoteCategory: "Land Clearing",
-    defaultRateType: "per_acre",
-    description: "Parcel or total property boundary."
-  },
-  {
-    id: "grass-mowing",
-    label: "Grass / Mowing",
-    shortLabel: "Grass",
-    zoneType: "Grass",
-    geometry: "polygon",
-    color: "#4fca5a",
-    unit: "acre",
-    quoteCategory: "Mowing",
-    defaultRateType: "per_acre",
-    description: "Mowing, finish work, and open grass areas."
-  },
-  {
-    id: "brush-clearing",
-    label: "Brush Clearing",
-    shortLabel: "Brush",
-    zoneType: "Brush",
-    geometry: "polygon",
-    color: "#f97316",
-    unit: "acre",
-    quoteCategory: "Forestry Mulching / Brush Clearing",
-    defaultRateType: "per_acre",
-    description: "Brush, undergrowth, and small-tree clearing."
-  },
-  {
-    id: "woods-timber",
-    label: "Woods / Timber",
-    shortLabel: "Woods",
-    zoneType: "Woods",
-    geometry: "polygon",
-    color: "#1f7a3d",
-    unit: "acre",
-    quoteCategory: "Land Clearing",
-    defaultRateType: "per_acre",
-    description: "Wooded or heavier timber work areas."
-  },
-  {
-    id: "fence-line",
-    label: "Fence",
-    shortLabel: "Fence",
-    zoneType: "Fence",
-    geometry: "line",
-    color: "#8b5cf6",
-    unit: "linear ft",
-    quoteCategory: "Fence Installation",
-    defaultRateType: "per_linear_ft",
-    description: "Fence runs and other linear work."
-  },
-  {
-    id: "driveway-gravel",
-    label: "Driveway",
-    shortLabel: "Driveway",
-    zoneType: "Driveway",
-    geometry: "polygon",
-    color: "#9aa4ad",
-    unit: "sq ft",
-    quoteCategory: "Gravel Driveway",
-    defaultRateType: "per_sq_ft",
-    description: "Driveway prep, gravel areas, and parking pads."
-  },
-  {
-    id: "house-pad",
-    label: "House Pad",
-    shortLabel: "House Pad",
-    zoneType: "HousePad",
-    geometry: "polygon",
-    color: "#b88352",
-    unit: "sq ft",
-    quoteCategory: "House Pad Prep",
-    defaultRateType: "per_sq_ft",
-    description: "House pads, building pads, and compacted areas."
-  },
-  {
-    id: "exclusion",
-    label: "Exclusion / Do Not Touch",
-    shortLabel: "Exclusion",
-    zoneType: "Excluded",
-    geometry: "polygon",
-    color: "#ef4444",
-    unit: "acre",
-    quoteCategory: "Non-billable",
-    defaultRateType: "per_acre",
-    description: "Areas excluded from billable work."
-  },
-  {
-    id: "custom",
-    label: "Custom",
-    shortLabel: "Custom",
-    zoneType: "Custom",
-    geometry: "polygon",
-    color: "#64b5ff",
-    unit: "acre",
-    quoteCategory: "Custom",
-    defaultRateType: "per_acre",
-    description: "Custom area or scope item."
-  }
-];
+export const serviceTypes: ActiveServiceType[] = serviceCatalog.map((service) => ({
+  id:
+    service.key === "property"
+      ? "property-boundary"
+      : service.key === "mowing"
+        ? "grass-mowing"
+        : service.key === "forestry_mulching"
+          ? "brush-clearing"
+          : service.key === "land_clearing"
+            ? "woods-timber"
+            : service.key === "fence_installation"
+              ? "fence-line"
+              : service.key === "gravel_driveway"
+                ? "driveway-gravel"
+                : service.key === "house_pad_prep"
+                  ? "house-pad"
+                  : service.key === "non_billable"
+                    ? "exclusion"
+                    : "custom",
+  label: service.label,
+  shortLabel: service.shortLabel,
+  zoneType: service.zoneType,
+  geometry: service.geometry,
+  color: service.color,
+  unit: service.unit,
+  quoteCategory: service.quoteCategory,
+  defaultRateType: service.defaultRateType,
+  description: service.description
+}));
 
 export const defaultServiceType = serviceTypes[0];
 
@@ -131,7 +51,9 @@ export function getServiceTypeById(id: string | null | undefined) {
 }
 
 export function getServiceTypeByZoneType(zoneType: ZoneType | string | null | undefined) {
-  return serviceTypes.find((serviceType) => serviceType.zoneType === zoneType) ?? serviceTypes.find((serviceType) => serviceType.zoneType === "Custom") ?? defaultServiceType;
+  return serviceTypes.find((serviceType) => serviceType.zoneType === zoneType) ??
+    serviceTypes.find((serviceType) => serviceType.zoneType === "Custom") ??
+    defaultServiceType;
 }
 
 export function getServiceTypeByQuoteCategory(category: string | null | undefined) {

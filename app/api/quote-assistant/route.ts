@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { enforceServiceScope } from "@/lib/ai/service-scope";
 
 type JsonRecord = Record<string, unknown>;
 const geminiModels = ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3.5-flash"] as const;
@@ -10,6 +11,7 @@ function logDevelopmentError(message: string, details?: Record<string, unknown>)
 }
 
 type QuoteAssistantSuggestion = {
+  serviceType: string;
   projectVision: string;
   suggestedLineItems: Array<{
     serviceName: string;
@@ -50,6 +52,7 @@ type QuoteAssistantSuggestion = {
 const responseSchema = {
   type: "OBJECT",
   properties: {
+    serviceType: { type: "STRING" },
     projectVision: { type: "STRING" },
     suggestedLineItems: {
       type: "ARRAY",
@@ -120,6 +123,7 @@ const responseSchema = {
     confidenceScore: { type: "INTEGER", minimum: 0, maximum: 100 }
   },
   required: [
+    "serviceType",
     "projectVision",
     "suggestedLineItems",
     "suggestedMaterials",
@@ -279,8 +283,9 @@ function sanitizeContext(value: unknown) {
 
   const templates = Array.isArray(pricingDefaults.serviceTemplates)
     ? pricingDefaults.serviceTemplates.slice(0, 50).map((item) => {
-        const template = isRecord(item) ? item : {};
-        return {
+      const template = isRecord(item) ? item : {};
+      return {
+          id: cleanText(template.id, 100),
           serviceName: cleanText(template.serviceName, 160),
           unitType: cleanText(template.unitType, 40),
           defaultUnitPrice: Math.max(0, cleanNumber(template.defaultUnitPrice)),
@@ -355,6 +360,7 @@ function sanitizeContext(value: unknown) {
             materials: Math.max(0, cleanNumber(quote.totals.materials)),
             laborEquipment: Math.max(0, cleanNumber(quote.totals.laborEquipment)),
             mobilization: Math.max(0, cleanNumber(quote.totals.mobilization)),
+            fuelSurcharge: Math.max(0, cleanNumber(quote.totals.fuelSurcharge)),
             grandTotal: Math.max(0, cleanNumber(quote.totals.grandTotal))
           }
         : {}
@@ -407,6 +413,10 @@ Rules:
 - Prioritize selected measurements and current quote lines over unrelated available project drawings when identifying project type.
 - Treat measurements with selected=true, measurements.selected, selectedSourceIds, and current quote lines as the active quote scope.
 - Available measurements that are not selected are reference-only. Do not generate service lines, materials, costs, scope, or questions for them unless the user's notes explicitly include them.
+- The active service catalog is authoritative. Return serviceType using only active catalog service key(s) represented by selected measurements or explicit manual lines.
+- Never convert Grass/Mowing into Brush Clearing, Forestry Mulching, or Land Clearing.
+- Never convert Brush into Mowing. Never convert Fence into Mowing or Brush.
+- For every suggested measured line, copy sourceMeasurementId, quantity, unit, and zoneType from the matching active measurement exactly.
 - Do not suggest a service line when the same sourceMeasurementId already exists in current quote lines. Suggest supporting job costs or assumptions instead.
 - A current quote line with sourceDeleted=true is preserved for contractor review, but its deleted drawing must not influence project-type detection, measurement context, materials, or follow-up questions.
 - A current quote line with sourceChangeAvailable=true was manually edited and must remain untouched; call out the source mismatch as a warning instead of overwriting it.
@@ -452,6 +462,7 @@ function parseSuggestion(text: string): QuoteAssistantSuggestion | null {
     if (!isRecord(parsed)) return null;
 
     return {
+      serviceType: cleanText(parsed.serviceType, 160),
       projectVision: cleanText(parsed.projectVision, 2000),
       suggestedLineItems: Array.isArray(parsed.suggestedLineItems)
         ? parsed.suggestedLineItems.slice(0, 30).map((item) => {
@@ -729,8 +740,23 @@ export async function POST(request: Request) {
   }
 
   const suggestion = restrictMissingQuestions(
-    removeDuplicateOrOutOfScopeLines(parsedSuggestion, context),
+    removeDuplicateOrOutOfScopeLines(enforceServiceScope(parsedSuggestion, context), context),
     context
   );
-  return NextResponse.json({ suggestion });
+  const primaryLine = suggestion.suggestedLineItems[0] ?? null;
+  return NextResponse.json({
+    serviceType: suggestion.serviceType,
+    suggestedLineItem: primaryLine,
+    suggestedRateRange: primaryLine?.suggestedRateRange ?? "",
+    recommendedRate: primaryLine?.recommendedRate ?? null,
+    recommendedTotal: primaryLine?.total ?? null,
+    materials: suggestion.suggestedMaterials,
+    laborEquipment: suggestion.suggestedLaborEquipment,
+    scopeOfWork: suggestion.suggestedScopeOfWork,
+    exclusions: suggestion.suggestedExclusions,
+    assumptions: suggestion.pricingAssumptions,
+    confidenceScore: suggestion.confidenceScore,
+    missingQuestions: suggestion.missingQuestions,
+    suggestion
+  });
 }

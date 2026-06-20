@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:data-sync": "node scripts/test-data-sync.mjs",
+    "test:quote-services": "node scripts/test-quote-services.mjs",
     "ios:sync": "npx cap sync ios",
     "ios:open": "npx cap open ios"
   },

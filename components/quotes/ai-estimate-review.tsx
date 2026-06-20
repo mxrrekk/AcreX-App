@@ -33,6 +33,7 @@ export type AiSuggestedCost = {
 };
 
 export type AiEstimateSuggestion = {
+  serviceType?: string;
   projectVision?: string;
   suggestedLineItems: AiSuggestedLineItem[];
   suggestedMaterials: AiSuggestedMaterial[];
@@ -102,7 +103,10 @@ export function AiEstimateReview({
         <details className="quote-ai-review-section" open>
           <summary className="quote-ai-review-section-heading">
             <strong>Project Vision</strong>
-            {typeof suggestion.confidenceScore === "number" ? <span>{suggestion.confidenceScore}% confidence</span> : null}
+            <span>
+              {suggestion.serviceType ? `${suggestion.serviceType.replaceAll("_", " ")} · ` : ""}
+              {typeof suggestion.confidenceScore === "number" ? `${suggestion.confidenceScore}% confidence` : ""}
+            </span>
           </summary>
           <textarea
             aria-label="AI project vision"

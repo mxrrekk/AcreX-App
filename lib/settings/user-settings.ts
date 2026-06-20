@@ -7,6 +7,7 @@ import {
   type ProfitInputs,
   type ServiceTemplate
 } from "@/lib/projects/pricing";
+import { serviceCatalog } from "@/lib/services/catalog";
 
 export type AcrexUserSettings = {
   company: {
@@ -26,6 +27,7 @@ export type AcrexUserSettings = {
   pricing: {
     brushClearingRate: number;
     mowingRate: number;
+    mowingMinimumCharge: number;
     fenceRate: number;
     drivewayRate: number;
     housePadRate: number;
@@ -75,6 +77,7 @@ export const defaultUserSettings: AcrexUserSettings = {
   pricing: {
     brushClearingRate: 920,
     mowingRate: 120,
+    mowingMinimumCharge: 85,
     fenceRate: 18,
     drivewayRate: 2.25,
     housePadRate: 3.75,
@@ -142,6 +145,7 @@ export function normalizeUserSettings(value: Partial<AcrexUserSettings> | null |
       ...pricing,
       brushClearingRate: finiteNumber(pricing.brushClearingRate, defaultUserSettings.pricing.brushClearingRate),
       mowingRate: finiteNumber(pricing.mowingRate, defaultUserSettings.pricing.mowingRate),
+      mowingMinimumCharge: finiteNumber(pricing.mowingMinimumCharge, defaultUserSettings.pricing.mowingMinimumCharge),
       fenceRate: finiteNumber(pricing.fenceRate, defaultUserSettings.pricing.fenceRate),
       drivewayRate: finiteNumber(pricing.drivewayRate, defaultUserSettings.pricing.drivewayRate),
       housePadRate: finiteNumber(pricing.housePadRate, defaultUserSettings.pricing.housePadRate),
@@ -183,7 +187,7 @@ function updateTemplate(
       ? {
           ...template,
           defaultUnitPrice: rate,
-          minimumCharge: Math.max(template.minimumCharge, minimumJobCharge),
+          minimumCharge: Math.max(0, minimumJobCharge),
           equipmentCostPerHour: equipmentRate ?? template.equipmentCostPerHour
         }
       : template
@@ -192,12 +196,20 @@ function updateTemplate(
 
 export function pricingTemplatesFromSettings(settings: AcrexUserSettings) {
   let templates = mergeServiceTemplates(defaultServiceTemplates);
-  templates = updateTemplate(templates, "brush-clearing", settings.pricing.brushClearingRate, settings.pricing.minimumJobCharge, settings.pricing.equipmentRate);
-  templates = updateTemplate(templates, "mowing", settings.pricing.mowingRate, settings.pricing.minimumJobCharge);
-  templates = updateTemplate(templates, "fencing", settings.pricing.fenceRate, settings.pricing.minimumJobCharge);
-  templates = updateTemplate(templates, "driveway-prep", settings.pricing.drivewayRate, settings.pricing.minimumJobCharge, settings.pricing.equipmentRate);
-  templates = updateTemplate(templates, "house-pad", settings.pricing.housePadRate, settings.pricing.minimumJobCharge, settings.pricing.equipmentRate);
-  templates = updateTemplate(templates, "land-clearing", settings.pricing.landClearingRate, settings.pricing.minimumJobCharge, settings.pricing.equipmentRate);
+  serviceCatalog.forEach((service) => {
+    if (!service.pricingTemplateId || !service.settingsRateField) return;
+    const minimumField = service.settingsMinimumField;
+    const serviceMinimum = minimumField ? settings.pricing[minimumField] : 0;
+    const minimumCharge = Math.max(serviceMinimum, settings.pricing.minimumJobCharge);
+    const usesHeavyEquipment = ["forestry_mulching", "land_clearing", "gravel_driveway", "house_pad_prep"].includes(service.key);
+    templates = updateTemplate(
+      templates,
+      service.pricingTemplateId,
+      settings.pricing[service.settingsRateField],
+      minimumCharge,
+      usesHeavyEquipment ? settings.pricing.equipmentRate : undefined
+    );
+  });
   return templates;
 }
 
