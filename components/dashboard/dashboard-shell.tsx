@@ -468,6 +468,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   const [activePanel, setActivePanel] = useState<DashboardPanelKey | null>(null);
   const [mobileSheet, setMobileSheet] = useState<MobileSheetKey | null>(null);
   const [mobileSheetSize, setMobileSheetSize] = useState<MobileSheetSize>("half");
+  const [mobileShapeView, setMobileShapeView] = useState<"summary" | "more" | "location">("summary");
   const [mobileMapCommand, setMobileMapCommand] = useState<MobileMapCommand | undefined>(undefined);
   const [preferredMapStyle, setPreferredMapStyle] = useState<MapStyle>(defaultUserSettings.map.preferredStyle);
   const [is3DMapView, setIs3DMapView] = useState(false);
@@ -1126,6 +1127,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   const handleSelectedZonesChange = useCallback((zones: WorkZone[]) => {
     setSelectedZones(zones);
     if (!zones.length) {
+      setMobileShapeView("summary");
       setMobileSheet((current) => (current === "shape" ? null : current));
       return;
     }
@@ -1134,6 +1136,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
       typeof window !== "undefined" &&
       window.matchMedia("(max-width: 1024px) and (orientation: portrait)").matches
     ) {
+      setMobileShapeView("summary");
       setMobileSheet("shape");
       setMobileSheetSize("half");
       setMobileSheetDrag(0);
@@ -1146,6 +1149,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   }, []);
 
   function openMobileSheet(sheet: MobileSheetKey) {
+    if (sheet === "shape") setMobileShapeView("summary");
     setMobileSheet((current) => (current === sheet ? null : sheet));
     setMobileSheetSize("half");
     setMobileSheetDrag(0);
@@ -1769,7 +1773,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
 
           {mobileSheet ? (
             <section
-              className={`mobile-map-sheet is-${mobileSheetSize}`}
+              className={`mobile-map-sheet is-${mobileSheetSize} is-${mobileSheet}-sheet${mobileSheet === "shape" ? ` is-shape-${mobileShapeView}` : ""}`}
               style={{ "--sheet-drag": `${Math.max(mobileSheetDrag, -120)}px` } as CSSProperties}
               role="dialog"
               aria-label={`${mobileSheet} workspace`}
@@ -1941,24 +1945,22 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
 
                 {mobileSheet === "layers" ? (
                   <div className="mobile-layer-workspace">
-                    <section className="mobile-map-style-picker" aria-label="Map style">
+                    <label className="mobile-map-style-picker">
                       <span>Map style</span>
-                      <div>
+                      <select
+                        aria-label="Map style"
+                        value={preferredMapStyle}
+                        onChange={(event) => {
+                          const style = event.target.value as MapStyle;
+                          setPreferredMapStyle(style);
+                          sendMobileMapCommand("map-style", style);
+                        }}
+                      >
                         {mapStyleOptions.map((style) => (
-                          <button
-                            type="button"
-                            className={preferredMapStyle === style.id ? "active" : ""}
-                            key={style.id}
-                            onClick={() => {
-                              setPreferredMapStyle(style.id);
-                              sendMobileMapCommand("map-style", style.id);
-                            }}
-                          >
-                            {style.label}
-                          </button>
+                          <option key={style.id} value={style.id}>{style.label}</option>
                         ))}
-                      </div>
-                    </section>
+                      </select>
+                    </label>
                     <div className="mobile-layer-actions">
                       <button
                         type="button"
@@ -1992,47 +1994,45 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
 
                 {mobileSheet === "shape" && selectedMobileZone ? (
                   <>
-                    <div className="mobile-shape-summary">
-                      <i style={{ background: selectedMobileZone.color ?? zoneColors[selectedMobileZone.type] }} />
-                      <span>
-                        <strong>{selectedMobileZone.serviceTypeLabel ?? zoneLabels[selectedMobileZone.type]}</strong>
-                        {formatZoneMeasurement(selectedMobileZone)}
-                      </span>
-                      <small>{quotedZoneNames.includes(selectedMobileZone.name) ? "Added to quote" : "Not quoted"}</small>
-                    </div>
-                    <div className="mobile-shape-facts">
-                      <span>Measurement<strong>{formatZoneMeasurement(selectedMobileZone)}</strong></span>
-                      <span>Project<strong>{activeProjectId ? "Saved" : "Not saved"}</strong></span>
-                    </div>
-                    <div className="mobile-shape-location">
-                      <span>Location</span>
-                      <strong>{selectedMobileZone.address || projectForm.address || address || "Address unavailable"}</strong>
-                      <small>
-                        {typeof selectedMobileZone.latitude === "number" && typeof selectedMobileZone.longitude === "number"
-                          ? `${selectedMobileZone.latitude.toFixed(6)}, ${selectedMobileZone.longitude.toFixed(6)}`
-                          : selectedMobileZone.centroid
-                            ? `${selectedMobileZone.centroid.latitude.toFixed(6)}, ${selectedMobileZone.centroid.longitude.toFixed(6)}`
-                            : "Coordinates unavailable"}
-                      </small>
-                    </div>
-                    <div className="mobile-sheet-actions mobile-shape-primary-actions">
-                      {activeProjectId ? (
-                        <Link href={quotedZoneNames.includes(selectedMobileZone.name)
-                          ? `/quotes?project=${activeProjectId}`
-                          : `/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(selectedMobileZone.id)}`}>
-                          {quotedZoneNames.includes(selectedMobileZone.name) ? "Open Quote" : "Add to Quote"}
-                        </Link>
-                      ) : (
-                        <button type="button" onClick={() => void handleSaveProject()} disabled={isSavingProject}>
-                          {isSavingProject ? "Saving…" : "Save to Project"}
-                        </button>
-                      )}
-                      {activeProjectId ? (
-                        <Link className="secondary" href={`/projects/${activeProjectId}`}>Open Project</Link>
-                      ) : null}
-                    </div>
-                    <details className="mobile-shape-details">
-                      <summary>Edit drawing details</summary>
+                    {mobileShapeView === "summary" ? (
+                      <div className="mobile-shape-view">
+                        <div className="mobile-shape-summary">
+                          <i style={{ background: selectedMobileZone.color ?? zoneColors[selectedMobileZone.type] }} />
+                          <span>
+                            <strong>{selectedMobileZone.name}</strong>
+                            <small>{selectedMobileZone.serviceTypeLabel ?? zoneLabels[selectedMobileZone.type]}</small>
+                          </span>
+                          <small>{quotedZoneNames.includes(selectedMobileZone.name) ? "Quoted" : "Available"}</small>
+                        </div>
+                        <div className="mobile-shape-facts">
+                          <span>Measurement<strong>{formatZoneMeasurement(selectedMobileZone)}</strong></span>
+                          <span>Project<strong>{activeProjectId ? "Saved" : "Not saved"}</strong></span>
+                        </div>
+                        <div className="mobile-sheet-actions mobile-shape-primary-actions">
+                          {activeProjectId ? (
+                            <Link href={quotedZoneNames.includes(selectedMobileZone.name)
+                              ? `/quotes?project=${activeProjectId}`
+                              : `/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(selectedMobileZone.id)}`}>
+                              {quotedZoneNames.includes(selectedMobileZone.name) ? "Open Quote" : "Add to Quote"}
+                            </Link>
+                          ) : (
+                            <button type="button" onClick={() => void handleSaveProject()} disabled={isSavingProject}>
+                              {isSavingProject ? "Saving…" : "Save to Project"}
+                            </button>
+                          )}
+                          {activeProjectId ? (
+                            <Link className="secondary" href={`/projects/${activeProjectId}`}>Open Project</Link>
+                          ) : null}
+                          <button type="button" className="secondary" onClick={() => sendMobileMapCommand("zoom-selected")}>Zoom To</button>
+                          <button type="button" className="secondary" onClick={() => setMobileShapeView("more")}>More Actions</button>
+                        </div>
+                      </div>
+                    ) : mobileShapeView === "more" ? (
+                      <div className="mobile-shape-view mobile-shape-more">
+                        <div className="mobile-shape-subview-heading">
+                          <div><span>Drawing controls</span><strong>Edit {selectedMobileZone.name}</strong></div>
+                          <button type="button" onClick={() => setMobileShapeView("summary")}>Back</button>
+                        </div>
                       <div className="mobile-shape-fields">
                         <label>
                           Drawing name
@@ -2062,16 +2062,40 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                         </label>
                       </div>
                       <div className="mobile-sheet-actions mobile-shape-actions">
-                        <button type="button" className="secondary" onClick={() => sendMobileMapCommand("zoom-selected")}>Zoom To</button>
+                        <button type="button" className="secondary" onClick={() => setMobileShapeView("location")}>Location</button>
                         <button type="button" className="secondary" onClick={() => sendMobileMapCommand("toggle-selected")}>
                           {selectedMobileZone.visible === false ? "Show" : "Hide"}
                         </button>
                         <button type="button" className="danger" onClick={() => {
                           sendMobileMapCommand("delete-selected");
+                          setMobileShapeView("summary");
                           setMobileSheet(null);
-                        }}>Delete</button>
+                        }}>Delete Drawing</button>
                       </div>
-                    </details>
+                      </div>
+                    ) : (
+                      <div className="mobile-shape-view">
+                        <div className="mobile-shape-subview-heading">
+                          <div><span>Drawing location</span><strong>{selectedMobileZone.name}</strong></div>
+                          <button type="button" onClick={() => setMobileShapeView("more")}>Back</button>
+                        </div>
+                        <div className="mobile-shape-location">
+                          <span>Address</span>
+                          <strong>{selectedMobileZone.address || projectForm.address || address || "Address unavailable"}</strong>
+                          <small>
+                            {typeof selectedMobileZone.latitude === "number" && typeof selectedMobileZone.longitude === "number"
+                              ? `${selectedMobileZone.latitude.toFixed(6)}, ${selectedMobileZone.longitude.toFixed(6)}`
+                              : selectedMobileZone.centroid
+                                ? `${selectedMobileZone.centroid.latitude.toFixed(6)}, ${selectedMobileZone.centroid.longitude.toFixed(6)}`
+                                : "Coordinates unavailable"}
+                          </small>
+                        </div>
+                        <div className="mobile-sheet-actions">
+                          <button type="button" onClick={() => sendMobileMapCommand("zoom-selected")}>Zoom To Drawing</button>
+                          <button type="button" className="secondary" onClick={() => setMobileShapeView("summary")}>Done</button>
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : null}
               </div>

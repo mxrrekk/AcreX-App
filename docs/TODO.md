@@ -2,6 +2,21 @@
 
 Last updated: June 20, 2026.
 
+## Completed — App-Wide Space Management
+
+- [x] Replace the mobile selected-drawing scroll drawer with Summary, More Actions, and Location subviews.
+- [x] Keep Add to Quote, Save/Open Project, Zoom To, and More Actions visible in the default drawing view.
+- [x] Keep rename, service, color, visibility, location, and Delete Drawing in compact in-place subpanels.
+- [x] Apply the same summary/More Actions hierarchy to the desktop Drawing Inspector.
+- [x] Resize short-screen mobile map sheets so Draw, Project, Quote, More, Map View, and drawing actions fit without internal scrolling.
+- [x] Replace the five-button mobile map-style grid with one compact style selector.
+- [x] Replace horizontally scrolling Quote, Settings, and Project Detail tabs with fitted segmented grids.
+- [x] Collapse Quote line items to service, quantity, rate, total, and Edit; retain all detailed fields inside the inline editor.
+- [x] Replace desktop quote editor tables with responsive cards for lines, materials, and labor/equipment.
+- [x] Keep Build Estimate visible near the top of the mobile and desktop estimator and collapse job questions until requested.
+- [x] Keep Settings Save visible directly below navigation with sticky feedback while sections scroll.
+- [x] Verify readable controls, no clipped labels, and zero horizontal overflow at 320px, 393px, 834px, and 1440px widths.
+
 ## Completed — Mobile Precision Drawing
 
 - [x] Add a fixed AcreX crosshair at the mobile map center while drawing.

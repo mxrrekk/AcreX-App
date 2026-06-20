@@ -159,12 +159,12 @@ export function SettingsPage({ account }: SettingsPageProps) {
 
         <nav className="premium-tabs settings-tabs" aria-label="Settings sections">
           {[
+            ["account", "Account"],
             ["company", "Company"],
             ["pricing", "Pricing"],
             ["quote", "Quote Defaults"],
             ["drawing", "Drawing Colors"],
-            ["map", "Map Preferences"],
-            ["account", "Account"]
+            ["map", "Map"]
           ].map(([id, label]) => (
             <button
               type="button"
@@ -177,6 +177,16 @@ export function SettingsPage({ account }: SettingsPageProps) {
             </button>
           ))}
         </nav>
+
+        <footer className="settings-save-bar">
+          <div>
+            <strong>{saveMessage || "Settings are stored for this account in this browser."}</strong>
+            <span>{settings.updatedAt ? `Last saved ${formatDate(settings.updatedAt)}` : "Not saved yet"}</span>
+          </div>
+          <button className={saveState === "saving" ? "is-processing" : ""} type="button" onClick={handleSave} disabled={saveState === "saving"}>
+            {saveState === "saving" ? "Saving…" : "Save Settings"}
+          </button>
+        </footer>
 
         <div className="settings-tab-panel" role="tabpanel">
         {activeTab === "account" ? (
@@ -338,15 +348,6 @@ export function SettingsPage({ account }: SettingsPageProps) {
         ) : null}
         </div>
 
-        <footer className="settings-save-bar">
-          <div>
-            <strong>{saveMessage || "Settings are stored for this account in this browser."}</strong>
-            <span>{settings.updatedAt ? `Last saved ${formatDate(settings.updatedAt)}` : "Not saved yet"}</span>
-          </div>
-          <button className={saveState === "saving" ? "is-processing" : ""} type="button" onClick={handleSave} disabled={saveState === "saving"}>
-            {saveState === "saving" ? "Saving…" : "Save Settings"}
-          </button>
-        </footer>
       </section>
       <MobileAppNav active={activeTab === "account" ? "account" : "settings"} />
     </main>

@@ -595,6 +595,7 @@ export function AcrexMap({
   const drawingDeleteNoticeRef = useRef<{ count: number; snapshot: DrawSnapshot } | null>(null);
   const [customDrawColor, setCustomDrawColor] = useState(zoneColors.Custom);
   const [explorerFilter, setExplorerFilter] = useState<ZoneType | null>(null);
+  const [inspectorView, setInspectorView] = useState<"summary" | "more">("summary");
   const selectedZoneIdsRef = useRef<string[]>([]);
   const mobileDrawingMetrics = getMobileDrawingMetrics(mobileDrawingDraft);
 
@@ -2045,6 +2046,7 @@ export function AcrexMap({
         setSelectedZoneIds(nextIds);
         onSelectedZonesChangeRef.current?.(workZonesRef.current.filter((zone) => nextIds.includes(zone.id)));
         if (nextIds.length) {
+          setInspectorView("summary");
           setActiveMapPanel("explorer");
           onToolPanelChange?.("explorer");
         } else if (activeMapPanelRef.current === "explorer") {
@@ -2537,6 +2539,7 @@ export function AcrexMap({
     selectedZoneIdsRef.current = [];
     setSelectedZoneIds([]);
     onSelectedZonesChangeRef.current?.([]);
+    setInspectorView("summary");
     draw?.changeMode("simple_select", { featureIds: [] });
   }
 
@@ -2549,6 +2552,7 @@ export function AcrexMap({
     selectedZoneIdsRef.current = nextIds;
     setSelectedZoneIds(nextIds);
     onSelectedZonesChangeRef.current?.([zone]);
+    setInspectorView("summary");
     setActiveMode("select");
     setActiveMapPanel("explorer");
     onToolPanelChange?.("explorer");
@@ -3173,92 +3177,112 @@ export function AcrexMap({
                     {selectedZoneIsQuoted ? "Quoted" : "Not quoted"}
                   </em>
                 </div>
-                <dl className="zone-inspector-details">
-                  <div>
-                    <dt>{selectedZone.geometryType === "line" ? "Length" : "Area"}</dt>
-                    <dd>{formatShapeMeasurement(selectedZone)}</dd>
+                {inspectorView === "summary" ? (
+                  <div className="project-explorer-subview">
+                    <dl className="zone-inspector-details is-summary">
+                      <div>
+                        <dt>{selectedZone.geometryType === "line" ? "Length" : "Area"}</dt>
+                        <dd>{formatShapeMeasurement(selectedZone)}</dd>
+                      </div>
+                      <div>
+                        <dt>Project</dt>
+                        <dd>{activeProjectId ? "Saved" : "Not saved"}</dd>
+                      </div>
+                      <div>
+                        <dt>Quote</dt>
+                        <dd>{selectedZoneIsQuoted ? "Added to quote" : "Available"}</dd>
+                      </div>
+                      <div>
+                        <dt>Visibility</dt>
+                        <dd>{selectedZone.visible === false ? "Hidden" : "Visible"}</dd>
+                      </div>
+                    </dl>
+                    <div className="project-explorer-actions">
+                      {activeProjectId ? (
+                        <a
+                          className="primary"
+                          href={selectedZoneIsQuoted
+                            ? `/quotes?project=${activeProjectId}`
+                            : `/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(selectedZone.id)}`}
+                        >
+                          {selectedZoneIsQuoted ? "Open Quote" : "Add to Quote"}
+                        </a>
+                      ) : null}
+                      {activeProjectId ? (
+                        <a href={`/projects/${activeProjectId}`}>Open Project</a>
+                      ) : (
+                        <button type="button" onClick={() => void onSaveProject?.()} disabled={!onSaveProject || isSavingProject}>
+                          {isSavingProject ? "Saving..." : "Save to Project"}
+                        </button>
+                      )}
+                      <button type="button" onClick={zoomToSelectedZone}>Zoom To</button>
+                      <button type="button" onClick={() => setInspectorView("more")}>More Actions</button>
+                    </div>
                   </div>
-                  <div>
-                    <dt>Location</dt>
-                    <dd title={selectedZone.address ?? undefined}>
-                      {selectedZone.address ?? "Resolving drawing location..."}
-                    </dd>
+                ) : (
+                  <div className="project-explorer-subview">
+                    <div className="project-explorer-subview-heading">
+                      <div><span>Drawing controls</span><strong>Edit drawing</strong></div>
+                      <button type="button" onClick={() => setInspectorView("summary")}>Back</button>
+                    </div>
+                    <div className="project-explorer-fields">
+                      <label className="project-explorer-inline-field">
+                        <span>Drawing name</span>
+                        <input
+                          ref={selectedZoneNameInputRef}
+                          value={selectedZone.name}
+                          onChange={(event) => updateSelectedZoneProperty("zoneName", event.target.value)}
+                        />
+                      </label>
+                      <label className="project-explorer-inline-field">
+                        <span>Service type</span>
+                        <select
+                          value={selectedZone.serviceTypeId ?? getServiceTypeByZoneType(selectedZone.type).id}
+                          onChange={(event) => handleSelectedZoneServiceTypeChange(event.target.value)}
+                        >
+                          {serviceTypes.filter((serviceType) => serviceType.id !== "property-boundary").map((serviceType) => (
+                            <option key={serviceType.id} value={serviceType.id}>
+                              {serviceType.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="project-explorer-color-field">
+                        <span>Color</span>
+                        <span className="project-explorer-color-control">
+                          <i style={{ background: selectedZone.color ?? zoneColors[selectedZone.type] }} aria-hidden="true" />
+                          <strong>{selectedZone.color ?? zoneColors[selectedZone.type]}</strong>
+                          <input
+                            aria-label="Choose drawing color"
+                            type="color"
+                            value={selectedZone.color ?? zoneColors[selectedZone.type]}
+                            onChange={(event) => updateSelectedZoneColor(event.target.value)}
+                          />
+                        </span>
+                      </label>
+                    </div>
+                    <dl className="zone-inspector-details is-location">
+                      <div>
+                        <dt>Location</dt>
+                        <dd title={selectedZone.address ?? undefined}>{selectedZone.address ?? "Resolving drawing location..."}</dd>
+                      </div>
+                      <div>
+                        <dt>Coordinates</dt>
+                        <dd>
+                          {Number.isFinite(selectedZone.latitude) && Number.isFinite(selectedZone.longitude)
+                            ? `${selectedZone.latitude?.toFixed(6)}, ${selectedZone.longitude?.toFixed(6)}`
+                            : "Resolving..."}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="project-explorer-actions is-more">
+                      <button type="button" onClick={toggleSelectedZoneVisibility}>
+                        {selectedZone.visible === false ? "Show Drawing" : "Hide Drawing"}
+                      </button>
+                      <button className="danger" type="button" onClick={deleteSelectedZone}>Delete Drawing</button>
+                    </div>
                   </div>
-                  <div>
-                    <dt>Coordinates</dt>
-                    <dd>
-                      {Number.isFinite(selectedZone.latitude) && Number.isFinite(selectedZone.longitude)
-                        ? `${selectedZone.latitude?.toFixed(6)}, ${selectedZone.longitude?.toFixed(6)}`
-                        : "Resolving..."}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Quote status</dt>
-                    <dd>{selectedZoneIsQuoted ? "Added to quote" : "Available"}</dd>
-                  </div>
-                </dl>
-                <div className="project-explorer-fields">
-                  <label className="project-explorer-inline-field">
-                    <span>Drawing name</span>
-                    <input
-                      ref={selectedZoneNameInputRef}
-                      value={selectedZone.name}
-                      onChange={(event) => updateSelectedZoneProperty("zoneName", event.target.value)}
-                    />
-                  </label>
-                  <label className="project-explorer-inline-field">
-                    <span>Service type</span>
-                    <select
-                      value={selectedZone.serviceTypeId ?? getServiceTypeByZoneType(selectedZone.type).id}
-                      onChange={(event) => handleSelectedZoneServiceTypeChange(event.target.value)}
-                    >
-                      {serviceTypes.filter((serviceType) => serviceType.id !== "property-boundary").map((serviceType) => (
-                        <option key={serviceType.id} value={serviceType.id}>
-                          {serviceType.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="project-explorer-color-field">
-                    <span>Color</span>
-                    <span className="project-explorer-color-control">
-                      <i style={{ background: selectedZone.color ?? zoneColors[selectedZone.type] }} aria-hidden="true" />
-                      <strong>{selectedZone.color ?? zoneColors[selectedZone.type]}</strong>
-                      <input
-                        aria-label="Choose drawing color"
-                        type="color"
-                        value={selectedZone.color ?? zoneColors[selectedZone.type]}
-                        onChange={(event) => updateSelectedZoneColor(event.target.value)}
-                      />
-                    </span>
-                  </label>
-                </div>
-                <div className="project-explorer-actions">
-                  {activeProjectId ? (
-                    <a
-                      className="primary"
-                      href={selectedZoneIsQuoted
-                        ? `/quotes?project=${activeProjectId}`
-                        : `/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(selectedZone.id)}`}
-                    >
-                      {selectedZoneIsQuoted ? "Open Quote" : "Add to Quote"}
-                    </a>
-                  ) : null}
-                  {activeProjectId ? (
-                    <a href={`/projects/${activeProjectId}`}>Open Project</a>
-                  ) : (
-                    <button type="button" onClick={() => void onSaveProject?.()} disabled={!onSaveProject || isSavingProject}>
-                      {isSavingProject ? "Saving..." : "Save to Project"}
-                    </button>
-                  )}
-                  <button type="button" onClick={zoomToSelectedZone}>Zoom To</button>
-                  <button type="button" onClick={toggleSelectedZoneVisibility}>
-                    {selectedZone.visible === false ? "Show" : "Hide"}
-                  </button>
-                  <button className="danger" type="button" onClick={deleteSelectedZone}>
-                    Delete
-                  </button>
-                </div>
+                )}
               </div>
             ) : explorerGroups.length ? (
               <div className="project-explorer-groups">

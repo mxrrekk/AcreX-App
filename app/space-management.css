@@ -1,0 +1,143 @@
+/* Loaded after globals.css so desktop quote editors cannot fall back to wide scrolling tables. */
+@media (min-width: 1025px), (min-width: 768px) and (orientation: landscape) {
+  .quote-editor-table {
+    overflow: visible;
+  }
+
+  .quote-editor-header {
+    display: none;
+  }
+
+  .quote-editor-row,
+  .quote-editor-line-grid,
+  .quote-editor-material-grid,
+  .quote-editor-cost-grid {
+    min-width: 0;
+  }
+
+  .quote-editor-row {
+    gap: 10px;
+    margin: 0 12px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.025);
+    padding: 12px;
+  }
+
+  .quote-editor-line-grid,
+  .quote-editor-material-grid,
+  .quote-editor-cost-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .quote-editor-row .quote-mobile-field {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+  }
+
+  .quote-editor-row .quote-mobile-field > span,
+  .quote-editor-row .quote-line-total > small,
+  .quote-editor-row .quote-source-measurement > small {
+    display: block;
+  }
+
+  .quote-editor-line-grid.is-editing .quote-source-measurement,
+  .quote-editor-line-grid.is-editing .quote-editor-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+.quote-ai-context > span .quote-ai-context-detail {
+  color: #8f9c94;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1.35;
+  text-transform: none;
+  white-space: normal;
+}
+
+@media (max-width: 1024px) and (orientation: portrait), (max-width: 767px) {
+  .quote-ai-workspace {
+    gap: 10px;
+    padding: 11px;
+  }
+
+  .quote-ai-heading {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .quote-ai-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+  }
+
+  .quote-ai-heading strong {
+    font-size: 0.9rem;
+    line-height: 1.25;
+  }
+
+  .quote-ai-heading p,
+  .quote-ai-context-detail,
+  .quote-ai-composer p {
+    display: none;
+  }
+
+  .quote-ai-heading .quote-ai-status {
+    min-height: 26px;
+    padding: 0 8px;
+    font-size: 0.62rem;
+  }
+
+  .quote-ai-context,
+  .quote-ai-context.quote-ai-context-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .quote-ai-context.quote-ai-context-overview > span,
+  .quote-ai-context.quote-ai-context-overview > span:nth-child(n + 4) {
+    grid-column: auto;
+  }
+
+  .quote-ai-context.quote-ai-context-overview > span:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .quote-ai-context > span {
+    gap: 3px;
+    border-radius: 10px;
+    padding: 8px;
+    font-size: 0.68rem;
+  }
+
+  .quote-ai-context > span small {
+    font-size: 0.56rem;
+  }
+
+  .quote-ai-context span strong {
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+
+  .quote-ai-composer {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    border-radius: 11px;
+    padding: 9px;
+  }
+
+  .quote-ai-composer strong {
+    font-size: 0.76rem;
+  }
+
+  .quote-ai-composer button {
+    min-height: 40px;
+    padding: 0 10px;
+    font-size: 0.72rem;
+  }
+}

@@ -3,6 +3,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
 import "./globals.css";
+import "./space-management.css";
 
 export const metadata: Metadata = {
   title: "Acrex | Property Quoting Workspace",

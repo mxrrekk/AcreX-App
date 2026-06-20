@@ -4,9 +4,9 @@ Last reviewed: June 20, 2026.
 
 ## Current Status
 
-The mobile precision-drawing pass is complete. Phone and portrait-tablet users now position a fixed center crosshair by moving the map, explicitly add or undo vertices, and review live area, perimeter, line totals, and segment measurements before finishing.
+The app-wide space-management pass is complete. Core Map, drawing, project, quote, and Settings actions now use compact summaries and in-place subviews instead of tall scroll drawers or horizontally scrolling tab strips.
 
-Finished mobile geometry continues through the existing drawing persistence, project, quote, and inspector workflow. Desktop drawing remains on the original Mapbox click-to-place path.
+No important workflow was removed. Detailed editing remains available on demand, while the default view prioritizes the next contractor action.
 
 ## Verification
 
@@ -143,6 +143,18 @@ Finished mobile geometry continues through the existing drawing persistence, pro
 - Compact-phone regression: at 320×568 all four drawing buttons fit inside the viewport, retained 46px tap height, and produced no horizontal or vertical page scroll.
 - Desktop drawing regression: a Brush polygon completed through normal click-to-place drawing at 1440×900 with no mobile controls rendered.
 - Browser runtime regression: no console warnings or errors occurred during mobile or desktop drawing tests.
+- Mobile drawing inspector: Summary, More Actions, and Location each fit without internal scrolling at 320×568, 393×852, and 834×1112.
+- Drawing primary-action regression: Add to Quote, Save/Open Project, Zoom To, and More Actions remained simultaneously visible with no clipped labels.
+- Drawing edit-action regression: rename, service, color, location, hide/show, Delete Drawing, and Back remained available in compact replacement views.
+- Mobile sheet regression: Draw, Project, Quote, More, and Map View sheets fit their complete action sets at 320×568 with overflow disabled.
+- Map View regression: one map-style selector replaced the tall five-button grid; parcel, 3D, and reset controls remained visible.
+- Quote tab regression: all six desktop Quote tabs fit one segmented grid with no horizontal overflow.
+- Quote editor regression: desktop line, material, and cost cards had equal client/scroll widths; mobile line summaries reduced to approximately 64px until Edit was opened.
+- Mobile Estimate regression: Build Estimate rendered above the fixed summary/navigation bars on iPhone SE; job questions remained one optional in-place panel.
+- Settings regression: six section tabs fit a 3×2 grid at 320px with no clipped labels; Save Settings stayed visible and returned `Saved`.
+- Project Detail regression: five tabs fit a 3×2 grid at 320px and a single fitted row on desktop.
+- Responsive space audit: document widths matched 320px, 393px, 834px, and 1440px viewports with `scrollX=0`.
+- Runtime space-management audit: no browser warnings or errors were recorded.
 
 ## Remaining Release Work
 

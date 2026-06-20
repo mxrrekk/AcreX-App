@@ -591,8 +591,8 @@ const quoteWorkspaceTabs: Array<{ id: QuoteWorkspaceTab; label: string }> = [
   { id: "estimate", label: "Estimate" },
   { id: "line-items", label: "Line Items" },
   { id: "materials", label: "Materials" },
-  { id: "labor", label: "Labor / Equipment" },
-  { id: "scope", label: "Scope / Terms" },
+  { id: "labor", label: "Labor" },
+  { id: "scope", label: "Scope" },
   { id: "review", label: "Review" }
 ];
 
@@ -732,6 +732,7 @@ export function QuotesPage({
   const [aiEditMessage, setAiEditMessage] = useState("");
   const [activeTab, setActiveTab] = useState<QuoteWorkspaceTab>("estimate");
   const [mobileQuotePanel, setMobileQuotePanel] = useState<MobileQuotePanel>(null);
+  const [editingLineItemId, setEditingLineItemId] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [areMobileQuestionsOpen, setAreMobileQuestionsOpen] = useState(false);
   const [isDeletingQuote, setIsDeletingQuote] = useState(false);
@@ -2059,23 +2060,46 @@ export function QuotesPage({
                 <span className="quote-ai-status">{aiSuggestion ? "Suggestions ready" : "Estimator ready"}</span>
               </div>
 
+              <div className="quote-ai-composer">
+                <div>
+                  <strong>{estimateContextReady ? "Estimate context assembled" : "Complete the estimate context"}</strong>
+                  <p>
+                    {estimateContextReady
+                      ? `${estimateContext.measurements.totals.validMeasurementCount} measurements, ${estimateContext.quote.lineItems.length} current lines, and ${completedConditionCount} of ${relevantQuestionCount} relevant questions are confirmed.`
+                      : "Select a project and add a valid measurement or manual service line before building an estimate."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={buildEstimate}
+                  disabled={!estimateContextReady || aiBuildState === "loading"}
+                  title={estimateContextReady ? "Build AI estimate suggestions" : "Select a project and add measured or manual work first"}
+                >
+                  {aiBuildState === "loading" ? "Building Estimate..." : "Build Estimate"}
+                </button>
+              </div>
+
               <div className="quote-ai-context quote-ai-context-overview">
                 <span className={detectedProjectType !== "Not detected" ? "ready" : ""}>
                   <small>Project type</small>
                   <strong>{detectedProjectType}</strong>
-                  {selectedProject?.address || "Select a saved project"}
+                  <small className="quote-ai-context-detail">{selectedProject?.address || "Select a saved project"}</small>
                 </span>
                 <span className={availableMeasurements.length > 0 ? "ready" : ""}>
                   <small>Measurements detected</small>
                   <strong>{availableMeasurements.length} {availableMeasurements.length === 1 ? "measurement" : "measurements"}</strong>
-                  {estimateContext.measurements.totals.validMeasurementCount > 0
-                    ? `${estimateContext.measurements.totals.validMeasurementCount} usable ${estimateContext.measurements.totals.validMeasurementCount === 1 ? "quantity" : "quantities"}`
-                    : "Draw work areas on the map"}
+                  <small className="quote-ai-context-detail">
+                    {estimateContext.measurements.totals.validMeasurementCount > 0
+                      ? `${estimateContext.measurements.totals.validMeasurementCount} usable ${estimateContext.measurements.totals.validMeasurementCount === 1 ? "quantity" : "quantities"}`
+                      : "Draw work areas on the map"}
+                  </small>
                 </span>
                 <span className={hasPricingDefaults ? "ready" : ""}>
                   <small>Pricing defaults</small>
                   <strong>{hasPricingDefaults ? "Settings rates found" : "No pricing default set"}</strong>
-                  {hasPricingDefaults ? "Settings rates apply to new lines" : "Existing quote rates stay unchanged"}
+                  <small className="quote-ai-context-detail">
+                    {hasPricingDefaults ? "Settings rates apply to new lines" : "Existing quote rates stay unchanged"}
+                  </small>
                 </span>
                 <span className={estimateWarnings.length === 0 ? "ready" : ""}>
                   <small>Missing information</small>
@@ -2084,12 +2108,12 @@ export function QuotesPage({
                       ? "Core context complete"
                       : `${estimateWarnings.length} ${estimateWarnings.length === 1 ? "item" : "items"} to review`}
                   </strong>
-                  {estimateWarnings[0] || "Ready for review"}
+                  <small className="quote-ai-context-detail">{estimateWarnings[0] || "Ready for review"}</small>
                 </span>
                 <span className={estimateConfidence >= 70 ? "ready" : ""}>
                   <small>Confidence score</small>
                   <strong>{estimateConfidence}%</strong>
-                  Improves as job conditions are confirmed
+                  <small className="quote-ai-context-detail">Improves as job conditions are confirmed</small>
                 </span>
               </div>
 
@@ -2213,25 +2237,6 @@ export function QuotesPage({
                   />
                 </label>
                 </div>
-              </div>
-
-              <div className="quote-ai-composer">
-                <div>
-                  <strong>{estimateContextReady ? "Estimate context assembled" : "Complete the estimate context"}</strong>
-                  <p>
-                    {estimateContextReady
-                      ? `${estimateContext.measurements.totals.validMeasurementCount} measurements, ${estimateContext.quote.lineItems.length} current lines, and ${completedConditionCount} of ${relevantQuestionCount} relevant questions are confirmed.`
-                      : "Select a project and add a valid measurement or manual service line before building an estimate."}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={buildEstimate}
-                  disabled={!estimateContextReady || aiBuildState === "loading"}
-                  title={estimateContextReady ? "Build AI estimate suggestions" : "Select a project and add measured or manual work first"}
-                >
-                  {aiBuildState === "loading" ? "Building Estimate..." : "Build Estimate"}
-                </button>
               </div>
 
               {aiBuildMessage ? (
@@ -2371,7 +2376,9 @@ export function QuotesPage({
                 <button
                   type="button"
                   onClick={() => {
-                    setLineItems((items) => [...items, createBlankLineItem()]);
+                    const nextItem = createBlankLineItem();
+                    setLineItems((items) => [...items, nextItem]);
+                    setEditingLineItemId(nextItem.id);
                     setSaveState("idle");
                   }}
                 >
@@ -2404,8 +2411,20 @@ export function QuotesPage({
                   <span>Actions</span>
                 </div>
                 {lineItems.length > 0 ? (
-                  lineItems.map((item) => (
-                    <div className="quote-editor-row quote-editor-line-grid" key={item.id}>
+                  lineItems.map((item) => {
+                    const isEditing = editingLineItemId === item.id;
+                    return (
+                    <div className={`quote-editor-row quote-editor-line-grid${isEditing ? " is-editing" : ""}`} key={item.id}>
+                      <div className="quote-line-compact-summary">
+                        <span>
+                          <strong>{item.serviceName || "Untitled service"}</strong>
+                          <small>{item.quantity || "0"} {item.unit || "unit"} × {item.rate ? formatCurrency(Number(item.rate)) : "No rate"}</small>
+                        </span>
+                        <strong>{formatCurrency(lineTotal(item))}</strong>
+                        <button type="button" onClick={() => setEditingLineItemId(isEditing ? null : item.id)}>
+                          {isEditing ? "Done" : "Edit"}
+                        </button>
+                      </div>
                       <label className="quote-mobile-field"><span>Service</span><input aria-label="Service name" value={item.serviceName} onChange={(event) => updateLineItem(item.id, { serviceName: event.target.value })} /></label>
                       <label className="quote-mobile-field"><span>Description</span><input aria-label="Description" value={item.description} onChange={(event) => updateLineItem(item.id, { description: event.target.value })} /></label>
                       <span className={`quote-source-measurement${item.sourceDeleted || (item.sourceId && !availableSourceIds.has(item.sourceId)) ? " is-deleted" : ""}`}>
@@ -2426,6 +2445,7 @@ export function QuotesPage({
                           type="button"
                           onClick={() => {
                             setLineItems((items) => items.filter((line) => line.id !== item.id));
+                            setEditingLineItemId((current) => current === item.id ? null : current);
                             setSaveState("idle");
                           }}
                         >
@@ -2433,7 +2453,8 @@ export function QuotesPage({
                         </button>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="quote-empty-state">Add measurements or ask AI to generate a quote.</p>
                 )}
