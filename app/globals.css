@@ -11211,7 +11211,8 @@ img {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 28px;
   align-items: center;
-  min-height: 74px;
+  min-height: calc(74px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -11829,7 +11830,7 @@ img {
   }
 
   .home-header {
-    min-height: 66px;
+    min-height: calc(66px + env(safe-area-inset-top));
   }
 
   .home-logo {

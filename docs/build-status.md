@@ -10,6 +10,15 @@ The prior cross-app data synchronization and Vercel output fixes remain intact.
 
 ## Verification
 
+- iOS production server: `https://acre-x-app.vercel.app`, synced with cleartext transport disabled
+- iOS Release simulator build: passing on iPhone 17 / iOS 26.5 with zero Xcode warnings or errors
+- iOS device archive compilation: reached final app code signing successfully; completion requires approving the local Apple Development certificate/keychain prompt in Xcode
+- Native launch: production Vercel app loaded successfully in the Capacitor WebView
+- Native branding: App Store icon and launch splash now use the AcreX black, white, and green identity
+- App privacy: app-level `PrivacyInfo.xcprivacy` discloses account/contact data, user content, and map location for app functionality; Capacitor dependencies retain their packaged manifests
+- Export compliance: `ITSAppUsesNonExemptEncryption` is set to false
+- Device compatibility: obsolete `armv7` requirement removed; deployment target remains iOS 15
+- Safe-area regression: the public landing header now reserves the iPhone status-bar/Dynamic-Island inset
 - `npm run lint`: passing
 - `npm run build`: passing
 - `npm run test:quote-services`: passing
@@ -122,5 +131,7 @@ The prior cross-app data synchronization and Vercel output fixes remain intact.
 
 ## Remaining Release Work
 
-- Configure `CAPACITOR_SERVER_URL` for the production Vercel deployment.
-- Complete final native assets, privacy configuration, version/build numbers, archive validation, and TestFlight/App Store submission.
+- Confirm final App Store Connect name, subtitle, description, keywords, support URL, privacy URL, category, age rating, screenshots, and review notes.
+- Confirm the privacy manifest and App Store privacy answers against final production data handling before submission.
+- Validate the signed Release archive with the active Apple Developer account.
+- Upload the approved archive to TestFlight and complete App Store submission.

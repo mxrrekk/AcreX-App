@@ -132,7 +132,19 @@ Last updated: June 20, 2026.
 
 ## Next Priority
 
-- [ ] Complete V1 release readiness: production Capacitor URL, icons, privacy declarations, App Store metadata, archive validation, and TestFlight upload.
+- [ ] Complete V1 App Store submission: confirm App Store Connect metadata, validate the signed archive, and upload to TestFlight.
+
+## Completed — iOS V1 Release Preparation
+
+- [x] Add an explicit production Capacitor sync command using the stable Vercel URL.
+- [x] Sync the native iOS wrapper to `https://acre-x-app.vercel.app` with HTTPS-only transport.
+- [x] Replace the generic blue Capacitor icon and splash art with the AcreX brand.
+- [x] Add the app privacy manifest to the native target.
+- [x] Declare that AcreX does not use non-exempt encryption.
+- [x] Remove the obsolete `armv7` device requirement.
+- [x] Preserve the existing location permission explanation.
+- [x] Fix public landing-page safe-area spacing for the iPhone status bar and Dynamic Island.
+- [x] Verify a clean Release build and live Vercel launch on an iPhone 17 simulator.
 
 ## Completed — Quote Service Matching and Pricing
 
