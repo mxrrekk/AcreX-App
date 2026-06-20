@@ -6,7 +6,7 @@ Last reviewed: June 20, 2026.
 
 The durable Supabase storage foundation is implemented in code and schema. Project saves now normalize drawings and measurements when the new schema is available, settings have a database-backed source of truth, invoice creation copies quote lines, AI estimate contexts can be snapshotted, and file/export operations are centralized.
 
-The production Supabase project has not received the additive migration yet. Public REST checks return `PGRST205` for the new tables. Existing project, quote, invoice, and local-settings workflows retain compatibility until an authorized migration is applied.
+The production Supabase project has not received the additive table migration yet. Public REST checks return `PGRST205` for drawings, measurements, normalized quote/invoice lines, exports, attachments, settings, and AI snapshots. The `acrex-files` bucket already responds successfully. Existing project, quote, invoice, and local-settings workflows retain compatibility until an authorized migration is applied.
 
 Measured projects now draft automatically when they have no saved quote content. AcreX does not overwrite accepted or edited quote data, and it restores the same in-session AI draft after navigation or reload.
 

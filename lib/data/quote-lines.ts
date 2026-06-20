@@ -4,7 +4,10 @@ export const QUOTE_LINE_ITEMS_TABLE = "quote_line_items";
 export const LEGACY_QUOTE_ITEMS_TABLE = "quote_items";
 
 function missingRelation(error: { code?: string; message?: string } | null | undefined) {
-  return error?.code === "PGRST205" || Boolean(error?.message?.includes("quote_line_items"));
+  return error?.code === "PGRST205" || Boolean(
+    error?.message?.includes("quote_line_items") &&
+    (error.message.includes("schema cache") || error.message.includes("Could not find the table"))
+  );
 }
 
 export async function readQuoteLines(

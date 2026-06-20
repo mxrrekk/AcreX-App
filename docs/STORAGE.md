@@ -6,6 +6,8 @@ Supabase is the durable source of truth for AcreX user data. Browser storage rem
 
 Run the complete [`supabase/schema.sql`](../supabase/schema.sql) file in the Supabase SQL Editor for the AcreX project.
 
+The repository is linked by [`supabase/config.toml`](../supabase/config.toml) to project reference `ccjxsxumtzsrfeydyulx`. An authenticated Supabase CLI session can also deploy the schema through the project migration workflow.
+
 The schema is additive and keeps the legacy `quote_items` table available while AcreX moves to `quote_line_items`. Existing quote items are copied into the normalized table when the schema is applied.
 
 ## Durable records
@@ -63,8 +65,9 @@ Run:
 
 ```bash
 npm run test:storage
+npm run test:storage:remote
 npm run test:data-sync
 npm run build
 ```
 
-The public anon key cannot apply database migrations. Applying `supabase/schema.sql` requires Supabase SQL Editor access, a database connection, or an authenticated Supabase CLI session.
+`test:storage:remote` checks that every required REST table and the private bucket exist. The public anon key cannot apply database migrations. Applying `supabase/schema.sql` requires Supabase SQL Editor access, a database connection, or an authenticated Supabase CLI session.

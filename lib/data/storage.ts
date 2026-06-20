@@ -106,12 +106,86 @@ export type FileUploadInput = {
   metadata?: Record<string, unknown>;
 };
 
+export async function getProjects(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<DataResult<ProjectRecord[]>> {
+  const { data, error } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
+  return error ? resultError(error.message) : { data: (data ?? []) as ProjectRecord[], error: null };
+}
+
+export async function getProjectDrawings(
+  supabase: SupabaseClient,
+  userId: string,
+  projectId: string
+): Promise<DataResult<DrawingWrite[]>> {
+  const { data, error } = await supabase
+    .from("drawings")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("project_id", projectId)
+    .order("updated_at", { ascending: true });
+  return error ? resultError(error.message) : { data: (data ?? []) as DrawingWrite[], error: null };
+}
+
+export async function getProjectQuotes(
+  supabase: SupabaseClient,
+  userId: string,
+  projectId: string
+): Promise<DataResult<QuoteRecord[]>> {
+  const { data, error } = await supabase
+    .from("quotes")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("project_id", projectId)
+    .order("updated_at", { ascending: false });
+  return error ? resultError(error.message) : { data: (data ?? []) as QuoteRecord[], error: null };
+}
+
+export async function getProjectInvoices(
+  supabase: SupabaseClient,
+  userId: string,
+  projectId: string
+): Promise<DataResult<InvoiceRecord[]>> {
+  const { data, error } = await supabase
+    .from("invoices")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("project_id", projectId)
+    .order("updated_at", { ascending: false });
+  return error ? resultError(error.message) : { data: (data ?? []) as InvoiceRecord[], error: null };
+}
+
+export async function getUserSettings(
+  supabase: SupabaseClient,
+  userId: string
+) {
+  const { data, error } = await supabase
+    .from("user_settings")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return error ? resultError(error.message) : { data, error: null };
+}
+
 function resultError<T>(message: string): DataResult<T> {
   return { data: null, error: message };
 }
 
 function missingFoundationTable(error: { code?: string; message?: string } | null | undefined, table: string) {
-  return error?.code === "PGRST205" || Boolean(error?.message?.includes(table));
+  return error?.code === "PGRST205" || Boolean(
+    error?.message?.includes(table) &&
+    (error.message.includes("schema cache") || error.message.includes("Could not find the table"))
+  );
+}
+
+function missingFoundationTableMessage(message: string, table: string) {
+  return message.includes(table) &&
+    (message.includes("schema cache") || message.includes("Could not find the table"));
 }
 
 function mapDataFeatures(mapData: SavedProjectMapData | null | undefined) {
@@ -274,7 +348,7 @@ export async function saveProject(
     savedProject.id,
     savedProject.polygon_geojson
   );
-  if (drawingsResult.error && !drawingsResult.error.includes("drawings")) {
+  if (drawingsResult.error && !missingFoundationTableMessage(drawingsResult.error, "drawings")) {
     return resultError(drawingsResult.error);
   }
   return { data: savedProject, error: null };

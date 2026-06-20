@@ -57,6 +57,11 @@ assert.match(schema, /quotes_status_check/);
 assert.match(schema, /invoices_status_check/);
 
 for (const helper of [
+  "getProjects",
+  "getProjectDrawings",
+  "getProjectQuotes",
+  "getProjectInvoices",
+  "getUserSettings",
   "saveProject",
   "saveDrawing",
   "saveQuote",
