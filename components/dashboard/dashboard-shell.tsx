@@ -48,7 +48,8 @@ import { serviceTypes } from "@/lib/projects/service-types";
 import type { ClientRecord, DrawingLocationSource, InvoiceRecord, ProjectFormState, ProjectRecord, ProjectStatus, QuoteItemRecord, QuoteRecord, SavedProjectMapData, WorkZone, ZoneType } from "@/lib/projects/types";
 import { zoneColors, zoneLabels } from "@/lib/projects/zones";
 import { defaultUserSettings, loadUserSettings } from "@/lib/settings/user-settings";
-import { reconcileSourceLinkedLines, type MeasurementSource, type SourceLinkedLine } from "@/lib/quotes/source-sync";
+import type { MeasurementSource } from "@/lib/quotes/source-sync";
+import { syncProjectQuotesToSources } from "@/lib/quotes/project-source-sync";
 import { getCatalogServiceByZoneType } from "@/lib/services/catalog";
 
 type DashboardShellProps = {
@@ -401,95 +402,10 @@ function measurementSourcesFromZones(zones: WorkZone[], templates: ServiceTempla
       zoneType: zone.type,
       quantity,
       unit,
-      rate: normalizedTemplateUnit === unit && template.defaultUnitPrice > 0 ? template.defaultUnitPrice : null
+      rate: normalizedTemplateUnit === unit && template.defaultUnitPrice > 0 ? template.defaultUnitPrice : null,
+      defaultNotes: template.notes
     };
   });
-}
-
-async function syncProjectQuotesToDrawings(
-  supabase: NonNullable<ReturnType<typeof createSupabaseBrowserClient>>,
-  userId: string,
-  projectId: string,
-  zones: WorkZone[],
-  templates: ServiceTemplate[]
-) {
-  const { data: quoteRows, error } = await supabase
-    .from("quotes")
-    .select("*")
-    .eq("project_id", projectId)
-    .eq("user_id", userId);
-  if (error) return false;
-
-  const sources = measurementSourcesFromZones(zones, templates);
-  for (const row of quoteRows ?? []) {
-    if (!row.notes) continue;
-    try {
-      const payload = JSON.parse(row.notes) as {
-        lineItems?: SourceLinkedLine[];
-        materials?: Array<{ quantity?: string; unitCost?: string }>;
-        costLines?: Array<{ amount?: string }>;
-        discount?: number;
-        taxPercent?: number;
-        totals?: Record<string, number>;
-      };
-      const currentLines = payload.lineItems ?? [];
-      const protectedLines = row.status === "Draft"
-        ? currentLines
-        : currentLines.map((line) => ({ ...line, sourceManuallyEdited: true }));
-      const reconciled = reconcileSourceLinkedLines(protectedLines, sources);
-      if (!reconciled.changed) continue;
-
-      payload.lineItems = reconciled.lines;
-      const update: Record<string, unknown> = { notes: JSON.stringify(payload) };
-      if (row.status === "Draft") {
-        const services = reconciled.lines.reduce(
-          (total, line) => total + (Number.parseFloat(line.quantity) || 0) * (Number.parseFloat(line.rate) || 0),
-          0
-        );
-        const materials = (payload.materials ?? []).reduce(
-          (total, item) => total + (Number.parseFloat(item.quantity ?? "") || 0) * (Number.parseFloat(item.unitCost ?? "") || 0),
-          0
-        );
-        const costs = (payload.costLines ?? []).reduce(
-          (total, item) => total + (Number.parseFloat(item.amount ?? "") || 0),
-          0
-        );
-        const taxable = Math.max(services + materials + costs - Number(payload.discount ?? 0), 0);
-        const total = taxable * (1 + Number(payload.taxPercent ?? 0) / 100);
-        update.subtotal = services;
-        update.total = total;
-        payload.totals = { ...(payload.totals ?? {}), services, materials, grandTotal: total };
-        update.notes = JSON.stringify(payload);
-      }
-      const { error: quoteUpdateError } = await supabase.from("quotes").update(update).eq("id", row.id).eq("user_id", userId);
-      if (quoteUpdateError) continue;
-      if (row.status === "Draft") {
-        const savedLines = reconciled.lines as Array<SourceLinkedLine & { notes?: string }>;
-        await supabase.from("quote_items").delete().eq("quote_id", row.id).eq("user_id", userId);
-        if (savedLines.length) {
-          await supabase.from("quote_items").insert(
-            savedLines.map((line, index) => ({
-              quote_id: row.id,
-              user_id: userId,
-              service: line.serviceName || "Custom",
-              description: line.description,
-              quantity: Number.parseFloat(line.quantity) || 0,
-              unit: line.unit,
-              unit_price: Number.parseFloat(line.rate) || 0,
-              total: (Number.parseFloat(line.quantity) || 0) * (Number.parseFloat(line.rate) || 0),
-              zone_name: line.sourceMeasurement,
-              zone_type: line.zoneType,
-              notes: line.notes ?? "",
-              sort_order: index
-            }))
-          );
-        }
-      }
-    } catch {
-      // Legacy plain-text quote notes have no source links to reconcile.
-    }
-  }
-  return true;
 }
 
 function getSavedQuoteConfidence(quotes: QuoteRecord[], projectId: string | null) {
@@ -715,9 +631,11 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
       .filter((item) => projectQuoteIds.has(item.quote_id) && item.zone_name)
       .map((item) => item.zone_name as string);
   }, [activeProjectId, quoteItems, quotes]);
-  const activeProjectQuoteTotal = quotes
-    .filter((quote) => quote.project_id === activeProjectId)
-    .reduce((total, quote) => total + Number(quote.total ?? 0), 0);
+  const activeProjectQuoteTotal = activeProjectId
+    ? quotes
+        .filter((quote) => quote.project_id === activeProjectId)
+        .reduce((total, quote) => total + Number(quote.total ?? 0), 0)
+    : 0;
   const availableQuoteZones = workZones.filter(
     (zone) =>
       !["Property", "Excluded", "Building"].includes(zone.type) &&
@@ -1345,7 +1263,25 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
           }
           return;
         }
-        await syncProjectQuotesToDrawings(supabase, currentUserId, currentProject.id, zones, serviceTemplates);
+        const quoteSync = await syncProjectQuotesToSources({
+          supabase,
+          userId: currentUserId,
+          projectId: currentProject.id,
+          sources: measurementSourcesFromZones(zones, serviceTemplates)
+        });
+        if (!quoteSync.ok) {
+          await supabase
+            .from("projects")
+            .update({
+              polygon_geojson: currentProject.polygon_geojson,
+              acres: currentProject.acres,
+              square_feet: currentProject.square_feet,
+              estimated_total: currentProject.estimated_total
+            })
+            .eq("id", currentProject.id)
+            .eq("user_id", currentUserId);
+          persisted = false;
+        }
       };
 
       const queuedOperation = drawingPersistenceQueueRef.current.then(operation, operation);
@@ -1498,8 +1434,9 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
       estimated_total: recommendedQuote || (normalizedPricePerAcre ? estimatedTotal : null)
     };
 
-    const existingProjectId =
-      activeProjectId && projects.some((project) => project.id === activeProjectId) ? activeProjectId : null;
+    const existingProject =
+      activeProjectId ? projects.find((project) => project.id === activeProjectId) ?? null : null;
+    const existingProjectId = existingProject?.id ?? null;
     const query = existingProjectId
       ? supabase
           .from("projects")
@@ -1525,18 +1462,58 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
       client_id: savedProject.client_id,
       client_name: linkedClient?.name ?? savedProject.customer_name
     };
-    await Promise.all([
-      supabase
-        .from("quotes")
-        .update(financialReference)
-        .eq("project_id", savedProject.id)
-        .eq("user_id", currentUserId),
-      supabase
-        .from("invoices")
-        .update(financialReference)
-        .eq("project_id", savedProject.id)
-        .eq("user_id", currentUserId)
-    ]);
+    if (existingProject) {
+      const [quoteReferenceResult, invoiceReferenceResult] = await Promise.all([
+        supabase
+          .from("quotes")
+          .update(financialReference)
+          .eq("project_id", savedProject.id)
+          .eq("user_id", currentUserId),
+        supabase
+          .from("invoices")
+          .update(financialReference)
+          .eq("project_id", savedProject.id)
+          .eq("user_id", currentUserId)
+      ]);
+      if (quoteReferenceResult.error || invoiceReferenceResult.error) {
+        const previousReference = {
+          project_name: existingProject.project_name,
+          address: existingProject.address,
+          client_id: existingProject.client_id,
+          client_name: existingProject.customer_name
+        };
+        await Promise.all([
+          supabase
+            .from("projects")
+            .update({
+              client_id: existingProject.client_id,
+              project_name: existingProject.project_name,
+              customer_name: existingProject.customer_name,
+              address: existingProject.address,
+              polygon_geojson: existingProject.polygon_geojson,
+              acres: existingProject.acres,
+              square_feet: existingProject.square_feet,
+              service_type: existingProject.service_type,
+              price_per_acre: existingProject.price_per_acre,
+              estimated_total: existingProject.estimated_total
+            })
+            .eq("id", existingProject.id)
+            .eq("user_id", currentUserId),
+          supabase
+            .from("quotes")
+            .update(previousReference)
+            .eq("project_id", existingProject.id)
+            .eq("user_id", currentUserId),
+          supabase
+            .from("invoices")
+            .update(previousReference)
+            .eq("project_id", existingProject.id)
+            .eq("user_id", currentUserId)
+        ]);
+        setProjectMessage("Save Failed: linked quotes or invoices could not be updated. The previous project was restored.");
+        return;
+      }
+    }
     setActiveProjectId(savedProject.id);
     setAddress(savedProject.address || projectAddress);
     setProjectForm((current) => ({

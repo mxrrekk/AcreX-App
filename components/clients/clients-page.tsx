@@ -74,7 +74,7 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [mobileSection, setMobileSection] = useState<"list" | "form">("list");
   const [pendingDeleteClient, setPendingDeleteClient] = useState<ClientRecord | null>(null);
-  useAcrexDataRefresh();
+  useAcrexDataRefresh(undefined, { refreshSameTab: true });
 
   useEffect(() => {
     setClientRows(clients);

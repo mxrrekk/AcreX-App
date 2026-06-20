@@ -185,6 +185,11 @@ Last updated: June 20, 2026.
 - [x] Preserve legacy linked quote lines when edit history is unavailable instead of risking silent overwrite.
 - [x] Verify protected quote and invoice status directly from Supabase before destructive cascades.
 - [x] Verify source reconciliation and cascade protection with executable assertions and browser-rendered acceptance checks.
+- [x] Propagate source-drawing edits into linked draft invoice totals through the draft quote.
+- [x] Roll back quote, quote-item, invoice, and project-reference writes when a dependent cascade fails.
+- [x] Separate same-tab invalidation from cross-tab refresh so immediate Undo state is not remounted away.
+- [x] Preserve contractor-edited rates and notes while refreshing untouched source quantities, units, services, and default notes.
+- [x] Verify drawing Undo survives navigation and project deletion removes linked drafts and measurements after refresh.
 
 ## Completed — First-Time Contractor Acceptance Test
 

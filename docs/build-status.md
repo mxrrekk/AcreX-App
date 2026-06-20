@@ -4,9 +4,9 @@ Last reviewed: June 20, 2026.
 
 ## Current Status
 
-The quote pricing and AI service-matching pass is complete. AcreX now uses one canonical service catalog across drawings, Settings, quote line creation, guided questions, and server-side AI result enforcement. Selected mowing work can no longer become brush or forestry work, and equivalent isolation is enforced for every supported service.
+The cross-app data synchronization and cascade hardening pass is complete. Project drawings now reconcile linked draft quotes and invoices through one rollback-safe path, same-tab updates preserve temporary Undo state, and cross-tab changes still refresh dependent routes.
 
-The prior cross-app data synchronization and Vercel output fixes remain intact.
+Contractor-edited quote fields remain protected. Untouched linked lines continue to receive corrected source quantities, units, services, rates, and default notes, while deleted sources remain visibly marked instead of silently disappearing.
 
 ## Verification
 
@@ -128,6 +128,12 @@ The prior cross-app data synchronization and Vercel output fixes remain intact.
 - Cascade authority: project, quote, and invoice deletion re-read current database statuses before deleting anything
 - Durable regression command: `npm run test:data-sync` covers same-tab/cross-tab invalidation, auto-updates, manual preservation, deleted-source restoration, protected records, and draft cascade order
 - Responsive sync regression: 375×667 and 1440×900 quote workspaces retained exact viewport width, displayed both source warnings, preserved the manual `2.5` quantity, and logged no runtime warnings or errors
+- Same-tab Undo regression: a deleted drawing restored through the temporary Undo action remained present after navigating to Project Detail.
+- Deleted-source runtime regression: the linked quote line remained editable and displayed `Source drawing deleted`; the source was absent from Available Measurements and AI measurement context.
+- Project cascade runtime regression: deleting test projects removed their drawings and linked draft quote, remained deleted after refresh, and disappeared from Projects, Drawings, and Quotes.
+- Draft financial propagation: source edits update the linked draft quote, quote items, and draft invoice total as one compensated operation.
+- Failure rollback regression: an injected invoice-update failure restored the original quote, quote items, and invoice total.
+- Same-tab/cross-tab invalidation regression: executable assertions confirm local events and storage events use the correct delivery mode.
 
 ## Remaining Release Work
 

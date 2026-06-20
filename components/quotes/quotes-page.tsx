@@ -752,7 +752,7 @@ export function QuotesPage({
     },
     [userId]
   );
-  useAcrexDataRefresh(handleExternalDataChange);
+  useAcrexDataRefresh(handleExternalDataChange, { refreshSameTab: true });
 
   useEffect(() => {
     if (!initialProjectId || initialProjectId === selectedProjectId) return;
@@ -860,7 +860,8 @@ export function QuotesPage({
         rate:
           template && normalizePricingUnit(template.unitType) === measurement.unit && template.defaultUnitPrice > 0
             ? template.defaultUnitPrice
-            : null
+            : null,
+        defaultNotes: template?.notes
       };
     });
     const reconciled = reconcileSourceLinkedLines(lineItems, sources);
@@ -1289,7 +1290,7 @@ export function QuotesPage({
     : null;
 
   function updateLineItem(id: string, patch: Partial<QuoteLineItem>) {
-    const sourceFields = ["serviceName", "description", "quantity", "unit"] as const;
+    const sourceFields = ["serviceName", "description", "quantity", "unit", "rate", "notes"] as const;
     const editsSource = sourceFields.some((field) => Object.prototype.hasOwnProperty.call(patch, field));
     setLineItems((items) =>
       items.map((item) =>
@@ -1646,6 +1647,60 @@ export function QuotesPage({
       total: grandTotal,
       notes: JSON.stringify(quoteNotesPayload)
     };
+    const previousSavedQuote = savedQuoteId
+      ? savedQuotes.find((savedQuote) => savedQuote.id === savedQuoteId) ?? null
+      : null;
+    const { data: previousItems, error: previousItemsError } = savedQuoteId
+      ? await supabase.from("quote_items").select("*").eq("quote_id", savedQuoteId).eq("user_id", userId)
+      : { data: [], error: null };
+    if (previousItemsError || (savedQuoteId && !previousSavedQuote)) {
+      setSaveState("error");
+      setSaveMessage("Quote details could not be prepared for update. The previous saved quote was preserved.");
+      return;
+    }
+
+    const restorePreviousQuote = async (quoteId: string) => {
+      if (!previousSavedQuote) {
+        await supabase.from("quotes").delete().eq("id", quoteId).eq("user_id", userId);
+        return;
+      }
+      await supabase
+        .from("quotes")
+        .update({
+          project_id: previousSavedQuote.project_id,
+          client_id: previousSavedQuote.client_id,
+          quote_number: previousSavedQuote.quote_number,
+          status: previousSavedQuote.status,
+          project_name: previousSavedQuote.project_name,
+          client_name: previousSavedQuote.client_name,
+          address: previousSavedQuote.address,
+          subtotal: previousSavedQuote.subtotal,
+          total: previousSavedQuote.total,
+          notes: previousSavedQuote.notes
+        })
+        .eq("id", previousSavedQuote.id)
+        .eq("user_id", userId);
+    };
+    const restorePreviousItems = async (quoteId: string) => {
+      await supabase.from("quote_items").delete().eq("quote_id", quoteId).eq("user_id", userId);
+      if (!previousItems?.length) return;
+      await supabase.from("quote_items").insert(
+        previousItems.map((item) => ({
+          quote_id: item.quote_id,
+          user_id: item.user_id,
+          service: item.service,
+          description: item.description,
+          quantity: item.quantity,
+          unit: item.unit,
+          unit_price: item.unit_price,
+          total: item.total,
+          zone_name: item.zone_name,
+          zone_type: item.zone_type,
+          notes: item.notes,
+          sort_order: item.sort_order
+        }))
+      );
+    };
     const quoteResult = savedQuoteId
       ? await supabase.from("quotes").update(quotePayload).eq("id", savedQuoteId).eq("user_id", userId).select("*").single()
       : await supabase.from("quotes").insert(quotePayload).select("*").single();
@@ -1671,15 +1726,6 @@ export function QuotesPage({
       notes: item.notes,
       sort_order: index
     }));
-    const { data: previousItems, error: previousItemsError } = savedQuoteId
-      ? await supabase.from("quote_items").select("*").eq("quote_id", quote.id).eq("user_id", userId)
-      : { data: [], error: null };
-
-    if (previousItemsError) {
-      setSaveState("error");
-      setSaveMessage("Quote details could not be prepared for update. The previous saved quote was preserved.");
-      return;
-    }
 
     const { error: deleteItemsError } = await supabase
       .from("quote_items")
@@ -1688,7 +1734,7 @@ export function QuotesPage({
       .eq("user_id", userId);
 
     if (deleteItemsError) {
-      if (!savedQuoteId) await supabase.from("quotes").delete().eq("id", quote.id).eq("user_id", userId);
+      await restorePreviousQuote(quote.id);
       setSaveState("error");
       setSaveMessage("Quote line items could not be updated. The quote was not finalized.");
       return;
@@ -1698,33 +1744,15 @@ export function QuotesPage({
       const { error: itemsError } = await supabase.from("quote_items").insert(quoteItemPayload);
 
       if (itemsError) {
-        if (savedQuoteId && previousItems?.length) {
-          await supabase.from("quote_items").insert(
-            previousItems.map((item) => ({
-              quote_id: item.quote_id,
-              user_id: item.user_id,
-              service: item.service,
-              description: item.description,
-              quantity: item.quantity,
-              unit: item.unit,
-              unit_price: item.unit_price,
-              total: item.total,
-              zone_name: item.zone_name,
-              zone_type: item.zone_type,
-              notes: item.notes,
-              sort_order: item.sort_order
-            }))
-          );
-        } else if (!savedQuoteId) {
-          await supabase.from("quotes").delete().eq("id", quote.id).eq("user_id", userId);
-        }
+        await restorePreviousItems(quote.id);
+        await restorePreviousQuote(quote.id);
         setSaveState("error");
         setSaveMessage("Quote line items could not be saved. Previous saved items were preserved when available.");
         return;
       }
     }
 
-    await supabase
+    const { error: invoiceUpdateError } = await supabase
       .from("invoices")
       .update({
         project_id: quote.project_id,
@@ -1737,6 +1765,13 @@ export function QuotesPage({
       .eq("quote_id", quote.id)
       .eq("user_id", userId)
       .eq("status", "Draft");
+    if (invoiceUpdateError) {
+      await restorePreviousItems(quote.id);
+      await restorePreviousQuote(quote.id);
+      setSaveState("error");
+      setSaveMessage("Quote changes could not be synchronized to the linked draft invoice. The previous quote was restored.");
+      return;
+    }
 
     setSavedQuoteId(quote.id);
     setSaveState("saved");

@@ -183,7 +183,17 @@ export function InvoicesPage({ userId, userEmail, quotes, invoices, initialQuote
     const savedInvoice = normalizeInvoice(data);
     setSavedInvoices((current) => [savedInvoice, ...current]);
     if (savedInvoice.status !== "Draft") {
-      await supabase.from("quotes").update({ status: "Accepted" }).eq("id", savedInvoice.quote_id).eq("user_id", userId);
+      const { error: quoteStatusError } = await supabase
+        .from("quotes")
+        .update({ status: "Accepted" })
+        .eq("id", savedInvoice.quote_id)
+        .eq("user_id", userId);
+      if (quoteStatusError) {
+        await supabase.from("invoices").delete().eq("id", savedInvoice.id).eq("user_id", userId);
+        setSavedInvoices((current) => current.filter((invoice) => invoice.id !== savedInvoice.id));
+        setMessage("Invoice could not be linked to the quote status. The invoice save was rolled back.");
+        return;
+      }
     }
     resetForm();
     setMessage(`✓ Invoice ${savedInvoice.invoice_number} saved and linked to quote ${selectedQuote.quote_number}.`);
@@ -219,7 +229,20 @@ export function InvoicesPage({ userId, userEmail, quotes, invoices, initialQuote
     }
 
     const updatedInvoice = normalizeInvoice(data);
-    await supabase.from("quotes").update({ status: "Accepted" }).eq("id", updatedInvoice.quote_id).eq("user_id", userId);
+    const { error: quoteStatusError } = await supabase
+      .from("quotes")
+      .update({ status: "Accepted" })
+      .eq("id", updatedInvoice.quote_id)
+      .eq("user_id", userId);
+    if (quoteStatusError) {
+      await supabase
+        .from("invoices")
+        .update({ status: invoice.status })
+        .eq("id", invoice.id)
+        .eq("user_id", userId);
+      setMessage("Invoice status could not be synchronized to the linked quote. The prior invoice status was restored.");
+      return;
+    }
     setSavedInvoices((current) => current.map((item) => (item.id === updatedInvoice.id ? updatedInvoice : item)));
     setMessage(`✓ Invoice ${updatedInvoice.invoice_number} marked paid.`);
     publishDataChange({

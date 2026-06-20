@@ -24,6 +24,8 @@ export type AcrexDataChange = {
   occurredAt: string;
 };
 
+export type AcrexDataChangeDelivery = "same-tab" | "cross-tab";
+
 const eventName = "acrex:data-change";
 const storageKey = "acrex:data-change";
 
@@ -40,16 +42,18 @@ export function publishDataChange(change: Omit<AcrexDataChange, "occurredAt">) {
 
 }
 
-export function subscribeToDataChanges(listener: (change: AcrexDataChange) => void) {
+export function subscribeToDataChanges(
+  listener: (change: AcrexDataChange, delivery: AcrexDataChangeDelivery) => void
+) {
   if (typeof window === "undefined") return () => undefined;
 
   const handleCustomEvent = (event: Event) => {
-    listener((event as CustomEvent<AcrexDataChange>).detail);
+    listener((event as CustomEvent<AcrexDataChange>).detail, "same-tab");
   };
   const handleStorage = (event: StorageEvent) => {
     if (event.key !== storageKey || !event.newValue) return;
     try {
-      listener(JSON.parse(event.newValue) as AcrexDataChange);
+      listener(JSON.parse(event.newValue) as AcrexDataChange, "cross-tab");
     } catch {
       // Ignore malformed optional cross-tab messages.
     }

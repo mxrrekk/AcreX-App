@@ -6,6 +6,7 @@ export type MeasurementSource = {
   quantity: number;
   unit: string;
   rate?: number | null;
+  defaultNotes?: string;
 };
 
 export type SourceLinkedLine = {
@@ -17,10 +18,11 @@ export type SourceLinkedLine = {
   quantity: string;
   unit: string;
   rate: string;
+  notes?: string;
   sourceManuallyEdited?: boolean;
   sourceChangeAvailable?: boolean;
   sourceDeleted?: boolean;
-  sourceSnapshot?: Omit<MeasurementSource, "sourceId" | "rate">;
+  sourceSnapshot?: Omit<MeasurementSource, "sourceId" | "rate" | "defaultNotes">;
 };
 
 function numberValue(value: string) {
@@ -46,6 +48,16 @@ export function sourceSnapshot(source: MeasurementSource) {
     quantity: source.quantity,
     unit: source.unit
   };
+}
+
+function quantityText(quantity: number, unit: string) {
+  if (unit === "acres") {
+    return String(Number(quantity.toFixed(quantity < 1 ? 3 : 2)));
+  }
+  if (unit === "sq ft" || unit === "linear feet") {
+    return String(Math.round(quantity));
+  }
+  return String(Number(quantity.toFixed(2)));
 }
 
 export function reconcileSourceLinkedLines<T extends SourceLinkedLine>(
@@ -101,9 +113,10 @@ export function reconcileSourceLinkedLines<T extends SourceLinkedLine>(
       serviceName: source.serviceName,
       description: source.label,
       zoneType: source.zoneType,
-      quantity: String(source.quantity),
+      quantity: quantityText(source.quantity, source.unit),
       unit: source.unit,
       rate: typeof source.rate === "number" && source.rate > 0 ? String(source.rate) : line.rate,
+      notes: source.defaultNotes ?? line.notes,
       sourceDeleted: false,
       sourceChangeAvailable: false,
       sourceSnapshot: sourceSnapshot(source)
