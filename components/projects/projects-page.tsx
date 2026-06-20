@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -78,7 +78,15 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
   const [pendingDeleteProject, setPendingDeleteProject] = useState<ProjectRecord | null>(null);
   const [tagFilter, setTagFilter] = useState("All");
   const [tagStore, setTagStore] = useState<ProjectTagStore>(() => readStoredValue<ProjectTagStore>(getGlobalStorageKey(userEmail, "project-tags"), {}));
-  useAcrexDataRefresh();
+  const handleExternalDataChange = useCallback(
+    (change: { type: string }) => {
+      if (change.type === "project-metadata-saved") {
+        setTagStore(readStoredValue<ProjectTagStore>(getGlobalStorageKey(userEmail, "project-tags"), {}));
+      }
+    },
+    [userEmail]
+  );
+  useAcrexDataRefresh(handleExternalDataChange);
 
   useEffect(() => {
     setProjectRows(projects);
@@ -92,6 +100,15 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
     });
     return summary;
   }, [quotes]);
+  const invoiceStatusByProject = useMemo(() => {
+    const statuses = new Map<string, InvoiceRecord["status"]>();
+    invoices.forEach((invoice) => {
+      if (invoice.project_id && !statuses.has(invoice.project_id)) {
+        statuses.set(invoice.project_id, invoice.status);
+      }
+    });
+    return statuses;
+  }, [invoices]);
   const recentProjects = projectRows.slice(0, 3);
 
   const filteredProjects = useMemo(() => {
@@ -128,6 +145,7 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
       const nextTags = currentTags.includes(tag) ? currentTags.filter((item) => item !== tag) : [...currentTags, tag];
       const nextStore = { ...current, [projectId]: nextTags };
       writeStoredValue(getGlobalStorageKey(userEmail, "project-tags"), nextStore);
+      publishDataChange({ type: "project-metadata-saved", projectId });
       return nextStore;
     });
   }
@@ -236,6 +254,7 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
             <span>Status</span>
             <span>Drawings</span>
             <span>Quote Total</span>
+            <span>Invoice</span>
             <span>Updated</span>
             <span />
             <span />
@@ -253,6 +272,7 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
                 </span>
                 <span>{getZoneCount(project)}</span>
                 <span>{formatCurrency(quoteSummaryByProject.get(project.id) ?? 0)}</span>
+                <span>{invoiceStatusByProject.get(project.id) ?? "No invoice"}</span>
                 <span>{formatDate(project.updated_at)}</span>
                 <Link href={`/projects/${project.id}`}>Open Project</Link>
                 <button

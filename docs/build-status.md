@@ -93,10 +93,15 @@ Vercel deployment compatibility was also corrected: cloud builds now emit the st
 - Deleted drawing handling: linked quote lines remain editable with `Source drawing deleted`, while Available Measurements and AI service detection remove the deleted source
 - Project cascade protection: draft quotes and invoices are removed; sent, accepted, overdue, and paid records block destructive project deletion with an explanation
 - Quote/invoice cascades: draft quote deletion removes draft invoices, draft invoice deletion is available, and linked totals/statuses refresh immediately
+- Projects invoice visibility: each project row now displays the latest linked invoice status and refreshes after invoice mutations
+- Projects responsive invoice regression: 375×667, 834×1112, and 1440×900 rendered the drawing count, quote total, and `Sent` invoice status with exact viewport width and no runtime warnings
 - Executable source-sync assertions: auto-update, manual preservation, delete marking, and undo restoration passed
 - Executable cascade assertions: protected-record blocking and draft deletion order passed
 - Browser acceptance harness: source-change warning, source-deleted warning, manual quantity preservation, and irrelevant deleted-source AI questions passed with no console warnings or errors
 - Project notes: Map and Project Detail publish and consume the same project-metadata invalidation event
+- Project tags: Map and Projects share the same stored tag state and refresh event
+- Client context: edits update linked project/quote/invoice customer references; deletes clear active links and invalidate every dependent route
+- Settings context: open Map and Quote workspaces reload saved pricing, profitability, and map style defaults; AI suggestions clear when pricing context changes
 - AI freshness: existing AI recommendations clear when source measurements change and require a new Build Estimate
 - Legacy quote safety: linked lines without source snapshots are treated as contractor-edited when values differ, preventing silent overwrite
 - Cascade authority: project, quote, and invoice deletion re-read current database statuses before deleting anything

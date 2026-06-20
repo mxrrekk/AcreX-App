@@ -2,6 +2,9 @@ export type AcrexDataChangeType =
   | "project-saved"
   | "project-metadata-saved"
   | "project-deleted"
+  | "client-saved"
+  | "client-deleted"
+  | "settings-saved"
   | "drawing-saved"
   | "drawing-deleted"
   | "quote-saved"
@@ -13,6 +16,8 @@ export type AcrexDataChangeType =
 export type AcrexDataChange = {
   type: AcrexDataChangeType;
   projectId?: string | null;
+  clientId?: string | null;
+  clientName?: string | null;
   drawingIds?: string[];
   quoteId?: string | null;
   invoiceId?: string | null;

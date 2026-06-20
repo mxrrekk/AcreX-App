@@ -1057,7 +1057,12 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   }, [loadFinancialRecords]);
 
   const handleExternalDataChange = useCallback(
-    (change: { type: string; projectId?: string | null }) => {
+    (change: {
+      type: string;
+      projectId?: string | null;
+      clientId?: string | null;
+      clientName?: string | null;
+    }) => {
       if (change.type === "project-deleted" && change.projectId === activeProjectId) {
         setActiveProjectId(null);
         setWorkZones([]);
@@ -1075,10 +1080,30 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
           )
         );
       }
+      if (change.type === "project-metadata-saved") {
+        setTagStore(readStoredValue<ProjectTagStore>(getGlobalStorageKey(userEmail, "project-tags"), {}));
+      }
+      if (change.type === "settings-saved") {
+        const latestSettings = loadUserSettings(userId);
+        setPreferredMapStyle(latestSettings.map.preferredStyle);
+        setServiceTemplates(loadStoredTemplates());
+        setProfitInputs(loadStoredProfitInputs());
+      }
+      if (change.clientId && change.clientId === projectForm.clientId) {
+        setProjectForm((current) => ({
+          ...current,
+          clientId: change.type === "client-deleted" ? "" : current.clientId,
+          customerName:
+            change.type === "client-saved" && change.clientName
+              ? change.clientName
+              : current.customerName
+        }));
+      }
       void loadProjects();
+      void loadClients();
       void loadFinancialRecords();
     },
-    [activeProjectId, loadFinancialRecords, loadProjects, userEmail]
+    [activeProjectId, loadClients, loadFinancialRecords, loadProjects, projectForm.clientId, userEmail, userId]
   );
   useAcrexDataRefresh(handleExternalDataChange);
 
@@ -1594,7 +1619,10 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
     setTagStore((current) => {
       const currentTags = current[activeProjectId] ?? [];
       const nextTags = currentTags.includes(tag) ? currentTags.filter((item) => item !== tag) : [...currentTags, tag];
-      return { ...current, [activeProjectId]: nextTags };
+      const nextStore = { ...current, [activeProjectId]: nextTags };
+      writeStoredValue(getGlobalStorageKey(userEmail, "project-tags"), nextStore);
+      publishDataChange({ type: "project-metadata-saved", projectId: activeProjectId });
+      return nextStore;
     });
     addActivity("Tags updated", `${tag} tag toggled.`, "Tags");
   }

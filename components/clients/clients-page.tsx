@@ -1,9 +1,11 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { publishDataChange } from "@/lib/data/sync";
+import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import type { ClientFormState, ClientRecord, InvoiceRecord, ProjectRecord, QuoteRecord } from "@/lib/projects/types";
 
 type ClientsPageProps = {
@@ -72,6 +74,11 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [mobileSection, setMobileSection] = useState<"list" | "form">("list");
   const [pendingDeleteClient, setPendingDeleteClient] = useState<ClientRecord | null>(null);
+  useAcrexDataRefresh();
+
+  useEffect(() => {
+    setClientRows(clients);
+  }, [clients]);
 
   const filteredClients = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -152,13 +159,45 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
     }
 
     const savedClient = normalizeClient(data);
+    let linkedUpdateFailed = false;
+    if (editingClientId) {
+      const linkedResults = await Promise.all([
+        supabase
+          .from("projects")
+          .update({ customer_name: savedClient.name })
+          .eq("client_id", savedClient.id)
+          .eq("user_id", userId),
+        supabase
+          .from("quotes")
+          .update({ client_name: savedClient.name })
+          .eq("client_id", savedClient.id)
+          .eq("user_id", userId),
+        supabase
+          .from("invoices")
+          .update({ client_name: savedClient.name })
+          .eq("client_id", savedClient.id)
+          .eq("user_id", userId)
+      ]);
+      linkedUpdateFailed = linkedResults.some((result) => Boolean(result.error));
+    }
     setClientRows((current) => {
       const withoutSaved = current.filter((client) => client.id !== savedClient.id);
       return [savedClient, ...withoutSaved];
     });
     resetForm();
-    setMessage(editingClientId ? "✓ Client Updated" : "✓ Client Saved");
+    setMessage(
+      linkedUpdateFailed
+        ? "Client saved, but some linked records could not be updated. Refresh and try again."
+        : editingClientId
+          ? "✓ Client Updated"
+          : "✓ Client Saved"
+    );
     setMobileSection("list");
+    publishDataChange({
+      type: "client-saved",
+      clientId: savedClient.id,
+      clientName: savedClient.name
+    });
   }
 
   async function handleDelete(clientId: string) {
@@ -182,6 +221,7 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
     setClientRows((current) => current.filter((client) => client.id !== clientId));
     if (editingClientId === clientId) resetForm();
     setMessage("Client deleted.");
+    publishDataChange({ type: "client-deleted", clientId });
     return true;
   }
 

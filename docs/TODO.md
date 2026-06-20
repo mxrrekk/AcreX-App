@@ -149,7 +149,11 @@ Last updated: June 20, 2026.
 - [x] Add safe draft invoice deletion and linked quote status updates.
 - [x] Propagate project reference changes into linked quotes and invoices.
 - [x] Propagate quote totals and references into linked draft invoices.
+- [x] Display the latest linked invoice status on Projects so invoice mutations have an immediate visible result.
 - [x] Synchronize project notes between Map and Project Detail through the shared invalidation path.
+- [x] Synchronize project tags between Map and Projects.
+- [x] Propagate client edits/deletes through linked projects, quotes, invoices, active project forms, and AI context.
+- [x] Propagate Settings pricing/map changes into open Map and Quote workspaces without overwriting edited quote lines.
 - [x] Clear stale AI suggestions whenever project measurements or source links change.
 - [x] Preserve legacy linked quote lines when edit history is unavailable instead of risking silent overwrite.
 - [x] Verify protected quote and invoice status directly from Supabase before destructive cascades.

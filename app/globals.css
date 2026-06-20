@@ -9890,7 +9890,7 @@ img {
 
 .projects-table-header,
 .project-row {
-  grid-template-columns: minmax(240px, 1.7fr) 90px 76px 110px 110px 88px 72px;
+  grid-template-columns: minmax(220px, 1.7fr) 90px 70px 105px 92px 105px 86px 70px;
   gap: 12px;
 }
 

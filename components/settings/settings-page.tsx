@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { publishDataChange } from "@/lib/data/sync";
+import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import {
   defaultUserSettings,
   loadUserSettings,
@@ -47,6 +49,15 @@ export function SettingsPage({ account }: SettingsPageProps) {
   const [saveMessage, setSaveMessage] = useState("");
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [activeTab, setActiveTab] = useState<"account" | "company" | "pricing" | "quote" | "drawing" | "map">("company");
+  const handleExternalSettingsChange = useCallback(
+    (change: { type: string }) => {
+      if (change.type === "settings-saved") {
+        setSettings(loadUserSettings(account.id));
+      }
+    },
+    [account.id]
+  );
+  useAcrexDataRefresh(handleExternalSettingsChange);
 
   useEffect(() => {
     setSettings(loadUserSettings(account.id));
@@ -87,6 +98,7 @@ export function SettingsPage({ account }: SettingsPageProps) {
       setSettings(next);
       setSaveState("saved");
       setSaveMessage("Saved");
+      publishDataChange({ type: "settings-saved" });
     } catch {
       setSaveState("error");
       setSaveMessage("Save failed");

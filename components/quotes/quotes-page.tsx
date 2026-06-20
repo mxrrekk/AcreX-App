@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AiEstimateReview,
   type AiEstimateSuggestion,
@@ -725,7 +725,24 @@ export function QuotesPage({
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [areMobileQuestionsOpen, setAreMobileQuestionsOpen] = useState(false);
   const [isDeletingQuote, setIsDeletingQuote] = useState(false);
-  useAcrexDataRefresh();
+  const handleExternalDataChange = useCallback(
+    (change: { type: string }) => {
+      if (change.type === "settings-saved") {
+        setSavedTemplates(loadSavedServiceTemplates(userId));
+        setSavedProfitInputs(loadSavedProfitInputs(userId));
+        setAiSuggestion(null);
+        setAiBuildState("idle");
+        setAiBuildMessage("Pricing defaults changed. Build Estimate again for current suggestions.");
+      }
+      if (change.type === "client-saved" || change.type === "client-deleted") {
+        setAiSuggestion(null);
+        setAiBuildState("idle");
+        setAiBuildMessage("Customer context changed. Build Estimate again for current suggestions.");
+      }
+    },
+    [userId]
+  );
+  useAcrexDataRefresh(handleExternalDataChange);
 
   useEffect(() => {
     if (!initialProjectId || initialProjectId === selectedProjectId) return;
@@ -1873,6 +1890,9 @@ export function QuotesPage({
                     value={selectedClientId}
                     onChange={(event) => {
                       setSelectedClientId(event.target.value);
+                      setAiSuggestion(null);
+                      setAiBuildState("idle");
+                      setAiBuildMessage("Customer context changed. Build Estimate again for current suggestions.");
                       markQuoteUnsaved();
                     }}
                   >

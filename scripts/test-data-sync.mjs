@@ -83,9 +83,13 @@ windowMock.dispatchEvent({
 });
 assert.equal(receivedChanges.length, 2);
 assert.equal(receivedChanges[1].quoteId, "q");
+publishDataChange({ type: "client-saved", clientId: "c", clientName: "Updated Customer" });
+assert.equal(receivedChanges[2].clientId, "c");
+publishDataChange({ type: "settings-saved" });
+assert.equal(receivedChanges[3].type, "settings-saved");
 unsubscribe();
 publishDataChange({ type: "project-saved", projectId: "p" });
-assert.equal(receivedChanges.length, 2);
+assert.equal(receivedChanges.length, 4);
 
 const brush = {
   sourceId: "brush-1",
