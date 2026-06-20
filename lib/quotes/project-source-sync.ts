@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { deleteQuoteLines, insertQuoteLines, readQuoteLines } from "@/lib/data/quote-lines";
 import {
   reconcileSourceLinkedLines,
   type MeasurementSource,
@@ -98,14 +99,10 @@ async function replaceQuoteItems(
   quoteId: string,
   items: Array<Record<string, unknown>>
 ) {
-  const { error: deleteError } = await supabase
-    .from("quote_items")
-    .delete()
-    .eq("quote_id", quoteId)
-    .eq("user_id", userId);
+  const { error: deleteError } = await deleteQuoteLines(supabase, userId, quoteId);
   if (deleteError) return deleteError;
   if (!items.length) return null;
-  const { error: insertError } = await supabase.from("quote_items").insert(items);
+  const { error: insertError } = await insertQuoteLines(supabase, items);
   return insertError;
 }
 
@@ -192,11 +189,7 @@ export async function syncProjectQuotesToSources({
     if (!reconciled.changed) continue;
 
     const { data: previousItems, error: itemReadError } = row.status === "Draft"
-      ? await supabase
-          .from("quote_items")
-          .select("*")
-          .eq("quote_id", row.id)
-          .eq("user_id", userId)
+      ? await readQuoteLines(supabase, userId, { quoteId: row.id })
       : { data: [], error: null };
     if (itemReadError) {
       await rollbackQuotes(supabase, userId, rollbacks);

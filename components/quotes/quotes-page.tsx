@@ -42,6 +42,8 @@ import type { ClientRecord, ProjectRecord, QuoteRecord, QuoteStatus, SavedZonePr
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cascadeDeleteQuote } from "@/lib/data/cascades";
 import { publishDataChange } from "@/lib/data/sync";
+import { saveAiEstimateSnapshot } from "@/lib/data/storage";
+import { deleteQuoteLines, insertQuoteLines, readQuoteLines } from "@/lib/data/quote-lines";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import { reconcileSourceLinkedLines, sourceSnapshot, type MeasurementSource } from "@/lib/quotes/source-sync";
 
@@ -1478,6 +1480,19 @@ export function QuotesPage({
           // Session caching is optional; the estimator remains functional without it.
         }
       }
+      if (selectedProject?.id) {
+        const supabase = createSupabaseBrowserClient();
+        if (supabase) {
+          void saveAiEstimateSnapshot(supabase, {
+            userId,
+            projectId: selectedProject.id,
+            quoteId: savedQuoteId,
+            context: JSON.parse(JSON.stringify(estimateContext)) as Record<string, unknown>,
+            suggestion: JSON.parse(JSON.stringify(data.suggestion)) as Record<string, unknown>,
+            confidenceScore: data.suggestion.confidenceScore ?? null
+          });
+        }
+      }
       markQuoteUnsaved();
     } catch (error) {
       if (process.env.NODE_ENV === "development") {
@@ -1488,7 +1503,15 @@ export function QuotesPage({
       setAiBuildState("error");
       setAiBuildMessage("AI service unavailable");
     }
-  }, [aiBuildState, automaticEstimateKey, estimateContext, estimateContextReady]);
+  }, [
+    aiBuildState,
+    automaticEstimateKey,
+    estimateContext,
+    estimateContextReady,
+    savedQuoteId,
+    selectedProject?.id,
+    userId
+  ]);
 
   useEffect(() => {
     if (
@@ -1799,7 +1822,7 @@ export function QuotesPage({
       ? savedQuotes.find((savedQuote) => savedQuote.id === savedQuoteId) ?? null
       : null;
     const { data: previousItems, error: previousItemsError } = savedQuoteId
-      ? await supabase.from("quote_items").select("*").eq("quote_id", savedQuoteId).eq("user_id", userId)
+      ? await readQuoteLines(supabase, userId, { quoteId: savedQuoteId })
       : { data: [], error: null };
     if (previousItemsError || (savedQuoteId && !previousSavedQuote)) {
       setSaveState("error");
@@ -1830,9 +1853,10 @@ export function QuotesPage({
         .eq("user_id", userId);
     };
     const restorePreviousItems = async (quoteId: string) => {
-      await supabase.from("quote_items").delete().eq("quote_id", quoteId).eq("user_id", userId);
+      await deleteQuoteLines(supabase, userId, quoteId);
       if (!previousItems?.length) return;
-      await supabase.from("quote_items").insert(
+      await insertQuoteLines(
+        supabase,
         previousItems.map((item) => ({
           quote_id: item.quote_id,
           user_id: item.user_id,
@@ -1875,11 +1899,7 @@ export function QuotesPage({
       sort_order: index
     }));
 
-    const { error: deleteItemsError } = await supabase
-      .from("quote_items")
-      .delete()
-      .eq("quote_id", quote.id)
-      .eq("user_id", userId);
+    const { error: deleteItemsError } = await deleteQuoteLines(supabase, userId, quote.id);
 
     if (deleteItemsError) {
       await restorePreviousQuote(quote.id);
@@ -1889,7 +1909,7 @@ export function QuotesPage({
     }
 
     if (quoteItemPayload.length > 0) {
-      const { error: itemsError } = await supabase.from("quote_items").insert(quoteItemPayload);
+      const { error: itemsError } = await insertQuoteLines(supabase, quoteItemPayload);
 
       if (itemsError) {
         await restorePreviousItems(quote.id);

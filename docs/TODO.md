@@ -2,6 +2,18 @@
 
 Last updated: June 20, 2026.
 
+## In Progress — Durable Supabase Storage
+
+- [x] Define normalized drawings, measurements, quote line items, invoice line items, exports, attachments, settings, and AI snapshot records.
+- [x] Add private `acrex-files` bucket configuration and user-folder storage policies.
+- [x] Add RLS ownership policies for every new record type.
+- [x] Add centralized project, drawing, quote, invoice, settings, AI snapshot, upload, list, and delete helpers.
+- [x] Preserve legacy quote-item compatibility until the production migration is applied.
+- [x] Persist project drawings and measurements separately while retaining project GeoJSON compatibility.
+- [x] Copy quote lines into invoice line items during invoice creation.
+- [ ] Apply `supabase/schema.sql` to the production Supabase project using an authorized database session.
+- [ ] Run authenticated two-user production isolation and file upload checks after the migration is applied.
+
 ## Completed — AI-First Quote Workspace
 
 - [x] Automatically generate an AI draft when a newly selected project has valid drawings and no existing quote content.

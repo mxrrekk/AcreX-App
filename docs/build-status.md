@@ -4,9 +4,9 @@ Last reviewed: June 20, 2026.
 
 ## Current Status
 
-The AI-first Quote Workspace pass is complete. The primary path is now project context → Generate AI Estimate → contractor review/edit → PDF / Send. Detailed accounting controls remain available under Advanced Options without overwhelming the default workflow.
+The durable Supabase storage foundation is implemented in code and schema. Project saves now normalize drawings and measurements when the new schema is available, settings have a database-backed source of truth, invoice creation copies quote lines, AI estimate contexts can be snapshotted, and file/export operations are centralized.
 
-No important workflow was removed. Detailed editing remains available on demand, while the default view prioritizes the next contractor action.
+The production Supabase project has not received the additive migration yet. Public REST checks return `PGRST205` for the new tables. Existing project, quote, invoice, and local-settings workflows retain compatibility until an authorized migration is applied.
 
 Measured projects now draft automatically when they have no saved quote content. AcreX does not overwrite accepted or edited quote data, and it restores the same in-session AI draft after navigation or reload.
 
@@ -173,6 +173,9 @@ Measured projects now draft automatically when they have no saved quote content.
 
 ## Remaining Release Work
 
+- Apply `supabase/schema.sql` in the production Supabase SQL Editor or through an authenticated migration session.
+- Verify authenticated save/reload behavior and two-user RLS isolation against the migrated production database.
+- Upload and remove a private test file from `acrex-files`, then verify its attachment metadata.
 - Confirm final App Store Connect name, subtitle, description, keywords, support URL, privacy URL, category, age rating, screenshots, and review notes.
 - Confirm the privacy manifest and App Store privacy answers against final production data handling before submission.
 - Validate the signed Release archive with the active Apple Developer account.

@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:data-sync": "node scripts/test-data-sync.mjs",
+    "test:storage": "node scripts/test-storage-foundation.mjs",
     "test:quote-services": "node scripts/test-quote-services.mjs",
     "ios:sync": "npx cap sync ios",
     "ios:sync:production": "CAPACITOR_SERVER_URL=https://acre-x-app.vercel.app NODE_ENV=production npx cap sync ios",

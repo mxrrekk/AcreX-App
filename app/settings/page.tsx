@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { SettingsPage } from "@/components/settings/settings-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { AcrexUserSettings } from "@/lib/settings/user-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,10 @@ export default async function SettingsRoute() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase.from("users").select("*").eq("id", user.id).maybeSingle();
+  const [{ data: profile }, { data: storedSettings }] = await Promise.all([
+    supabase.from("users").select("*").eq("id", user.id).maybeSingle(),
+    supabase.from("user_settings").select("*").eq("user_id", user.id).maybeSingle()
+  ]);
   const profileRow = (profile ?? {}) as Partial<UserProfile>;
   const rawSubscriptionSource = profileRow.subscription_source ?? "free";
   const subscriptionSource =
@@ -32,6 +36,14 @@ export default async function SettingsRoute() {
 
   return (
     <SettingsPage
+      storedSettings={storedSettings ? {
+        company: storedSettings.company_profile,
+        quoteDefaults: storedSettings.quote_defaults,
+        pricing: storedSettings.pricing_defaults,
+        drawing: storedSettings.drawing_defaults,
+        map: storedSettings.map_defaults,
+        updatedAt: storedSettings.updated_at
+      } as Partial<AcrexUserSettings> : null}
       account={{
         id: user.id,
         name:

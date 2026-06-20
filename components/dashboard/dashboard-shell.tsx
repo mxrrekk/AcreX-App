@@ -8,6 +8,8 @@ import Link from "next/link";
 import { AppSidebar, type AppSidebarKey } from "@/components/ui/app-sidebar";
 import type { Feature, Polygon } from "geojson";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { saveProject } from "@/lib/data/storage";
+import { readQuoteLines } from "@/lib/data/quote-lines";
 import { publishDataChange } from "@/lib/data/sync";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import { formatAcres, formatFeet, formatSquareFeet } from "@/lib/geo/format";
@@ -965,7 +967,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
     const normalizedQuotes = (quoteRows ?? []).map(normalizeQuote);
     const quoteIds = normalizedQuotes.map((quote) => quote.id);
     const quoteItemRows = quoteIds.length
-      ? await supabase.from("quote_items").select("*").eq("user_id", currentUserId).in("quote_id", quoteIds)
+      ? await readQuoteLines(supabase, currentUserId, { quoteIds })
       : { data: [] };
 
     setQuotes(normalizedQuotes);
@@ -1441,21 +1443,14 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
     const existingProject =
       activeProjectId ? projects.find((project) => project.id === activeProjectId) ?? null : null;
     const existingProjectId = existingProject?.id ?? null;
-    const query = existingProjectId
-      ? supabase
-          .from("projects")
-          .update(payload)
-          .eq("id", existingProjectId)
-          .eq("user_id", currentUserId)
-          .select("*")
-          .single()
-      : supabase.from("projects").insert(payload).select("*").single();
-
-    const { data, error } = await query;
+    const { data, error } = await saveProject(supabase, {
+      ...payload,
+      ...(existingProjectId ? { id: existingProjectId } : {})
+    });
     setIsSavingProject(false);
 
-    if (error) {
-      setProjectMessage(`Save Failed: ${error.message}`);
+    if (error || !data) {
+      setProjectMessage(`Save Failed: ${error ?? "Project could not be saved."}`);
       return;
     }
 

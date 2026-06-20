@@ -6,14 +6,16 @@ import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { deleteDraftInvoice } from "@/lib/data/cascades";
+import { saveInvoice } from "@/lib/data/storage";
 import { publishDataChange } from "@/lib/data/sync";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
-import type { InvoiceFormState, InvoiceRecord, InvoiceStatus, QuoteRecord } from "@/lib/projects/types";
+import type { InvoiceFormState, InvoiceRecord, InvoiceStatus, QuoteItemRecord, QuoteRecord } from "@/lib/projects/types";
 
 type InvoicesPageProps = {
   userId: string;
   userEmail: string;
   quotes: QuoteRecord[];
+  quoteLines: QuoteItemRecord[];
   invoices: InvoiceRecord[];
   initialQuoteId?: string | null;
   errorMessage: string | null;
@@ -91,7 +93,7 @@ function getReadableInvoiceError(message: string) {
   return message;
 }
 
-export function InvoicesPage({ userId, userEmail, quotes, invoices, initialQuoteId, errorMessage }: InvoicesPageProps) {
+export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, initialQuoteId, errorMessage }: InvoicesPageProps) {
   const [formState, setFormState] = useState<InvoiceFormState>(() => ({
     ...emptyInvoiceForm,
     quoteId: initialQuoteId && quotes.some((quote) => quote.id === initialQuoteId) ? initialQuoteId : ""
@@ -172,11 +174,26 @@ export function InvoicesPage({ userId, userEmail, quotes, invoices, initialQuote
       notes: formState.notes.trim() || null
     };
 
-    const { data, error } = await supabase.from("invoices").insert(payload).select("*").single();
+    const selectedQuoteLines = quoteLines.filter((line) => line.quote_id === selectedQuote.id);
+    const { data, error } = await saveInvoice(
+      supabase,
+      payload,
+      selectedQuoteLines.map((line) => ({
+        quote_line_item_id: line.id,
+        name: line.service,
+        description: line.description,
+        quantity: line.quantity,
+        unit: line.unit,
+        unit_price: line.unit_price,
+        total: line.total,
+        notes: line.notes,
+        sort_order: line.sort_order
+      }))
+    );
     setIsSaving(false);
 
-    if (error) {
-      setMessage(getReadableInvoiceError(error.message));
+    if (error || !data) {
+      setMessage(getReadableInvoiceError(error ?? "Invoice could not be saved."));
       return;
     }
 

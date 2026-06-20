@@ -15,7 +15,11 @@ export async function cascadeDeleteProject({
   userId: string;
   projectId: string;
 }): Promise<CascadeResult> {
-  const [{ data: quoteRows, error: quoteReadError }, { data: invoiceRows, error: invoiceReadError }] =
+  const [
+    { data: quoteRows, error: quoteReadError },
+    { data: invoiceRows, error: invoiceReadError },
+    { data: attachmentRows, error: attachmentReadError }
+  ] =
     await Promise.all([
       supabase
         .from("quotes")
@@ -25,6 +29,11 @@ export async function cascadeDeleteProject({
       supabase
         .from("invoices")
         .select("id, project_id, invoice_number, status")
+        .eq("project_id", projectId)
+        .eq("user_id", userId),
+      supabase
+        .from("attachments")
+        .select("storage_path")
         .eq("project_id", projectId)
         .eq("user_id", userId)
     ]);
@@ -73,9 +82,24 @@ export async function cascadeDeleteProject({
     .delete()
     .eq("id", projectId)
     .eq("user_id", userId);
-  return projectError
-    ? { ok: false, message: projectError.message }
-    : { ok: true, message: "Project deleted" };
+  if (projectError) return { ok: false, message: projectError.message };
+
+  const storagePaths = attachmentReadError
+    ? []
+    : (attachmentRows ?? []).map((attachment) => attachment.storage_path).filter(Boolean);
+  const storageApi = (supabase as SupabaseClient & {
+    storage?: { from: (bucket: string) => { remove: (paths: string[]) => Promise<{ error: { message: string } | null }> } };
+  }).storage;
+  if (storageApi && storagePaths.length > 0) {
+    const { error: storageError } = await storageApi.from("acrex-files").remove(storagePaths);
+    if (storageError) {
+      return {
+        ok: true,
+        message: "Project deleted. One or more stored files need cleanup."
+      };
+    }
+  }
+  return { ok: true, message: "Project deleted" };
 }
 
 export async function cascadeDeleteQuote({

@@ -265,7 +265,7 @@ function linkedQuoteTables() {
         totals: { services: 250, grandTotal: 250 }
       })
     }],
-    quote_items: [{
+    quote_line_items: [{
       quote_id: "q-sync",
       user_id: "u",
       service: "Brush Clearing",
@@ -302,7 +302,7 @@ assert.equal(syncDatabase.tables.quotes[0].subtotal, 525);
 assert.equal(syncDatabase.tables.quotes[0].total, 525);
 assert.equal(JSON.parse(syncDatabase.tables.quotes[0].notes).lineItems[0].quantity, "3");
 assert.equal(JSON.parse(syncDatabase.tables.quotes[0].notes).lineItems[0].notes, "Brush default notes");
-assert.equal(syncDatabase.tables.quote_items[0].total, 525);
+assert.equal(syncDatabase.tables.quote_line_items[0].total, 525);
 assert.equal(syncDatabase.tables.invoices[0].total, 525);
 
 syncDatabase = createStatefulSupabaseMock(linkedQuoteTables(), {
@@ -320,7 +320,7 @@ assert.equal(sourceSync.ok, false);
 assert.equal(syncDatabase.tables.quotes[0].subtotal, 250);
 assert.equal(syncDatabase.tables.quotes[0].total, 250);
 assert.equal(JSON.parse(syncDatabase.tables.quotes[0].notes).lineItems[0].quantity, "2");
-assert.equal(syncDatabase.tables.quote_items[0].total, 250);
+assert.equal(syncDatabase.tables.quote_line_items[0].total, 250);
 assert.equal(syncDatabase.tables.invoices[0].total, 250);
 
 function createSupabaseMock(records) {

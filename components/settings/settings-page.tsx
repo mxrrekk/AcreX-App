@@ -6,6 +6,7 @@ import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { publishDataChange } from "@/lib/data/sync";
+import { saveUserSettings as saveUserSettingsToDatabase } from "@/lib/data/storage";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import { serviceCatalog } from "@/lib/services/catalog";
 import {
@@ -17,6 +18,7 @@ import {
 } from "@/lib/settings/user-settings";
 
 type SettingsPageProps = {
+  storedSettings: Partial<AcrexUserSettings> | null;
   account: {
     id: string;
     name: string;
@@ -55,7 +57,7 @@ const servicePricingFields = serviceCatalog
     }`
   ] as const);
 
-export function SettingsPage({ account }: SettingsPageProps) {
+export function SettingsPage({ account, storedSettings }: SettingsPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [settings, setSettings] = useState<AcrexUserSettings>(defaultUserSettings);
@@ -74,8 +76,9 @@ export function SettingsPage({ account }: SettingsPageProps) {
   useAcrexDataRefresh(handleExternalSettingsChange);
 
   useEffect(() => {
-    setSettings(loadUserSettings(account.id));
-  }, [account.id]);
+    const localSettings = loadUserSettings(account.id);
+    setSettings(normalizeUserSettings(storedSettings ?? localSettings));
+  }, [account.id, storedSettings]);
 
   useEffect(() => {
     if (searchParams.get("tab") === "account") setActiveTab("account");
@@ -108,6 +111,22 @@ export function SettingsPage({ account }: SettingsPageProps) {
         ...settings,
         updatedAt: new Date().toISOString()
       });
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) throw new Error("Settings storage is not configured.");
+      const databaseResult = await saveUserSettingsToDatabase(supabase, account.id, {
+        company_profile: next.company,
+        quote_defaults: next.quoteDefaults,
+        pricing_defaults: next.pricing,
+        drawing_defaults: next.drawing,
+        map_defaults: next.map
+      });
+      if (
+        databaseResult.error &&
+        !databaseResult.error.includes("user_settings") &&
+        !databaseResult.error.includes("schema cache")
+      ) {
+        throw new Error(databaseResult.error);
+      }
       saveUserSettings(account.id, next);
       setSettings(next);
       setSaveState("saved");
@@ -180,7 +199,7 @@ export function SettingsPage({ account }: SettingsPageProps) {
 
         <footer className="settings-save-bar">
           <div>
-            <strong>{saveMessage || "Settings are stored for this account in this browser."}</strong>
+            <strong>{saveMessage || "Settings sync to this account across devices."}</strong>
             <span>{settings.updatedAt ? `Last saved ${formatDate(settings.updatedAt)}` : "Not saved yet"}</span>
           </div>
           <button className={saveState === "saving" ? "is-processing" : ""} type="button" onClick={handleSave} disabled={saveState === "saving"}>
