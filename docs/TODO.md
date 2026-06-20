@@ -2,6 +2,18 @@
 
 Last updated: June 20, 2026.
 
+## Completed — Customer-Ready Invoice Workflow
+
+- [x] Convert saved quotes into customer-safe invoices with linked customer, project, company, line-item, tax, discount, deposit, and payment-term data.
+- [x] Filter deleted drawing references and contractor-only AI, confidence, warning, profit, debug, and pricing-assumption content from invoices.
+- [x] Add one authoritative invoice preview used for review, PDF/save-to-PDF, printing, and email preparation.
+- [x] Add editable customer contact, amount paid, line descriptions, scope, notes, and payment terms without exposing internal quote data.
+- [x] Add server-side Gemini invoice wording polish with explicit Apply and Ignore controls and no price, quantity, unit, or total mutation.
+- [x] Persist the structured customer invoice payload and restore it when a saved invoice is reopened.
+- [x] Keep Saved Invoices behind its explicit tab and route saved records back into the preview/editor.
+- [x] Fit the invoice editor, actions, line items, and preview at mobile width without horizontal overflow.
+- [x] Add invoice conversion and persistence regression coverage.
+
 ## Completed — Workspace-First Saved Resources
 
 - [x] Make Projects open to a clean Start New Project workspace instead of the full saved list.
@@ -10,7 +22,7 @@ Last updated: June 20, 2026.
 - [x] Add saved quote search, status, project/customer/address, total, updated date, open/edit, duplicate, project, and delete actions.
 - [x] Support opening a specific quote by quote ID without losing its linked project context.
 - [x] Make Invoices open to the invoice builder and keep saved invoices behind Saved Invoices.
-- [x] Add saved invoice search, open/edit, project/quote links, status actions, print/email, and protected delete.
+- [x] Add saved invoice search, open/edit, project/quote links, status actions, and protected delete; print/email remain in the opened authoritative preview.
 - [x] Keep workspace/saved segmented controls fitted at mobile width with no horizontal overflow.
 
 ## Completed — Data Safety and Project Backups

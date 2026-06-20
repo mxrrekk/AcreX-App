@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { InvoicesPage } from "@/components/invoices/invoices-page";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readQuoteLines } from "@/lib/data/quote-lines";
-import type { InvoiceRecord, QuoteItemRecord, QuoteRecord } from "@/lib/projects/types";
+import { defaultUserSettings, normalizeUserSettings, type AcrexUserSettings } from "@/lib/settings/user-settings";
+import type { ClientRecord, InvoiceRecord, QuoteItemRecord, QuoteRecord } from "@/lib/projects/types";
 
 export const dynamic = "force-dynamic";
 
@@ -42,12 +43,28 @@ export default async function InvoicesRoute({ searchParams }: InvoicesRouteProps
   const [
     { data: quotes, error: quotesError },
     { data: invoices, error: invoicesError },
-    { data: quoteLines, error: quoteLinesError }
+    { data: quoteLines, error: quoteLinesError },
+    { data: invoiceLines },
+    { data: clients },
+    { data: storedSettings }
   ] = await Promise.all([
     supabase.from("quotes").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }),
     supabase.from("invoices").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }),
-    readQuoteLines(supabase, user.id)
+    readQuoteLines(supabase, user.id),
+    supabase.from("invoice_line_items").select("*").eq("user_id", user.id).order("sort_order", { ascending: true }),
+    supabase.from("clients").select("*").eq("user_id", user.id),
+    supabase.from("user_settings").select("*").eq("user_id", user.id).maybeSingle()
   ]);
+  const settings = storedSettings
+    ? normalizeUserSettings({
+        company: storedSettings.company_profile,
+        quoteDefaults: storedSettings.quote_defaults,
+        pricing: storedSettings.pricing_defaults,
+        drawing: storedSettings.drawing_defaults,
+        map: storedSettings.map_defaults,
+        updatedAt: storedSettings.updated_at
+      } as Partial<AcrexUserSettings>)
+    : defaultUserSettings;
 
   return (
     <InvoicesPage
@@ -55,6 +72,9 @@ export default async function InvoicesRoute({ searchParams }: InvoicesRouteProps
       userEmail={user.email ?? "Contractor"}
       quotes={(quotes ?? []).map(normalizeQuote)}
       quoteLines={(quoteLines ?? []).map(normalizeQuoteLine)}
+      invoiceLines={(invoiceLines ?? []) as Array<Record<string, unknown>>}
+      clients={(clients ?? []) as ClientRecord[]}
+      settings={settings}
       invoices={(invoices ?? []).map(normalizeInvoice)}
       initialQuoteId={searchParams?.quote ?? null}
       errorMessage={quotesError?.message ?? invoicesError?.message ?? quoteLinesError?.message ?? null}

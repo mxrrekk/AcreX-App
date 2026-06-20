@@ -6,6 +6,8 @@ Last reviewed: June 20, 2026.
 
 Projects, Quotes, and Invoices now open as action-first workspaces. Saved resources remain fully accessible through explicit Saved tabs and no longer dominate the default page.
 
+The invoice workflow now converts saved quotes into a structured customer-safe invoice, restores saved invoice content in the same preview/editor, and uses that preview as the source for printing and PDF export. Gemini invoice polish is server-side, proposes wording changes for explicit approval, and cannot modify prices or quantities.
+
 The production Supabase project has not received the additive table migration yet. Public REST checks return `PGRST205` for drawings, measurements, normalized quote/invoice lines, exports, attachments, settings, and AI snapshots. The `acrex-files` bucket already responds successfully. Existing project, quote, invoice, and local-settings workflows retain compatibility until an authorized migration is applied.
 
 Measured projects now draft automatically when they have no saved quote content. AcreX does not overwrite accepted or edited quote data, and it restores the same in-session AI draft after navigation or reload.
@@ -23,6 +25,7 @@ Measured projects now draft automatically when they have no saved quote content.
 - Safe-area regression: the public landing header now reserves the iPhone status-bar/Dynamic-Island inset
 - `npm run lint`: passing
 - `npm run build`: passing
+- `npm run test:invoice`: passing
 - `npm run test:safety`: passing
 - Projects default: one Start New Project workflow with no recent or saved-project list rendered
 - Saved Projects: search/filter and the existing open/delete behavior render only after Saved Projects is selected
@@ -30,6 +33,13 @@ Measured projects now draft automatically when they have no saved quote content.
 - Saved quote activation: quote-ID loading preserves project context; duplicate creates an unsaved editable copy
 - Invoices default: invoice builder renders first; Saved Invoices renders one searchable list on demand
 - Saved invoice activation: Open / Edit loads the linked quote, invoice number, due date, status, and notes into the builder
+- Quote-to-invoice payload: customer/project/company context, quantity, unit, pricing, tax, discount, deposit, amount paid, payment terms, and customer notes carry into a structured invoice
+- Invoice privacy: deleted drawing references and internal AI confidence, assumptions, warnings, profit, cost, and debug wording are excluded
+- Invoice preview: one customer-facing document drives Preview, Export PDF/save-to-PDF, Print, and Email Invoice preparation
+- Invoice polish: live Gemini test returned editable wording suggestions; applying them preserved the exact invoice total
+- Invoice persistence: the structured customer invoice and copied invoice line items restore when the saved invoice is reopened
+- Invoice email fallback: the action is clearly disabled until a customer email exists
+- Invoice responsive regression: desktop and 393×852 mobile previews rendered with document width equal to viewport width and no horizontal overflow
 - Responsive resource regression: Projects, Quotes, and Invoices fit 393px without horizontal overflow
 - Live storage acceptance harness: validates project/drawing/measurement/quote/invoice/file persistence, refresh reads, private file download, five cross-user table checks, storage isolation, and cleanup
 - Live acceptance execution: pending dedicated User A/User B test credentials and the production table migration

@@ -9,13 +9,23 @@ import { deleteDraftInvoice } from "@/lib/data/cascades";
 import { saveInvoice } from "@/lib/data/storage";
 import { publishDataChange } from "@/lib/data/sync";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
-import type { InvoiceFormState, InvoiceRecord, InvoiceStatus, QuoteItemRecord, QuoteRecord } from "@/lib/projects/types";
+import {
+  createInvoicePayloadFromQuote,
+  parseSavedInvoicePayload,
+  serializeInvoicePayload,
+  type CustomerInvoicePayload
+} from "@/lib/invoices/payload";
+import type { AcrexUserSettings } from "@/lib/settings/user-settings";
+import type { ClientRecord, InvoiceFormState, InvoiceRecord, InvoiceStatus, QuoteItemRecord, QuoteRecord } from "@/lib/projects/types";
 
 type InvoicesPageProps = {
   userId: string;
   userEmail: string;
   quotes: QuoteRecord[];
   quoteLines: QuoteItemRecord[];
+  invoiceLines: Array<Record<string, unknown>>;
+  clients: ClientRecord[];
+  settings: AcrexUserSettings;
   invoices: InvoiceRecord[];
   initialQuoteId?: string | null;
   errorMessage: string | null;
@@ -63,23 +73,12 @@ function normalizeInvoice(row: unknown): InvoiceRecord {
   return row as InvoiceRecord;
 }
 
-function getInvoiceEmailHref(invoice: InvoiceRecord) {
-  const subject = encodeURIComponent(`Invoice ${invoice.invoice_number}`);
-  const body = encodeURIComponent(
-    [
-      `Invoice: ${invoice.invoice_number}`,
-      `Client: ${invoice.client_name || "Client"}`,
-      `Project: ${invoice.project_name || "Project"}`,
-      `Address: ${invoice.address || "No address saved"}`,
-      `Due Date: ${formatDate(invoice.due_date)}`,
-      `Total: ${formatCurrency(invoice.total)}`,
-      "",
-      invoice.notes ? `Notes: ${invoice.notes}` : "Thank you."
-    ].join("\n")
-  );
-
-  return `mailto:?subject=${subject}&body=${body}`;
-}
+type InvoicePolishSuggestion = {
+  lineDescriptions: string[];
+  customerNotes: string;
+  paymentTerms: string;
+  scopeSummary: string;
+};
 
 function getReadableInvoiceError(message: string) {
   if (message.includes("public.invoices") || message.includes("invoices")) {
@@ -93,7 +92,18 @@ function getReadableInvoiceError(message: string) {
   return message;
 }
 
-export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, initialQuoteId, errorMessage }: InvoicesPageProps) {
+export function InvoicesPage({
+  userId,
+  userEmail,
+  quotes,
+  quoteLines,
+  invoiceLines,
+  clients,
+  settings,
+  invoices,
+  initialQuoteId,
+  errorMessage
+}: InvoicesPageProps) {
   const [view, setView] = useState<"workspace" | "saved">("workspace");
   const [savedSearch, setSavedSearch] = useState("");
   const [activeInvoiceId, setActiveInvoiceId] = useState<string | null>(null);
@@ -106,6 +116,20 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
   const [isSaving, setIsSaving] = useState(false);
   const [updatingInvoiceId, setUpdatingInvoiceId] = useState<string | null>(null);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
+  const [invoicePayload, setInvoicePayload] = useState<CustomerInvoicePayload | null>(() => {
+    const quote = initialQuoteId ? quotes.find((item) => item.id === initialQuoteId) : null;
+    return quote
+      ? createInvoicePayloadFromQuote({
+          quote,
+          quoteLines: quoteLines.filter((line) => line.quote_id === quote.id),
+          client: clients.find((client) => client.id === quote.client_id) ?? null,
+          settings
+        })
+      : null;
+  });
+  const [polishState, setPolishState] = useState<"idle" | "loading" | "error" | "ready">("idle");
+  const [polishMessage, setPolishMessage] = useState("");
+  const [polishSuggestion, setPolishSuggestion] = useState<InvoicePolishSuggestion | null>(null);
   useAcrexDataRefresh();
 
   useEffect(() => {
@@ -143,6 +167,18 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
       quoteId,
       invoiceNumber: current.invoiceNumber || generateInvoiceNumber()
     }));
+    const quote = quotes.find((item) => item.id === quoteId);
+    if (quote) {
+      setInvoicePayload(createInvoicePayloadFromQuote({
+        quote,
+        quoteLines: quoteLines.filter((line) => line.quote_id === quote.id),
+        client: clients.find((client) => client.id === quote.client_id) ?? null,
+        settings
+      }));
+    } else {
+      setInvoicePayload(null);
+    }
+    setPolishSuggestion(null);
     setMessage(null);
   }
 
@@ -153,20 +189,132 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
       invoiceNumber: generateInvoiceNumber(),
       dueDate: getDefaultDueDate()
     });
+    setInvoicePayload(null);
+    setPolishSuggestion(null);
   }
 
   function openSavedInvoice(invoice: InvoiceRecord) {
+    const quote = quotes.find((item) => item.id === invoice.quote_id) ?? null;
+    const fallback = quote
+      ? createInvoicePayloadFromQuote({
+          quote,
+          quoteLines: quoteLines.filter((line) => line.quote_id === quote.id),
+          client: clients.find((client) => client.id === quote.client_id) ?? null,
+          settings
+        })
+      : {
+          version: 1 as const,
+          invoiceDate: invoice.created_at.slice(0, 10),
+          customer: { name: invoice.client_name || "Customer", email: "", phone: "", address: "" },
+          company: { ...settings.company },
+          projectName: invoice.project_name || "Project",
+          projectAddress: invoice.address || "",
+          lineItems: invoiceLines.filter((line) => line.invoice_id === invoice.id).map((line, index) => ({
+            id: String(line.id ?? index),
+            quoteLineItemId: typeof line.quote_line_item_id === "string" ? line.quote_line_item_id : null,
+            name: String(line.name ?? "Service"),
+            description: String(line.description ?? ""),
+            quantity: Number(line.quantity) || 0,
+            unit: String(line.unit ?? "each"),
+            unitPrice: Number(line.unit_price) || 0,
+            total: Number(line.total) || 0
+          })),
+          subtotal: invoice.total,
+          discount: 0,
+          tax: 0,
+          amountPaid: invoice.status === "Paid" ? invoice.total : 0,
+          depositRequired: 0,
+          total: invoice.total,
+          balanceDue: invoice.status === "Paid" ? 0 : invoice.total,
+          paymentTerms: settings.quoteDefaults.terms,
+          customerNotes: "",
+          scopeSummary: "",
+          thankYouMessage: "Thank you for your business."
+        };
     setActiveInvoiceId(invoice.id);
     setFormState({
       quoteId: invoice.quote_id,
       invoiceNumber: invoice.invoice_number,
       dueDate: invoice.due_date ?? "",
       status: invoice.status,
-      notes: invoice.notes ?? ""
+      notes: ""
     });
+    setInvoicePayload(parseSavedInvoicePayload(invoice, fallback));
+    setPolishSuggestion(null);
     setView("workspace");
     setMessage(`Editing invoice ${invoice.invoice_number}.`);
   }
+
+  async function polishInvoice() {
+    if (!invoicePayload || polishState === "loading") return;
+    setPolishState("loading");
+    setPolishMessage("AcreX is reviewing customer-facing wording.");
+    setPolishSuggestion(null);
+    try {
+      const response = await fetch("/api/ai/invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lineItems: invoicePayload.lineItems.map(({ name, description, quantity, unit }) => ({
+            name,
+            description,
+            quantity,
+            unit
+          })),
+          customerNotes: invoicePayload.customerNotes,
+          paymentTerms: invoicePayload.paymentTerms,
+          scopeSummary: invoicePayload.scopeSummary
+        })
+      });
+      const data = await response.json() as { suggestion?: InvoicePolishSuggestion; error?: string };
+      if (!response.ok || !data.suggestion) {
+        setPolishState("error");
+        setPolishMessage(data.error || "AI service unavailable");
+        return;
+      }
+      setPolishSuggestion(data.suggestion);
+      setPolishState("ready");
+      setPolishMessage("Wording suggestions are ready. Prices and quantities were not changed.");
+    } catch {
+      setPolishState("error");
+      setPolishMessage("AI service unavailable");
+    }
+  }
+
+  function applyPolishSuggestion() {
+    if (!invoicePayload || !polishSuggestion) return;
+    setInvoicePayload({
+      ...invoicePayload,
+      lineItems: invoicePayload.lineItems.map((line, index) => ({
+        ...line,
+        description: polishSuggestion.lineDescriptions[index] || line.description
+      })),
+      customerNotes: polishSuggestion.customerNotes,
+      paymentTerms: polishSuggestion.paymentTerms,
+      scopeSummary: polishSuggestion.scopeSummary
+    });
+    setPolishSuggestion(null);
+    setPolishState("idle");
+    setPolishMessage("Invoice wording applied. Review before saving.");
+  }
+
+  const currentEmailHref = invoicePayload?.customer.email
+    ? `mailto:${encodeURIComponent(invoicePayload.customer.email)}?subject=${encodeURIComponent(`Invoice ${formState.invoiceNumber}`)}&body=${encodeURIComponent(
+        [
+          `Hello ${invoicePayload.customer.name},`,
+          "",
+          `Invoice ${formState.invoiceNumber} for ${invoicePayload.projectName}`,
+          `Balance due: ${formatCurrency(invoicePayload.balanceDue)}`,
+          `Due date: ${formatDate(formState.dueDate)}`,
+          "",
+          invoicePayload.customerNotes || invoicePayload.scopeSummary,
+          "",
+          invoicePayload.paymentTerms,
+          "",
+          `${invoicePayload.company.name || "AcreX contractor"}`
+        ].filter(Boolean).join("\n")
+      )}`
+    : null;
 
   async function handleSaveInvoice() {
     setMessage(null);
@@ -177,7 +325,7 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
       return;
     }
 
-    if (!selectedQuote) {
+    if (!selectedQuote || !invoicePayload) {
       setMessage("Select a quote before saving an invoice.");
       return;
     }
@@ -201,24 +349,23 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
       client_name: selectedQuote.client_name,
       project_name: selectedQuote.project_name,
       address: selectedQuote.address,
-      total: selectedQuote.total,
-      notes: formState.notes.trim() || null
+      total: invoicePayload.total,
+      notes: serializeInvoicePayload(invoicePayload)
     };
 
-    const selectedQuoteLines = quoteLines.filter((line) => line.quote_id === selectedQuote.id);
     const { data, error } = await saveInvoice(
       supabase,
       payload,
-      selectedQuoteLines.map((line) => ({
-        quote_line_item_id: line.id,
-        name: line.service,
+      invoicePayload.lineItems.map((line, index) => ({
+        quote_line_item_id: line.quoteLineItemId,
+        name: line.name,
         description: line.description,
         quantity: line.quantity,
         unit: line.unit,
-        unit_price: line.unit_price,
+        unit_price: line.unitPrice,
         total: line.total,
-        notes: line.notes,
-        sort_order: line.sort_order
+        notes: "",
+        sort_order: index
       }))
     );
     setIsSaving(false);
@@ -246,7 +393,7 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
         return;
       }
     }
-    resetForm();
+    setActiveInvoiceId(savedInvoice.id);
     setMessage(`✓ Invoice ${savedInvoice.invoice_number} saved and linked to quote ${selectedQuote.quote_number}.`);
     publishDataChange({
       type: "invoice-saved",
@@ -359,102 +506,115 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
         {message ? <p className="projects-error">{message}</p> : null}
 
         {view === "workspace" ? (
-        <section className="invoice-builder-grid">
-          <section className="invoice-builder-card">
+        <div className="invoice-customer-workspace">
+          <section className="invoice-editor-panel">
             <div className="quote-card-heading">
               <div>
-                <span>Invoice Setup</span>
-                <strong>{selectedQuote?.quote_number ?? "Select a quote"}</strong>
+                <span>Invoice Editor</span>
+                <strong>{selectedQuote ? `From ${selectedQuote.quote_number}` : "Create from a saved quote"}</strong>
               </div>
               <select aria-label="Invoice status" value={formState.status} onChange={(event) => setFormState((current) => ({ ...current, status: event.target.value as InvoiceStatus }))}>
-                {invoiceStatuses.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
+                {invoiceStatuses.map((status) => <option key={status}>{status}</option>)}
               </select>
             </div>
-
             <div className="quote-setup-grid">
-              <label>
-                Quote
-                <select value={formState.quoteId} onChange={(event) => handleQuoteChange(event.target.value)}>
-                  <option value="">Choose saved quote...</option>
-                  {quotes.map((quote) => (
-                    <option key={quote.id} value={quote.id}>
-                      {quote.quote_number} - {quote.project_name || "No project"} - {formatCurrency(quote.total)}
-                    </option>
+              <label>Quote<select value={formState.quoteId} onChange={(event) => handleQuoteChange(event.target.value)}>
+                <option value="">Choose saved quote...</option>
+                {quotes.map((quote) => <option key={quote.id} value={quote.id}>{quote.quote_number} · {quote.project_name || "No project"} · {formatCurrency(quote.total)}</option>)}
+              </select></label>
+              <label>Invoice Number<input value={formState.invoiceNumber} onChange={(event) => setFormState((current) => ({ ...current, invoiceNumber: event.target.value }))} /></label>
+              <label>Invoice Date<input type="date" value={invoicePayload?.invoiceDate ?? ""} onChange={(event) => setInvoicePayload((current) => current ? { ...current, invoiceDate: event.target.value } : current)} /></label>
+              <label>Due Date<input type="date" value={formState.dueDate} onChange={(event) => setFormState((current) => ({ ...current, dueDate: event.target.value }))} /></label>
+            </div>
+            {invoicePayload ? (
+              <>
+                <div className="invoice-customer-fields">
+                  <label>Customer Name<input value={invoicePayload.customer.name} onChange={(event) => setInvoicePayload({ ...invoicePayload, customer: { ...invoicePayload.customer, name: event.target.value } })} /></label>
+                  <label>Customer Email<input value={invoicePayload.customer.email} onChange={(event) => setInvoicePayload({ ...invoicePayload, customer: { ...invoicePayload.customer, email: event.target.value } })} /></label>
+                  <label>Customer Phone<input value={invoicePayload.customer.phone} onChange={(event) => setInvoicePayload({ ...invoicePayload, customer: { ...invoicePayload.customer, phone: event.target.value } })} /></label>
+                  <label>Customer Address<input value={invoicePayload.customer.address} onChange={(event) => setInvoicePayload({ ...invoicePayload, customer: { ...invoicePayload.customer, address: event.target.value } })} /></label>
+                  <label>Amount Paid<input inputMode="decimal" value={invoicePayload.amountPaid} onChange={(event) => {
+                    const amountPaid = Math.max(Number(event.target.value) || 0, 0);
+                    setInvoicePayload({ ...invoicePayload, amountPaid, balanceDue: Math.max(invoicePayload.total - amountPaid, 0) });
+                  }} /></label>
+                </div>
+                <div className="invoice-wording-editor">
+                  {invoicePayload.lineItems.map((line, index) => (
+                    <label key={line.id}>{line.name} description<textarea value={line.description} onChange={(event) => setInvoicePayload({
+                      ...invoicePayload,
+                      lineItems: invoicePayload.lineItems.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item)
+                    })} /></label>
                   ))}
-                </select>
-              </label>
-              <label>
-                Invoice Number
-                <input
-                  value={formState.invoiceNumber}
-                  onChange={(event) => setFormState((current) => ({ ...current, invoiceNumber: event.target.value }))}
-                />
-              </label>
-              <label>
-                Due Date
-                <input
-                  type="date"
-                  value={formState.dueDate}
-                  onChange={(event) => setFormState((current) => ({ ...current, dueDate: event.target.value }))}
-                />
-              </label>
-            </div>
-
-            <div className="quote-pulled-data">
-              <div>
-                <span>Client</span>
-                <strong>{selectedQuote?.client_name || "No quote selected"}</strong>
-              </div>
-              <div>
-                <span>Project</span>
-                <strong>{selectedQuote?.project_name || "No quote selected"}</strong>
-              </div>
-              <div>
-                <span>Total</span>
-                <strong>{formatCurrency(selectedQuote?.total ?? 0)}</strong>
-              </div>
-            </div>
-
-            <div className="invoice-address-card">
-              <span>Address</span>
-              <strong>{selectedQuote?.address || "Select a quote to pull project address."}</strong>
-            </div>
-
-            <label className="quote-notes-field">
-              Notes
-              <textarea
-                value={formState.notes}
-                onChange={(event) => setFormState((current) => ({ ...current, notes: event.target.value }))}
-                placeholder="Payment terms, invoice notes, or job completion details..."
-              />
-            </label>
+                  <label>Scope Summary<textarea value={invoicePayload.scopeSummary} onChange={(event) => setInvoicePayload({ ...invoicePayload, scopeSummary: event.target.value })} /></label>
+                  <label>Customer Notes<textarea value={invoicePayload.customerNotes} onChange={(event) => setInvoicePayload({ ...invoicePayload, customerNotes: event.target.value })} /></label>
+                  <label>Payment Terms<textarea value={invoicePayload.paymentTerms} onChange={(event) => setInvoicePayload({ ...invoicePayload, paymentTerms: event.target.value })} /></label>
+                </div>
+                <div className="invoice-polish-actions">
+                  <button type="button" onClick={() => void polishInvoice()} disabled={polishState === "loading"}>
+                    {polishState === "loading" ? "Polishing…" : "Polish Invoice"}
+                  </button>
+                  <small>{polishMessage || "AI improves wording only. Prices, quantities, and totals stay unchanged."}</small>
+                </div>
+                {polishSuggestion ? (
+                  <section className="invoice-polish-review">
+                    <strong>Suggested wording changes</strong>
+                    <p>{polishSuggestion.scopeSummary || polishSuggestion.customerNotes || "Professional wording is ready."}</p>
+                    <div><button type="button" onClick={applyPolishSuggestion}>Apply Wording</button><button type="button" className="secondary" onClick={() => setPolishSuggestion(null)}>Ignore</button></div>
+                  </section>
+                ) : null}
+              </>
+            ) : (
+              <div className="projects-empty-state"><strong>Select a saved quote</strong><span>AcreX will create a customer-safe invoice with the quote line items and totals.</span></div>
+            )}
           </section>
 
-          <aside className="quote-summary-card">
-            <span>Invoice Total</span>
-            <strong>{formatCurrency(selectedQuote?.total ?? 0)}</strong>
-            <small>{selectedQuote ? `Linked to ${selectedQuote.quote_number}` : "Select a quote to generate invoice"}</small>
-            <button
-              className={isSaving ? "is-processing" : ""}
-              type="button"
-              onClick={handleSaveInvoice}
-              disabled={isSaving || !selectedQuote}
-              title={!selectedQuote ? "Select a saved quote before creating an invoice." : undefined}
-            >
-              {isSaving
-                ? "Saving Invoice..."
-                : selectedQuote
-                  ? activeInvoiceId
-                    ? "Update Invoice"
-                    : "Save Invoice"
-                  : "Select Quote First"}
-            </button>
-          </aside>
-        </section>
+          <section className="invoice-preview-shell">
+            <div className="invoice-preview-actions">
+              <button type="button" onClick={() => document.querySelector(".invoice-document")?.scrollIntoView({ behavior: "smooth" })} disabled={!invoicePayload}>Preview Invoice</button>
+              <button type="button" onClick={() => window.print()} disabled={!invoicePayload}>Export PDF</button>
+              <button type="button" onClick={() => window.print()} disabled={!invoicePayload}>Print</button>
+              {currentEmailHref ? (
+                <a href={currentEmailHref}>Email Invoice</a>
+              ) : (
+                <button type="button" disabled title="Add a customer email to enable email.">
+                  Email Invoice · Add email first
+                </button>
+              )}
+              <button className={isSaving ? "is-processing" : ""} type="button" onClick={handleSaveInvoice} disabled={isSaving || !invoicePayload}>
+                {isSaving ? "Saving…" : activeInvoiceId ? "Update Invoice" : "Save Invoice"}
+              </button>
+            </div>
+            {invoicePayload ? (
+              <article className="invoice-document" aria-label="Invoice preview">
+                <header>
+                  <div className="invoice-brand"><strong>AcreX™</strong><span>{invoicePayload.company.name || "Professional Property Services"}</span></div>
+                  <div><span>INVOICE</span><strong>{formState.invoiceNumber}</strong><small>{formState.status}</small></div>
+                </header>
+                <section className="invoice-parties">
+                  <div><span>From</span><strong>{invoicePayload.company.name || "Contractor"}</strong><p>{invoicePayload.company.phone}<br />{invoicePayload.company.email}<br />{invoicePayload.company.website}</p></div>
+                  <div><span>Bill To</span><strong>{invoicePayload.customer.name}</strong><p>{invoicePayload.customer.email}<br />{invoicePayload.customer.phone}<br />{invoicePayload.customer.address}</p></div>
+                </section>
+                <section className="invoice-project-reference"><div><span>Project</span><strong>{invoicePayload.projectName}</strong></div><div><span>Property</span><strong>{invoicePayload.projectAddress}</strong></div><div><span>Invoice Date</span><strong>{formatDate(invoicePayload.invoiceDate)}</strong></div><div><span>Due Date</span><strong>{formatDate(formState.dueDate)}</strong></div></section>
+                {invoicePayload.scopeSummary ? <p className="invoice-scope-summary">{invoicePayload.scopeSummary}</p> : null}
+                <section className="invoice-line-table">
+                  <header><span>Description</span><span>Qty</span><span>Rate</span><span>Amount</span></header>
+                  {invoicePayload.lineItems.map((line) => <div key={line.id}><span><strong>{line.name}</strong><small>{line.description}</small></span><span>{line.quantity} {line.unit}</span><span>{formatCurrency(line.unitPrice)}</span><strong>{formatCurrency(line.total)}</strong></div>)}
+                </section>
+                <section className="invoice-total-block">
+                  <div><span>Subtotal</span><strong>{formatCurrency(invoicePayload.subtotal)}</strong></div>
+                  {invoicePayload.discount > 0 ? <div><span>Discount</span><strong>-{formatCurrency(invoicePayload.discount)}</strong></div> : null}
+                  {invoicePayload.tax > 0 ? <div><span>Tax</span><strong>{formatCurrency(invoicePayload.tax)}</strong></div> : null}
+                  <div><span>Total</span><strong>{formatCurrency(invoicePayload.total)}</strong></div>
+                  {invoicePayload.depositRequired > 0 ? <div><span>Deposit / Payment Requested</span><strong>{formatCurrency(invoicePayload.depositRequired)}</strong></div> : null}
+                  {invoicePayload.amountPaid > 0 ? <div><span>Amount Paid</span><strong>-{formatCurrency(invoicePayload.amountPaid)}</strong></div> : null}
+                  <div className="balance"><span>Balance Due</span><strong>{formatCurrency(invoicePayload.balanceDue)}</strong></div>
+                </section>
+                <section className="invoice-customer-copy">{invoicePayload.customerNotes ? <div><strong>Notes</strong><p>{invoicePayload.customerNotes}</p></div> : null}{invoicePayload.paymentTerms ? <div><strong>Payment Terms</strong><p>{invoicePayload.paymentTerms}</p></div> : null}<p>{invoicePayload.thankYouMessage}</p></section>
+                <footer>Generated with AcreX™</footer>
+              </article>
+            ) : <div className="invoice-preview-empty">Select a quote to generate the customer invoice preview.</div>}
+          </section>
+        </div>
         ) : null}
 
         {view === "saved" ? (
@@ -491,10 +651,6 @@ export function InvoicesPage({ userId, userEmail, quotes, quoteLines, invoices, 
                     <button type="button" onClick={() => openSavedInvoice(invoice)}>Open / Edit</button>
                     {invoice.project_id ? <Link href={`/projects/${invoice.project_id}`}>Project</Link> : null}
                     <Link href={`/quotes?quote=${encodeURIComponent(invoice.quote_id)}`}>Quote</Link>
-                    <button type="button" onClick={() => window.print()}>
-                      Print
-                    </button>
-                    <a href={getInvoiceEmailHref(invoice)}>Email</a>
                     {invoice.status === "Paid" ? null : (
                       <button
                         className={updatingInvoiceId === invoice.id ? "is-processing" : ""}
