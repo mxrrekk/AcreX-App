@@ -22,7 +22,8 @@ Last updated: June 20, 2026.
 - [x] Persist project drawings and measurements separately while retaining project GeoJSON compatibility.
 - [x] Copy quote lines into invoice line items during invoice creation.
 - [ ] Apply `supabase/schema.sql` to the production Supabase project using an authorized database session.
-- [ ] Run authenticated two-user production isolation and file upload checks after the migration is applied.
+- [x] Add a self-cleaning authenticated live test for project, drawing, measurement, quote, invoice, private file, refresh reads, and two-user isolation.
+- [ ] Supply two dedicated test accounts and run `npm run test:storage:live` after the migration is applied.
 
 ## Completed — AI-First Quote Workspace
 

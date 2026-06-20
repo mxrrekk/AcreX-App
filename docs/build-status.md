@@ -24,6 +24,8 @@ Measured projects now draft automatically when they have no saved quote content.
 - `npm run lint`: passing
 - `npm run build`: passing
 - `npm run test:safety`: passing
+- Live storage acceptance harness: validates project/drawing/measurement/quote/invoice/file persistence, refresh reads, private file download, five cross-user table checks, storage isolation, and cleanup
+- Live acceptance execution: pending dedicated User A/User B test credentials and the production table migration
 - Project backup route: authenticated `/api/projects/[id]/export` returns a downloadable JSON document
 - Backup format: `acrex-project-backup` version 1 with explicit create-new-project restore strategy and preserved relationship IDs
 - Backup coverage: project, client, drawings, measurements, quotes, quote lines, invoices, invoice lines, files, exports, settings, AI snapshots, activity, and integrity findings

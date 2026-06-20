@@ -10,6 +10,7 @@
     "test:data-sync": "node scripts/test-data-sync.mjs",
     "test:storage": "node scripts/test-storage-foundation.mjs",
     "test:storage:remote": "node --env-file=.env.local scripts/verify-remote-storage.mjs",
+    "test:storage:live": "node --env-file=.env.local scripts/test-storage-live.mjs",
     "test:safety": "node scripts/test-safety-foundation.mjs",
     "test:quote-services": "node scripts/test-quote-services.mjs",
     "ios:sync": "npx cap sync ios",

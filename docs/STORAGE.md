@@ -75,8 +75,20 @@ Run:
 ```bash
 npm run test:storage
 npm run test:storage:remote
+npm run test:storage:live
 npm run test:data-sync
 npm run build
 ```
 
 `test:storage:remote` checks that every required REST table and the private bucket exist. The public anon key cannot apply database migrations. Applying `supabase/schema.sql` requires Supabase SQL Editor access, a database connection, or an authenticated Supabase CLI session.
+
+`test:storage:live` requires two dedicated, confirmed Supabase test accounts:
+
+```text
+ACREX_TEST_USER_A_EMAIL
+ACREX_TEST_USER_A_PASSWORD
+ACREX_TEST_USER_B_EMAIL
+ACREX_TEST_USER_B_PASSWORD
+```
+
+It creates a temporary project, drawing, measurement, quote, invoice, line items, and private file as User A; reloads them; proves User B cannot read them; then removes the test project and storage object.
