@@ -20,9 +20,6 @@ import {
 } from "@/lib/ai/estimate-questions";
 import {
   getTemplateForZone,
-  mergeServiceTemplates,
-  profitInputsStorageKey,
-  serviceTemplatesStorageKey,
   type ProfitInputs,
   type ServiceTemplate
 } from "@/lib/projects/pricing";
@@ -438,31 +435,13 @@ function loadSavedUserSettings(userId: string) {
 function loadSavedServiceTemplates(userId: string) {
   if (typeof window === "undefined") return null;
   const userSettings = loadSavedUserSettings(userId);
-  if (userSettings) return pricingTemplatesFromSettings(userSettings);
-  const storedTemplates = window.localStorage.getItem(serviceTemplatesStorageKey);
-  if (!storedTemplates) return null;
-
-  try {
-    return mergeServiceTemplates(JSON.parse(storedTemplates) as Partial<ServiceTemplate>[]);
-  } catch {
-    return null;
-  }
+  return userSettings ? pricingTemplatesFromSettings(userSettings) : null;
 }
 
 function loadSavedProfitInputs(userId: string) {
   if (typeof window === "undefined") return null;
   const userSettings = loadSavedUserSettings(userId);
-  if (userSettings) return profitInputsFromSettings(userSettings);
-  const storedInputs = window.localStorage.getItem(profitInputsStorageKey);
-  if (!storedInputs) return null;
-
-  try {
-    const parsed = JSON.parse(storedInputs) as Partial<ProfitInputs>;
-    const numericEntries = Object.entries(parsed).filter(([, value]) => typeof value === "number" && Number.isFinite(value));
-    return Object.fromEntries(numericEntries) as Partial<ProfitInputs>;
-  } catch {
-    return null;
-  }
+  return userSettings ? profitInputsFromSettings(userSettings) : null;
 }
 
 function findRateTemplate(measurement: MeasurementRow, savedTemplates: ServiceTemplate[] | null) {
@@ -881,7 +860,20 @@ export function QuotesPage({
     [serviceQuestionGroups]
   );
   const answeredRelevantQuestionCount = relevantQuestionCount - unansweredRelevantQuestions.length;
-  const hasPricingDefaults = Boolean(savedTemplates?.some((template) => template.active !== false));
+  const billableMeasurements = availableMeasurements.filter((measurement) => measurement.billable && measurement.quantity > 0);
+  const measurementsWithPricingDefaults = billableMeasurements.filter((measurement) => {
+    const template = findRateTemplate(measurement, savedTemplates);
+    return Boolean(
+      template &&
+      template.active !== false &&
+      normalizePricingUnit(template.unitType) === measurement.unit &&
+      template.defaultUnitPrice > 0
+    );
+  });
+  const hasPricingDefaults = billableMeasurements.length > 0
+    ? measurementsWithPricingDefaults.length === billableMeasurements.length
+    : Boolean(savedTemplates?.some((template) => template.active !== false && template.defaultUnitPrice > 0));
+  const incompleteRateCount = lineItems.filter((item) => !item.rate.trim() || parseAmount(item.rate) <= 0).length;
   const estimateContext = useMemo<EstimateContext>(() => {
     const selectedMeasurements = availableMeasurements
       .filter((measurement) => addedSourceIds.has(measurement.sourceId))
@@ -1008,7 +1000,7 @@ export function QuotesPage({
         ...siteConditions,
         questionGroups: serviceQuestionGroups.map((group) => ({
           service: group.service,
-          answers: group.questions
+          answers: group.essential
             .map((question) => ({
               id: question.id,
               question: question.label,
@@ -1057,23 +1049,40 @@ export function QuotesPage({
   );
   const estimateConfidence = useMemo(() => {
     let score = 0;
-    if (selectedProject) score += 15;
+    const materialsRequired = detectedServices.some((service) =>
+      ["Fence Installation", "Gravel Driveway", "House Pad"].includes(service)
+    );
+    const materialsConfirmed = !materialsRequired || materials.some(
+      (material) => material.name.trim() && parseAmount(material.quantity) > 0 && material.unit.trim()
+    );
+    const costsConfirmed = costLines.some(
+      (line) => line.name.trim() && parseAmount(line.amount) > 0
+    );
+    const ratesComplete = lineItems.length > 0 && incompleteRateCount === 0;
+
+    if (selectedProject) score += 10;
     if (detectedServices.length > 0) score += 10;
-    if (availableMeasurements.some((measurement) => measurement.billable && measurement.quantity > 0) || lineItems.length > 0) score += 25;
-    if (savedTemplates?.some((template) => template.active !== false)) score += 20;
-    if (materials.some((material) => material.name.trim() && parseAmount(material.quantity) > 0)) score += 5;
+    if (billableMeasurements.length > 0 || lineItems.length > 0) score += 20;
+    if (hasPricingDefaults) score += 15;
+    if (ratesComplete) score += 10;
+    if (materialsConfirmed) score += 5;
+    if (costsConfirmed) score += 5;
+    if (grandTotal > 0) score += 5;
     const questionScore = relevantQuestionCount === 0
-      ? 25
-      : Math.round((answeredRelevantQuestionCount / relevantQuestionCount) * 25);
+      ? 20
+      : Math.round((answeredRelevantQuestionCount / relevantQuestionCount) * 20);
     return Math.min(100, score + questionScore);
   }, [
     answeredRelevantQuestionCount,
-    availableMeasurements,
-    detectedServices.length,
+    billableMeasurements.length,
+    costLines,
+    detectedServices,
+    grandTotal,
+    hasPricingDefaults,
+    incompleteRateCount,
     lineItems.length,
     materials,
     relevantQuestionCount,
-    savedTemplates,
     selectedProject
   ]);
   const estimateWarnings = useMemo(() => {
@@ -1107,7 +1116,17 @@ export function QuotesPage({
       warnings.push("Add a measurement or manual service line.");
     }
     if (!hasPricingDefaults) warnings.push("No pricing default found; verify each rate.");
+    if (incompleteRateCount > 0) warnings.push(`${incompleteRateCount} service ${incompleteRateCount === 1 ? "rate is" : "rates are"} still blank.`);
     unansweredRelevantQuestions.slice(0, 3).forEach((item) => warnings.push(`${item.service}: ${item.question}`));
+    const materialsRequired = detectedServices.some((service) =>
+      ["Fence Installation", "Gravel Driveway", "House Pad"].includes(service)
+    );
+    if (materialsRequired && !materials.some((material) => material.name.trim() && parseAmount(material.quantity) > 0)) {
+      warnings.push("Material quantities are not confirmed.");
+    }
+    if (!costLines.some((line) => line.name.trim() && parseAmount(line.amount) > 0)) {
+      warnings.push("Labor and equipment assumptions are not confirmed.");
+    }
     if (!hasMobilization) warnings.push("No mobilization cost is included.");
     if (grandTotal > 0 && applicableMinimum > 0 && grandTotal < applicableMinimum) {
       warnings.push("Quote is below the saved minimum job charge.");
@@ -1118,13 +1137,22 @@ export function QuotesPage({
   }, [
     availableMeasurements,
     costLines,
+    detectedServices,
     grandTotal,
     hasPricingDefaults,
+    incompleteRateCount,
     lineItems,
+    materials,
     savedTemplates,
     selectedProject,
     unansweredRelevantQuestions
   ]);
+  const targetProfitPercent = typeof savedProfitInputs?.targetProfitPercent === "number"
+    ? savedProfitInputs.targetProfitPercent
+    : null;
+  const targetProfitAmount = targetProfitPercent !== null
+    ? Math.max(taxableSubtotal * (targetProfitPercent / 100), 0)
+    : null;
 
   function updateLineItem(id: string, patch: Partial<QuoteLineItem>) {
     setLineItems((items) => items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
@@ -1677,6 +1705,20 @@ export function QuotesPage({
                     ))}
                   </select>
                 </label>
+              </div>
+              <div className="quote-project-summary-strip" aria-label="Selected quote context">
+                <div>
+                  <span>Project</span>
+                  <strong>{selectedProject?.project_name || "No project selected"}</strong>
+                </div>
+                <div>
+                  <span>Customer</span>
+                  <strong>{selectedClient?.name || selectedProject?.customer_name || "No customer selected"}</strong>
+                </div>
+                <div>
+                  <span>Address</span>
+                  <strong>{selectedProject?.address || "No project address"}</strong>
+                </div>
               </div>
 
             </section>
@@ -2346,6 +2388,13 @@ export function QuotesPage({
               <span>Pricing Summary</span>
               <strong>{formatCurrency(grandTotal)}</strong>
               <small>Live total · updates as you edit</small>
+              {targetProfitPercent !== null ? (
+                <div className="quote-target-profit">
+                  <span>Target profit</span>
+                  <strong>{formatCurrency(targetProfitAmount ?? 0)}</strong>
+                  <small>{formatNumber(targetProfitPercent, 1)}% target from Settings</small>
+                </div>
+              ) : null}
             </div>
 
             <div className="quote-confidence-preview">

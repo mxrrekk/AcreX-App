@@ -18,13 +18,17 @@ export type ServiceTemplate = {
 
 export type ProfitInputs = {
   laborRate: number;
+  crewSize: number;
   estimatedHours: number;
   fuelCost: number;
+  fuelSurchargePercent: number;
   equipmentCost: number;
   materialCost: number;
   disposalCost: number;
   travelCharge: number;
   otherCost: number;
+  overheadPercent: number;
+  targetProfitPercent: number;
   markupPercent: number;
 };
 
@@ -231,13 +235,17 @@ export const defaultServiceTemplates: ServiceTemplate[] = [
 
 export const defaultProfitInputs: ProfitInputs = {
   laborRate: 55,
+  crewSize: 1,
   estimatedHours: 4,
   fuelCost: 50,
+  fuelSurchargePercent: 0,
   equipmentCost: 175,
   materialCost: 0,
   disposalCost: 0,
   travelCharge: 50,
   otherCost: 0,
+  overheadPercent: 15,
+  targetProfitPercent: 25,
   markupPercent: 25
 };
 

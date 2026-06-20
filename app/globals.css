@@ -6927,6 +6927,66 @@ img {
   line-height: 1.45;
 }
 
+.quote-project-summary-strip {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.9fr) minmax(150px, 0.8fr) minmax(220px, 1.3fr);
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+}
+
+.quote-project-summary-strip > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.quote-project-summary-strip span,
+.quote-target-profit > span {
+  color: #7f8e84;
+  font-size: 0.64rem;
+  font-weight: 850;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.quote-project-summary-strip strong {
+  overflow: hidden;
+  color: #e6f0e9;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quote-target-profit {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 2px 10px;
+  border-top: 1px solid rgba(127, 217, 87, 0.14);
+  margin-top: 11px;
+  padding-top: 10px;
+}
+
+.quote-target-profit strong {
+  color: #dfffd6;
+  font-size: 0.94rem;
+}
+
+.quote-target-profit small {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 700px) {
+  .quote-project-summary-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-project-summary-strip strong {
+    white-space: normal;
+  }
+}
+
 .quote-service-question-groups {
   display: grid;
   gap: 12px;
@@ -7373,6 +7433,38 @@ img {
   color: #c6d0c9;
   border-color: rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
+}
+
+.quote-ai-suggestion-actions button.ghost,
+.quote-ai-text-actions button.ghost {
+  color: #95a29a;
+  border-color: transparent;
+  background: transparent;
+}
+
+.quote-ai-text-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.quote-ai-text-actions button {
+  flex: 1;
+  padding: 0 8px;
+}
+
+.quote-ai-text-actions button.secondary {
+  color: #c6d0c9;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.quote-ai-suggestion-fields input:disabled,
+.quote-ai-wide-field textarea:disabled,
+.quote-ai-text-suggestions textarea:disabled {
+  color: #cbd5ce;
+  cursor: default;
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .quote-ai-suggestion-actions button:disabled,

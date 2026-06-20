@@ -29,11 +29,15 @@ export type AcrexUserSettings = {
     fenceRate: number;
     drivewayRate: number;
     housePadRate: number;
+    landClearingRate: number;
     mobilizationFee: number;
     minimumJobCharge: number;
     laborRate: number;
+    crewSize: number;
     equipmentRate: number;
     fuelSurchargePercent: number;
+    overheadPercent: number;
+    targetProfitPercent: number;
   };
   drawing: {
     grassColor: string;
@@ -74,11 +78,15 @@ export const defaultUserSettings: AcrexUserSettings = {
     fenceRate: 18,
     drivewayRate: 2.25,
     housePadRate: 3.75,
+    landClearingRate: 1450,
     mobilizationFee: 50,
     minimumJobCharge: 0,
     laborRate: 55,
+    crewSize: 1,
     equipmentRate: 175,
-    fuelSurchargePercent: 0
+    fuelSurchargePercent: 0,
+    overheadPercent: 15,
+    targetProfitPercent: 25
   },
   drawing: {
     grassColor: "#4fca5a",
@@ -137,11 +145,15 @@ export function normalizeUserSettings(value: Partial<AcrexUserSettings> | null |
       fenceRate: finiteNumber(pricing.fenceRate, defaultUserSettings.pricing.fenceRate),
       drivewayRate: finiteNumber(pricing.drivewayRate, defaultUserSettings.pricing.drivewayRate),
       housePadRate: finiteNumber(pricing.housePadRate, defaultUserSettings.pricing.housePadRate),
+      landClearingRate: finiteNumber(pricing.landClearingRate, defaultUserSettings.pricing.landClearingRate),
       mobilizationFee: finiteNumber(pricing.mobilizationFee, defaultUserSettings.pricing.mobilizationFee),
       minimumJobCharge: finiteNumber(pricing.minimumJobCharge, defaultUserSettings.pricing.minimumJobCharge),
       laborRate: finiteNumber(pricing.laborRate, defaultUserSettings.pricing.laborRate),
+      crewSize: finiteNumber(pricing.crewSize, defaultUserSettings.pricing.crewSize),
       equipmentRate: finiteNumber(pricing.equipmentRate, defaultUserSettings.pricing.equipmentRate),
-      fuelSurchargePercent: finiteNumber(pricing.fuelSurchargePercent, defaultUserSettings.pricing.fuelSurchargePercent)
+      fuelSurchargePercent: finiteNumber(pricing.fuelSurchargePercent, defaultUserSettings.pricing.fuelSurchargePercent),
+      overheadPercent: finiteNumber(pricing.overheadPercent, defaultUserSettings.pricing.overheadPercent),
+      targetProfitPercent: finiteNumber(pricing.targetProfitPercent, defaultUserSettings.pricing.targetProfitPercent)
     },
     drawing: { ...defaultUserSettings.drawing, ...drawing },
     map: { ...defaultUserSettings.map, ...map, preferredStyle },
@@ -185,6 +197,7 @@ export function pricingTemplatesFromSettings(settings: AcrexUserSettings) {
   templates = updateTemplate(templates, "fencing", settings.pricing.fenceRate, settings.pricing.minimumJobCharge);
   templates = updateTemplate(templates, "driveway-prep", settings.pricing.drivewayRate, settings.pricing.minimumJobCharge, settings.pricing.equipmentRate);
   templates = updateTemplate(templates, "house-pad", settings.pricing.housePadRate, settings.pricing.minimumJobCharge, settings.pricing.equipmentRate);
+  templates = updateTemplate(templates, "land-clearing", settings.pricing.landClearingRate, settings.pricing.minimumJobCharge, settings.pricing.equipmentRate);
   return templates;
 }
 
@@ -192,9 +205,14 @@ export function profitInputsFromSettings(settings: AcrexUserSettings): ProfitInp
   return {
     ...defaultProfitInputs,
     laborRate: settings.pricing.laborRate,
+    crewSize: settings.pricing.crewSize,
     equipmentCost: settings.pricing.equipmentRate,
     travelCharge: settings.pricing.mobilizationFee,
-    fuelCost: settings.pricing.fuelSurchargePercent
+    fuelCost: 0,
+    fuelSurchargePercent: settings.pricing.fuelSurchargePercent,
+    overheadPercent: settings.pricing.overheadPercent,
+    targetProfitPercent: settings.pricing.targetProfitPercent,
+    markupPercent: settings.pricing.targetProfitPercent
   };
 }
 

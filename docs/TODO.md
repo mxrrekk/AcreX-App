@@ -2,6 +2,20 @@
 
 Last updated: June 19, 2026.
 
+## Completed — Quote + AI Estimator Workflow Rework
+
+- [x] Add a compact project, customer, and address summary above the Quote workspace.
+- [x] Keep Estimate, Line Items, Materials, Labor / Equipment, Scope / Terms, and Review as the primary quote sections.
+- [x] Expand service-specific questions for mowing, brush, fence, driveway, house pad, and land clearing without cross-service prompts.
+- [x] Read quote rates only from user-saved Settings defaults; leave rates blank when no matching default exists.
+- [x] Add land-clearing rate, crew size, overhead, and target-profit defaults to Settings.
+- [x] Pass sanitized labor, crew, equipment, mobilization, fuel, overhead, and profit defaults to the server-side AI route.
+- [x] Give pending AI line, material, cost, scope, exclusion, and term suggestions explicit Apply, Edit, and Ignore controls.
+- [x] Keep applied AI suggestions out of the review panel and move the user to the editable destination tab.
+- [x] Refine confidence using measurements, matching pricing, answered relevant questions, complete rates, materials, job costs, and totals.
+- [x] Show target profit guidance from Settings in the sticky pricing summary.
+- [x] Verify mowing, brush, fence, driveway, house-pad, land-clearing, saved-pricing, no-pricing, and manual-edit scenarios.
+
 ## Completed — Contractor Workflow Refinement
 
 - [x] Make the map Drawing Inspector the primary drawing editor for rename, service, color, measurement, location, visibility, zoom, project save, quote access, and delete.

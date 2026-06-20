@@ -48,6 +48,7 @@ export const estimateQuestionCatalog: Record<EstimateServiceType, EstimateQuesti
     { id: "gravelDepth", label: "Desired gravel depth?", options: ["2 inches", "3 inches", "4 inches", "6 inches"] },
     { id: "basePrep", label: "Base prep required?", options: ["None", "Light grading", "Full base prep", "Geotextile + base"] },
     { id: "culvert", label: "Culvert installation?", options: ["No", "Existing culvert", "New culvert", "Not confirmed"] },
+    { id: "drainage", label: "Drainage work required?", options: ["None known", "Ditching", "Crown / slope correction", "Engineered drainage", "Not confirmed"] },
     { id: "grading", label: "Grading included?", options: ["Yes", "No"] },
     { id: "compaction", label: "Compaction required?", options: ["Yes", "No"] }
   ],
@@ -66,17 +67,18 @@ export const estimateQuestionCatalog: Record<EstimateServiceType, EstimateQuesti
     { id: "haulOff", label: "Haul-off?", options: ["None", "Partial", "Full"] },
     { id: "burn", label: "Burn debris?", options: ["No", "Burn pile", "Burn and bury", "Not confirmed"] },
     { id: "finishGrade", label: "Finish grade?", options: ["Rough grade", "Fine grade", "No grading"] },
-    { id: "debrisDisposal", label: "Debris disposal?", options: ["Leave on site", "Haul to disposal", "Chip/mulch", "Not confirmed"] }
+    { id: "debrisDisposal", label: "Debris disposal?", options: ["Leave on site", "Haul to disposal", "Chip/mulch", "Not confirmed"] },
+    { id: "equipmentAccess", label: "Equipment access?", options: ["Easy", "Moderate", "Difficult"] }
   ]
 };
 
 export const essentialEstimateQuestionIds: Record<EstimateServiceType, string[]> = {
-  Mowing: ["serviceFrequency", "edging", "weedEating", "blowingCleanup"],
-  "Brush Clearing / Forestry Mulching": ["density", "haulOff", "stumps"],
+  Mowing: ["serviceFrequency", "edging", "weedEating", "blowingCleanup", "obstacles", "gateAccess", "clippings"],
+  "Brush Clearing / Forestry Mulching": ["density", "haulOff", "stumps", "clearingExtent", "wetAreas", "equipmentAccess"],
   "Fence Installation": ["fenceMaterial", "fenceHeight", "gates"],
-  "Gravel Driveway": ["gravelType", "gravelDepth", "grading"],
-  "House Pad": ["finishedDimensions", "fillDirt", "compactionRequirements"],
-  "Land Clearing": ["clearingExtent", "stumpRemoval", "haulOff"]
+  "Gravel Driveway": ["installationType", "gravelType", "gravelDepth", "basePrep", "grading", "culvert", "drainage", "compaction"],
+  "House Pad": ["finishedDimensions", "existingClearing", "fillDirt", "compactionRequirements", "drainageRequirements", "elevationTarget"],
+  "Land Clearing": ["clearingExtent", "stumpRemoval", "debrisDisposal", "finishGrade", "equipmentAccess"]
 };
 
 export function estimateQuestionKey(service: EstimateServiceType, questionId: string) {

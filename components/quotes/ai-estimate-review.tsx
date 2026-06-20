@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 export type AiSuggestedLineItem = {
   serviceName: string;
   description?: string;
@@ -73,6 +75,8 @@ export function AiEstimateReview({
   onApplyText,
   onClear
 }: AiEstimateReviewProps) {
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+
   if (!suggestion) {
     return (
       <div className="quote-ai-review-empty">
@@ -117,12 +121,14 @@ export function AiEstimateReview({
           <div className="quote-ai-suggestion-list">
             {suggestion.suggestedLineItems.map((item, index) => {
               const key = `line-${index}`;
+              const isEditing = editingKey === key;
               return (
                 <article className="quote-ai-suggestion-card" key={key}>
                   <div className="quote-ai-suggestion-fields line">
                     <label>
                       Service
                       <input
+                        disabled={!isEditing}
                         value={item.serviceName}
                         onChange={(event) => {
                           const items = [...suggestion.suggestedLineItems];
@@ -134,6 +140,7 @@ export function AiEstimateReview({
                     <label>
                       Quantity
                       <input
+                        disabled={!isEditing}
                         inputMode="decimal"
                         value={item.quantity}
                         onChange={(event) => {
@@ -146,6 +153,7 @@ export function AiEstimateReview({
                     <label>
                       Unit
                       <input
+                        disabled={!isEditing}
                         value={item.unit}
                         onChange={(event) => {
                           const items = [...suggestion.suggestedLineItems];
@@ -157,6 +165,7 @@ export function AiEstimateReview({
                     <label>
                       Suggested range
                       <input
+                        disabled={!isEditing}
                         value={item.suggestedRateRange ?? ""}
                         onChange={(event) => {
                           const items = [...suggestion.suggestedLineItems];
@@ -168,6 +177,7 @@ export function AiEstimateReview({
                     <label>
                       Recommended rate
                       <input
+                        disabled={!isEditing}
                         inputMode="decimal"
                         value={item.recommendedRate ?? ""}
                         onChange={(event) => {
@@ -188,6 +198,7 @@ export function AiEstimateReview({
                   <label className="quote-ai-wide-field">
                     Explanation
                     <textarea
+                      disabled={!isEditing}
                       value={item.explanation ?? item.notes ?? ""}
                       onChange={(event) => {
                         const items = [...suggestion.suggestedLineItems];
@@ -198,11 +209,14 @@ export function AiEstimateReview({
                   </label>
                   <div className="quote-ai-suggestion-actions">
                     <button type="button" onClick={() => onApplyLineItem(item, key)}>
-                      Apply Line Item
+                      Apply
+                    </button>
+                    <button type="button" className="secondary" onClick={() => setEditingKey(isEditing ? null : key)}>
+                      {isEditing ? "Done Editing" : "Edit"}
                     </button>
                     <button
                       type="button"
-                      className="secondary"
+                      className="ghost"
                       onClick={() =>
                         onChange({
                           ...suggestion,
@@ -210,7 +224,7 @@ export function AiEstimateReview({
                         })
                       }
                     >
-                      Dismiss
+                      Ignore
                     </button>
                   </div>
                 </article>
@@ -229,12 +243,14 @@ export function AiEstimateReview({
           <div className="quote-ai-suggestion-list">
             {suggestion.suggestedMaterials.map((item, index) => {
               const key = `material-${index}`;
+              const isEditing = editingKey === key;
               return (
                 <article className="quote-ai-suggestion-card" key={key}>
                   <div className="quote-ai-suggestion-fields material">
                     <label>
                       Material
                       <input
+                        disabled={!isEditing}
                         value={item.name}
                         onChange={(event) => {
                           const items = [...suggestion.suggestedMaterials];
@@ -246,6 +262,7 @@ export function AiEstimateReview({
                     <label>
                       Quantity
                       <input
+                        disabled={!isEditing}
                         inputMode="decimal"
                         value={item.quantity ?? ""}
                         onChange={(event) => {
@@ -261,6 +278,7 @@ export function AiEstimateReview({
                     <label>
                       Unit
                       <input
+                        disabled={!isEditing}
                         value={item.unit ?? ""}
                         onChange={(event) => {
                           const items = [...suggestion.suggestedMaterials];
@@ -273,6 +291,7 @@ export function AiEstimateReview({
                   <label className="quote-ai-wide-field">
                     Notes
                     <textarea
+                      disabled={!isEditing}
                       value={item.notes ?? ""}
                       onChange={(event) => {
                         const items = [...suggestion.suggestedMaterials];
@@ -283,11 +302,14 @@ export function AiEstimateReview({
                   </label>
                   <div className="quote-ai-suggestion-actions">
                     <button type="button" onClick={() => onApplyMaterial(item, key)}>
-                      Apply Material
+                      Apply
+                    </button>
+                    <button type="button" className="secondary" onClick={() => setEditingKey(isEditing ? null : key)}>
+                      {isEditing ? "Done Editing" : "Edit"}
                     </button>
                     <button
                       type="button"
-                      className="secondary"
+                      className="ghost"
                       onClick={() =>
                         onChange({
                           ...suggestion,
@@ -295,7 +317,7 @@ export function AiEstimateReview({
                         })
                       }
                     >
-                      Dismiss
+                      Ignore
                     </button>
                   </div>
                 </article>
@@ -314,12 +336,14 @@ export function AiEstimateReview({
           <div className="quote-ai-suggestion-list">
             {suggestion.suggestedLaborEquipment.map((item, index) => {
               const key = `cost-${index}`;
+              const isEditing = editingKey === key;
               return (
                 <article className="quote-ai-suggestion-card" key={key}>
                   <div className="quote-ai-suggestion-fields cost">
                     <label>
                       Category
                       <input
+                        disabled={!isEditing}
                         value={item.category ?? ""}
                         onChange={(event) => {
                           const items = [...suggestion.suggestedLaborEquipment];
@@ -331,6 +355,7 @@ export function AiEstimateReview({
                     <label>
                       Name
                       <input
+                        disabled={!isEditing}
                         value={item.name}
                         onChange={(event) => {
                           const items = [...suggestion.suggestedLaborEquipment];
@@ -342,6 +367,7 @@ export function AiEstimateReview({
                     <label>
                       Amount
                       <input
+                        disabled={!isEditing}
                         inputMode="decimal"
                         value={item.amount ?? ""}
                         onChange={(event) => {
@@ -355,6 +381,7 @@ export function AiEstimateReview({
                   <label className="quote-ai-wide-field">
                     Explanation
                     <textarea
+                      disabled={!isEditing}
                       value={item.explanation ?? item.notes ?? ""}
                       onChange={(event) => {
                         const items = [...suggestion.suggestedLaborEquipment];
@@ -365,11 +392,14 @@ export function AiEstimateReview({
                   </label>
                   <div className="quote-ai-suggestion-actions">
                     <button type="button" onClick={() => onApplyCost(item, key)}>
-                      Apply Cost
+                      Apply
+                    </button>
+                    <button type="button" className="secondary" onClick={() => setEditingKey(isEditing ? null : key)}>
+                      {isEditing ? "Done Editing" : "Edit"}
                     </button>
                     <button
                       type="button"
-                      className="secondary"
+                      className="ghost"
                       onClick={() =>
                         onChange({
                           ...suggestion,
@@ -377,7 +407,7 @@ export function AiEstimateReview({
                         })
                       }
                     >
-                      Dismiss
+                      Ignore
                     </button>
                   </div>
                 </article>
@@ -397,45 +427,45 @@ export function AiEstimateReview({
               <label>
                 Scope of work
                 <textarea
+                  disabled={editingKey !== "text-scope"}
                   value={suggestion.suggestedScopeOfWork}
                   onChange={(event) => onChange({ ...suggestion, suggestedScopeOfWork: event.target.value })}
                 />
-                <button
-                  type="button"
-                  onClick={() => onApplyText("scope", suggestion.suggestedScopeOfWork ?? "", "text-scope")}
-                >
-                  Apply Scope
-                </button>
+                <span className="quote-ai-text-actions">
+                  <button type="button" onClick={() => onApplyText("scope", suggestion.suggestedScopeOfWork ?? "", "text-scope")}>Apply</button>
+                  <button type="button" className="secondary" onClick={() => setEditingKey(editingKey === "text-scope" ? null : "text-scope")}>Edit</button>
+                  <button type="button" className="ghost" onClick={() => onChange({ ...suggestion, suggestedScopeOfWork: "" })}>Ignore</button>
+                </span>
               </label>
             ) : null}
             {exclusions ? (
               <label>
                 Exclusions
                 <textarea
+                  disabled={editingKey !== "text-exclusions"}
                   value={exclusions}
                   onChange={(event) => onChange({ ...suggestion, suggestedExclusions: event.target.value })}
                 />
-                <button
-                  type="button"
-                  onClick={() => onApplyText("exclusions", exclusions, "text-exclusions")}
-                >
-                  Apply Exclusions
-                </button>
+                <span className="quote-ai-text-actions">
+                  <button type="button" onClick={() => onApplyText("exclusions", exclusions, "text-exclusions")}>Apply</button>
+                  <button type="button" className="secondary" onClick={() => setEditingKey(editingKey === "text-exclusions" ? null : "text-exclusions")}>Edit</button>
+                  <button type="button" className="ghost" onClick={() => onChange({ ...suggestion, suggestedExclusions: "" })}>Ignore</button>
+                </span>
               </label>
             ) : null}
             {suggestion.suggestedTerms ? (
               <label>
                 Payment terms
                 <textarea
+                  disabled={editingKey !== "text-terms"}
                   value={suggestion.suggestedTerms}
                   onChange={(event) => onChange({ ...suggestion, suggestedTerms: event.target.value })}
                 />
-                <button
-                  type="button"
-                  onClick={() => onApplyText("terms", suggestion.suggestedTerms ?? "", "text-terms")}
-                >
-                  Apply Terms
-                </button>
+                <span className="quote-ai-text-actions">
+                  <button type="button" onClick={() => onApplyText("terms", suggestion.suggestedTerms ?? "", "text-terms")}>Apply</button>
+                  <button type="button" className="secondary" onClick={() => setEditingKey(editingKey === "text-terms" ? null : "text-terms")}>Edit</button>
+                  <button type="button" className="ghost" onClick={() => onChange({ ...suggestion, suggestedTerms: "" })}>Ignore</button>
+                </span>
               </label>
             ) : null}
           </div>

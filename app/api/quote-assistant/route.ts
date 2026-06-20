@@ -370,7 +370,17 @@ function sanitizeContext(value: unknown) {
     },
     pricingDefaults: {
       serviceTemplates: templates,
-      global: isRecord(pricingDefaults.global) ? pricingDefaults.global : null
+      global: isRecord(pricingDefaults.global)
+        ? {
+            laborRate: Math.max(0, cleanNumber(pricingDefaults.global.laborRate)),
+            crewSize: Math.max(0, cleanNumber(pricingDefaults.global.crewSize)),
+            equipmentCost: Math.max(0, cleanNumber(pricingDefaults.global.equipmentCost)),
+            travelCharge: Math.max(0, cleanNumber(pricingDefaults.global.travelCharge)),
+            fuelSurchargePercent: Math.max(0, cleanNumber(pricingDefaults.global.fuelSurchargePercent)),
+            overheadPercent: Math.max(0, cleanNumber(pricingDefaults.global.overheadPercent)),
+            targetProfitPercent: Math.max(0, cleanNumber(pricingDefaults.global.targetProfitPercent))
+          }
+        : null
     }
   };
 }
@@ -396,7 +406,7 @@ Rules:
 - Treat measurements with selected=true, measurements.selected, selectedSourceIds, and current quote lines as the active quote scope.
 - Available measurements that are not selected are reference-only. Do not generate service lines, materials, costs, scope, or questions for them unless the user's notes explicitly include them.
 - Do not suggest a service line when the same sourceMeasurementId already exists in current quote lines. Suggest supporting job costs or assumptions instead.
-- Make the estimate specific to that project type. A mowing estimate should focus on acreage, frequency, access, trimming, and production. A fence estimate should consider material, height, gates, posts, concrete, and linear footage. Brush clearing should consider density, haul-off, stumps, terrain, and access. Driveways should consider gravel type, depth, base preparation, delivery, grading, drainage, and culverts.
+- Make the estimate specific to that project type. Mowing should focus on acreage, frequency, edging, weed eating, blowing, obstacles, gate access, and clippings. Fence installation should consider material, height, gates, removal, concrete, terrain, and linear footage. Brush or forestry mulching should consider density, haul-off or onsite mulch, stumps, selective/full clearing, wet areas, terrain, and access. Driveways should consider install/refresh, gravel type, depth, base preparation, delivery, grading, drainage, culverts, and compaction. House pads should consider dimensions, clearing, fill, compaction, drainage, and elevation. Land clearing should consider selective/full clearing, trees/stumps, debris disposal, finish grade, and access.
 - The client has already detected the active service types and supplied service-specific questionGroups and unansweredQuestions.
 - Ask only questions listed in siteConditions.unansweredQuestions. Never invent a cross-service or generic questionnaire.
 - Never ask a mowing project about brush density, tree haul-off, stump grinding, gravel depth, or fence material.
@@ -407,7 +417,10 @@ Rules:
 - Use known measurement quantities and units. Do not invent geometry.
 - Suggest pricing ranges and a recommended starting rate only when context supports it.
 - Contractor pricing defaults outrank generic market assumptions.
+- When a matching contractor service default exists, use it as the recommended starting rate and explain any condition-based adjustment separately.
+- Never replace or revise a non-null current quote line rate unless the user explicitly requested that change through editCommand.
 - If no pricing default exists, state the assumption and warn the user to verify local pricing.
+- If no pricing default exists, provide a clearly labeled suggested range when useful, but do not present a fixed rate as established contractor pricing.
 - Explain any saved markup or profit target in pricingAssumptions. Do not silently add markup as a separate customer charge or present it as guaranteed profit.
 - Respect current tax, discount, and deposit adjustments and mention them only when relevant.
 - Return a useful cost breakdown across service lines, materials, labor, equipment, fuel, mobilization, haul-off, disposal, scope, exclusions, assumptions, warnings, and terms, but include only categories relevant to this project type.

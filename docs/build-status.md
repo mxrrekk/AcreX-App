@@ -4,7 +4,7 @@ Last reviewed: June 19, 2026.
 
 ## Current Status
 
-The contractor workflow refinement pass is complete. Drawing management now routes to one authoritative inspector, duplicate project/map controls were reduced, AI questions are service-specific and minimal, applied AI recommendations move into their editable destination, and the Quote page no longer produces a hydration error for new quote numbers.
+The Quote and AI Estimator workflow rework is complete. The workspace now presents clear project context, strictly service-specific questions, Settings-first pricing, explicit AI review decisions, stronger confidence signals, and editable quote destinations without silently replacing manual work.
 
 Vercel deployment compatibility was also corrected: cloud builds now emit the standard `.next` directory, while local production builds continue using `.next-build` to avoid colliding with the running iOS development server.
 
@@ -64,6 +64,12 @@ Vercel deployment compatibility was also corrected: cloud builds now emit the st
 - AI application flow: accepted line items, materials, costs, and scope text immediately open in their editable quote tab
 - Quote runtime: deterministic server markup prevents the previous new-quote React hydration error
 - Current browser regression: no horizontal overflow at 375×667, 834×1112, 1194×834, or 1440×900; mobile Map remained exactly one viewport with one open sheet
+- Quote service-question regression: mowing, brush, fence, driveway, house pad, and land clearing each rendered only relevant guided questions; optional details remained collapsed
+- Quote pricing regression: a saved mowing default of $137/acre populated a new measured line; without saved Settings pricing, the same line rate remained blank and editable
+- Manual quote protection: a manually edited $155 rate remained unchanged after requesting an AI estimate
+- Quote responsive regression: desktop and 375×667 phone layouts rendered with zero horizontal overflow
+- Settings pricing: service units are labeled and land clearing, crew size, overhead, and target profit are persisted with the existing pricing defaults
+- AI review: pending service, material, cost, scope, exclusion, and terms suggestions expose Apply, Edit, and Ignore; applying still removes the pending suggestion
 
 ## Remaining Release Work
 

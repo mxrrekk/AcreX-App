@@ -227,23 +227,27 @@ export function SettingsPage({ account }: SettingsPageProps) {
           </div>
           <div className="settings-field-grid">
             {[
-              ["brushClearingRate", "Brush clearing default rate"],
-              ["mowingRate", "Mowing default rate"],
-              ["fenceRate", "Fence default rate"],
-              ["drivewayRate", "Driveway default rate"],
-              ["housePadRate", "House pad default rate"],
+              ["brushClearingRate", "Brush clearing · per acre"],
+              ["mowingRate", "Mowing · per acre"],
+              ["fenceRate", "Fence · per linear foot"],
+              ["drivewayRate", "Driveway · per sq ft"],
+              ["housePadRate", "House pad · per sq ft"],
+              ["landClearingRate", "Land clearing · per acre"],
               ["mobilizationFee", "Mobilization fee"],
               ["minimumJobCharge", "Minimum job charge"],
               ["laborRate", "Labor rate"],
+              ["crewSize", "Default crew size"],
               ["equipmentRate", "Equipment rate"],
-              ["fuelSurchargePercent", "Fuel surcharge %"]
+              ["fuelSurchargePercent", "Fuel surcharge %"],
+              ["overheadPercent", "Overhead %"],
+              ["targetProfitPercent", "Target profit %"]
             ].map(([field, label]) => (
               <label key={field}>
                 {label}
                 <input
                   type="number"
-                  min="0"
-                  step="0.01"
+                  min={field === "crewSize" ? "1" : "0"}
+                  step={field === "crewSize" ? "1" : "0.01"}
                   value={settings.pricing[field as keyof AcrexUserSettings["pricing"]]}
                   onChange={(event) => updateSection("pricing", field as keyof AcrexUserSettings["pricing"], numberValue(event.target.value))}
                 />
