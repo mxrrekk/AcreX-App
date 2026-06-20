@@ -23,7 +23,6 @@ export default async function DrawingsRoute() {
 
   return (
     <DrawingsPage
-      userId={user.id}
       userEmail={user.email ?? "Contractor"}
       projects={((data ?? []) as ProjectRecord[]).map(withResolvedProjectLocation)}
       errorMessage={error?.message ?? null}

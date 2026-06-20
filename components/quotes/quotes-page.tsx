@@ -13,6 +13,7 @@ import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import {
   detectEstimateServices,
+  essentialEstimateQuestionIds,
   estimateQuestionCatalog,
   estimateQuestionKey,
   type EstimateServiceType
@@ -596,26 +597,26 @@ function detectProjectServices(
   siteNotes: string
 ) {
   const selectedServices = detectEstimateServices([
-    ...lineItems.flatMap((item) => [item.serviceName, item.description, item.zoneType, item.notes]),
+    ...lineItems.flatMap((item) => [item.serviceName, item.zoneType]),
     ...measurements
       .filter((measurement) => lineItems.some((item) => item.sourceId === measurement.sourceId))
-      .flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, String(measurement.zoneType)]),
-    notes.scopeOfWork,
-    notes.customerNotes,
-    siteNotes
+      .flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, String(measurement.zoneType)])
   ]);
   if (selectedServices.length) return selectedServices;
 
   const measuredServices = detectEstimateServices([
+    project?.service_type,
+    ...measurements.flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, String(measurement.zoneType)])
+  ]);
+  if (measuredServices.length) return measuredServices;
+
+  return detectEstimateServices([
     project?.project_name,
-    ...measurements.flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, measurement.label]),
+    ...measurements.map((measurement) => measurement.label),
     notes.scopeOfWork,
     notes.customerNotes,
     siteNotes
   ]);
-  if (measuredServices.length) return measuredServices;
-
-  return detectEstimateServices([project?.service_type]);
 }
 
 function inferServiceQuestionAnswer(
@@ -681,7 +682,7 @@ export function QuotesPage({
   );
   const [selectedClientId, setSelectedClientId] = useState(projectClient?.id ?? "");
   const selectedClient = clients.find((client) => client.id === selectedClientId) ?? projectClient ?? null;
-  const [quoteNumber, setQuoteNumber] = useState(() => initialSavedQuote?.quote_number ?? `Q-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`);
+  const [quoteNumber, setQuoteNumber] = useState(() => initialSavedQuote?.quote_number ?? "");
   const [status, setStatus] = useState<QuoteUiStatus>(() => initialSavedQuote ? uiStatusFromQuote(initialSavedQuote.status) : "Draft");
   const [lineItems, setLineItems] = useState<QuoteLineItem[]>(() => initialSavedPayload.lineItems ?? []);
   const [materials, setMaterials] = useState<MaterialItem[]>(() => initialSavedPayload.materials ?? []);
@@ -856,12 +857,16 @@ export function QuotesPage({
       return {
         service,
         questions,
-        unanswered: questions.filter((question) => !question.answer)
+        essential: questions.filter((question) => essentialEstimateQuestionIds[service].includes(question.id)),
+        optional: questions.filter((question) => !essentialEstimateQuestionIds[service].includes(question.id)),
+        unanswered: questions.filter(
+          (question) => essentialEstimateQuestionIds[service].includes(question.id) && !question.answer
+        )
       };
     });
   }, [availableMeasurements, detectedServices, lineItems, notes, selectedProject, siteConditions]);
   const relevantQuestionCount = useMemo(
-    () => serviceQuestionGroups.reduce((total, group) => total + group.questions.length, 0),
+    () => serviceQuestionGroups.reduce((total, group) => total + group.essential.length, 0),
     [serviceQuestionGroups]
   );
   const unansweredRelevantQuestions = useMemo(
@@ -1321,6 +1326,8 @@ export function QuotesPage({
       }
     ]);
     removeAppliedSuggestion(key);
+    setActiveTab("line-items");
+    setAiBuildMessage("Line item applied. Review and edit it in Line Items.");
   }
 
   function applySuggestedMaterial(item: AiSuggestedMaterial, key: string) {
@@ -1336,6 +1343,8 @@ export function QuotesPage({
       }
     ]);
     removeAppliedSuggestion(key);
+    setActiveTab("materials");
+    setAiBuildMessage("Material applied. Review and edit it in Materials.");
   }
 
   function applySuggestedCost(item: AiSuggestedCost, key: string) {
@@ -1350,6 +1359,8 @@ export function QuotesPage({
       }
     ]);
     removeAppliedSuggestion(key);
+    setActiveTab("labor");
+    setAiBuildMessage("Cost applied. Review and edit it in Labor / Equipment.");
   }
 
   function applySuggestedText(field: "scope" | "exclusions" | "terms", value: string, key: string) {
@@ -1359,6 +1370,8 @@ export function QuotesPage({
       return { ...current, paymentTerms: appendText(current.paymentTerms, value) };
     });
     removeAppliedSuggestion(key);
+    setActiveTab("scope");
+    setAiBuildMessage("Text applied. Review and edit it in Scope / Terms.");
   }
 
   function addMeasurementToQuote(measurement: MeasurementRow) {
@@ -1837,6 +1850,45 @@ export function QuotesPage({
                     </p>
                   </div>
                 )}
+                {serviceQuestionGroups.some((group) => group.optional.length > 0) ? (
+                  <details className="quote-optional-questions">
+                    <summary>Additional job details</summary>
+                    <p>Optional details can improve pricing, but they are not required to build the first estimate.</p>
+                    <div className="quote-service-question-groups">
+                      {serviceQuestionGroups.filter((group) => group.optional.length > 0).map((group) => (
+                        <section className="quote-service-question-group" key={`optional-${group.service}`}>
+                          <header>
+                            <strong>{group.service}</strong>
+                            <small>Optional</small>
+                          </header>
+                          <div className="quote-guided-question-list">
+                            {group.optional.map((question) => {
+                              const answerKey = estimateQuestionKey(group.service, question.id);
+                              const currentAnswer = question.answer;
+                              return (
+                                <div className={`quote-guided-question${currentAnswer ? " answered" : ""}`} key={answerKey}>
+                                  <p>{question.label}</p>
+                                  <div>
+                                    {question.options.map((option) => (
+                                      <button
+                                        type="button"
+                                        className={currentAnswer === option ? "active" : ""}
+                                        key={option}
+                                        onClick={() => answerServiceQuestion(group.service, question.id, question.label, option)}
+                                      >
+                                        {option}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
                 <label className="quote-condition-notes">
                   Site notes
                   <textarea

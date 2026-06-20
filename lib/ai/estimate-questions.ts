@@ -70,6 +70,15 @@ export const estimateQuestionCatalog: Record<EstimateServiceType, EstimateQuesti
   ]
 };
 
+export const essentialEstimateQuestionIds: Record<EstimateServiceType, string[]> = {
+  Mowing: ["serviceFrequency", "edging", "weedEating", "blowingCleanup"],
+  "Brush Clearing / Forestry Mulching": ["density", "haulOff", "stumps"],
+  "Fence Installation": ["fenceMaterial", "fenceHeight", "gates"],
+  "Gravel Driveway": ["gravelType", "gravelDepth", "grading"],
+  "House Pad": ["finishedDimensions", "fillDirt", "compactionRequirements"],
+  "Land Clearing": ["clearingExtent", "stumpRemoval", "haulOff"]
+};
+
 export function estimateQuestionKey(service: EstimateServiceType, questionId: string) {
   return `${service}:${questionId}`;
 }

@@ -415,6 +415,7 @@ async function getCurrentUserId(supabase: NonNullable<ReturnType<typeof createSu
 export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   const searchParams = useSearchParams();
   const requestedProjectId = searchParams.get("project");
+  const requestedDrawingId = searchParams.get("drawing");
   const [measurements, setMeasurements] = useState<ProjectMeasurements | null>(null);
   const [address, setAddress] = useState("No address selected");
   const [polygon, setPolygon] = useState<Feature<Polygon> | null>(null);
@@ -1486,6 +1487,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
               resetKey={mapResetKey}
               initialAddress={activeProject?.address ?? null}
               initialPolygon={activeProject?.polygon_geojson ?? draftMapData}
+              initialSelectedDrawingId={requestedDrawingId}
               onAddressChange={handleAddressChange}
               onAddressDetailsChange={setAddressDetails}
               onMeasurementsChange={setMeasurements}
@@ -1701,24 +1703,6 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
 
                 {mobileSheet === "more" ? (
                   <>
-                    <section className="mobile-map-style-picker" aria-label="Map style">
-                      <span>Map style</span>
-                      <div>
-                        {mapStyleOptions.map((style) => (
-                          <button
-                            type="button"
-                            className={preferredMapStyle === style.id ? "active" : ""}
-                            key={style.id}
-                            onClick={() => {
-                              setPreferredMapStyle(style.id);
-                              sendMobileMapCommand("map-style", style.id);
-                            }}
-                          >
-                            {style.label}
-                          </button>
-                        ))}
-                      </div>
-                    </section>
                     <div className="mobile-more-links">
                       <Link href="/projects">Projects</Link>
                       <Link href="/drawings">Drawings</Link>
@@ -2285,7 +2269,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                   onClick={handleSaveProject}
                   disabled={isSavingProject}
                 >
-                  {isSavingProject ? "Saving..." : "Save Project"}
+                  {isSavingProject ? "Saving..." : "Save to Project"}
                 </button>
                 {projectMessage ? <p className="project-message">{projectMessage}</p> : null}
               </div>

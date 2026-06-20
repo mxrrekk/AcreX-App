@@ -40,6 +40,7 @@ type AcrexMapProps = {
   resetKey?: number;
   initialPolygon?: SavedProjectMapData | null;
   initialAddress?: string | null;
+  initialSelectedDrawingId?: string | null;
   searchMountId?: string;
   useParcelRequestKey?: number;
   onToolPanelChange?: (panel: ActiveMapPanel) => void;
@@ -469,6 +470,7 @@ export function AcrexMap({
   resetKey = 0,
   initialPolygon,
   initialAddress,
+  initialSelectedDrawingId,
   searchMountId,
   useParcelRequestKey = 0,
   onToolPanelChange,
@@ -1972,7 +1974,7 @@ export function AcrexMap({
   useEffect(() => {
     const draw = drawRef.current;
     if (!draw || !mapReady) return;
-    const projectLoadKey = `${activeProjectId ?? "new"}:${resetKey}`;
+    const projectLoadKey = `${activeProjectId ?? "new"}:${resetKey}:${initialSelectedDrawingId ?? "default"}`;
     if (loadedProjectKeyRef.current === projectLoadKey) return;
 
     loadedProjectKeyRef.current = projectLoadKey;
@@ -2112,7 +2114,14 @@ export function AcrexMap({
     setMeasurements(nextMeasurements);
     setWorkZones(nextZones);
     workZonesRef.current = nextZones;
-    const initialSelectedIds = nextZones[0]?.id ? [nextZones[0].id] : [];
+    const requestedSelectedZone = initialSelectedDrawingId
+      ? nextZones.find((zone) => zone.id === initialSelectedDrawingId)
+      : null;
+    const initialSelectedIds = requestedSelectedZone?.id
+      ? [requestedSelectedZone.id]
+      : nextZones[0]?.id
+        ? [nextZones[0].id]
+        : [];
     selectedZoneIdsRef.current = initialSelectedIds;
     setSelectedZoneIds(initialSelectedIds);
     setHasPolygon(true);
@@ -2134,8 +2143,13 @@ export function AcrexMap({
       }
     });
 
+    if (requestedSelectedZone) {
+      draw.changeMode("simple_select", { featureIds: [requestedSelectedZone.id] });
+      setMapPanel("explorer");
+    }
+
     if (mapRef.current) {
-      fitMapToFeatures(mapRef.current, featuresToAdd);
+      fitMapToFeatures(mapRef.current, requestedSelectedZone ? [requestedSelectedZone.feature] : featuresToAdd);
     }
     resetHistory(getCurrentSnapshot());
 
@@ -2144,7 +2158,7 @@ export function AcrexMap({
     }
   // Loading a project should not recreate map history helpers or reset the map instance.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId, resetKey, initialPolygon, initialAddress, mapReady]);
+  }, [activeProjectId, resetKey, initialPolygon, initialAddress, initialSelectedDrawingId, mapReady]);
 
   function setDrawMode(mode: DrawMode) {
     const draw = drawRef.current;

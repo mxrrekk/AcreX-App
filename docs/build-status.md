@@ -4,7 +4,7 @@ Last reviewed: June 19, 2026.
 
 ## Current Status
 
-The production QA and polish pass is complete. AcreX now has verified public/auth routing, responsive dashboard workflows, a stable mobile map inspector, functional quote preview/export, cleaner destructive actions, persistent settings defaults, and corrected desktop/mobile layout defects.
+The contractor workflow refinement pass is complete. Drawing management now routes to one authoritative inspector, duplicate project/map controls were reduced, AI questions are service-specific and minimal, applied AI recommendations move into their editable destination, and the Quote page no longer produces a hydration error for new quote numbers.
 
 Vercel deployment compatibility was also corrected: cloud builds now emit the standard `.next` directory, while local production builds continue using `.next-build` to avoid colliding with the running iOS development server.
 
@@ -56,6 +56,14 @@ Vercel deployment compatibility was also corrected: cloud builds now emit the st
 - Responsive application regression: no horizontal overflow at 320×568, 393×852, 430×932, 768×1024, 820×1180, 1024×1366, or 1366×1024 across Projects, Project Detail, Drawings, Quotes, Clients, Invoices, Settings, and Map
 - Mobile Map viewport regression: document dimensions exactly matched 320×568 and 393×852; search, account control, bottom bar, and sheets remained overlays without page scroll
 - Accessibility label audit: no visible unnamed buttons, links, images, or form controls remain on tested routes
+- Drawing manager: each saved drawing now opens its exact project drawing in the map inspector through project and drawing route parameters
+- Drawing actions: direct list deletion was removed so editing, visibility, zoom, and destructive actions have one authoritative location
+- Project detail: duplicate header/tab Map and Quote actions were removed while preserving the workflow inside the relevant tabs
+- Mobile Map: the duplicate style selector was removed from More; Map View remains the single style/3D location
+- AI estimator: essential follow-up questions remain visible, optional job details are disclosed on demand, and unrelated service questionnaires are no longer inferred from descriptive notes
+- AI application flow: accepted line items, materials, costs, and scope text immediately open in their editable quote tab
+- Quote runtime: deterministic server markup prevents the previous new-quote React hydration error
+- Current browser regression: no horizontal overflow at 375×667, 834×1112, 1194×834, or 1440×900; mobile Map remained exactly one viewport with one open sheet
 
 ## Remaining Release Work
 

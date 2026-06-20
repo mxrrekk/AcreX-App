@@ -2,6 +2,20 @@
 
 Last updated: June 19, 2026.
 
+## Completed — Contractor Workflow Refinement
+
+- [x] Make the map Drawing Inspector the primary drawing editor for rename, service, color, measurement, location, visibility, zoom, project save, quote access, and delete.
+- [x] Route saved drawing rows directly to the exact drawing in the map inspector.
+- [x] Remove duplicate drawing deletion from the Drawings manager while keeping deletion and Undo in the inspector.
+- [x] Remove duplicate project Map and Quote actions from project detail.
+- [x] Remove the duplicate mobile map-style picker and retain one Map View control.
+- [x] Standardize project wording on “Save to Project.”
+- [x] Limit AI follow-up questions to essential service-specific facts and place optional details behind a disclosure.
+- [x] Prevent service descriptions and notes from incorrectly adding unrelated AI questionnaires.
+- [x] Move applied AI recommendations directly into their editable quote tab.
+- [x] Fix new-quote hydration errors caused by time-based quote numbers during server rendering.
+- [x] Verify landing, authentication, map, drawing inspector, quote measurement, responsive navigation, and AI fallback workflows in the browser.
+
 ## Completed — Landing Header Fit
 
 - [x] Remove the top landing-page CTA button.

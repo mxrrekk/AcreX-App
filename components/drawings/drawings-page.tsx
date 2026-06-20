@@ -4,24 +4,18 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatDrawingQuantity, getProjectDrawings } from "@/lib/projects/drawings";
-import type { ProjectRecord, SavedProjectMapData } from "@/lib/projects/types";
+import type { ProjectRecord } from "@/lib/projects/types";
 
 type DrawingsPageProps = {
-  userId: string;
   userEmail: string;
   projects: ProjectRecord[];
   errorMessage: string | null;
 };
 
-export function DrawingsPage({ userId, userEmail, projects, errorMessage }: DrawingsPageProps) {
+export function DrawingsPage({ userEmail, projects, errorMessage }: DrawingsPageProps) {
   const [search, setSearch] = useState("");
-  const [projectRows, setProjectRows] = useState(projects);
-  const [message, setMessage] = useState(errorMessage);
-  const [deletingDrawingId, setDeletingDrawingId] = useState<string | null>(null);
-  const [pendingDeleteDrawing, setPendingDeleteDrawing] = useState<{ projectId: string; drawingId: string; name: string } | null>(null);
-  const drawings = useMemo(() => projectRows.flatMap(getProjectDrawings), [projectRows]);
+  const drawings = useMemo(() => projects.flatMap(getProjectDrawings), [projects]);
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return drawings;
@@ -48,69 +42,6 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
     return Array.from(groups.entries());
   }, [filtered]);
 
-  async function deleteDrawing(projectId: string, drawingId: string) {
-    const project = projectRows.find((item) => item.id === projectId);
-    const mapData = project?.polygon_geojson as SavedProjectMapData | null;
-    if (!project || !mapData) {
-      setMessage("Drawing could not be found.");
-      return false;
-    }
-
-    const nextMapData: SavedProjectMapData | null =
-      mapData.type === "FeatureCollection"
-        ? {
-            ...mapData,
-            features: mapData.features.filter((feature) => String(feature.id) !== drawingId)
-          }
-        : String(mapData.id) === drawingId
-          ? null
-          : mapData;
-    const features = nextMapData?.type === "FeatureCollection"
-      ? nextMapData.features
-      : nextMapData
-        ? [nextMapData]
-        : [];
-    const acres = features.reduce((total, feature) => total + Number(feature.properties?.acres ?? feature.properties?.areaAcres ?? 0), 0);
-    const squareFeet = features.reduce(
-      (total, feature) => total + Number(feature.properties?.squareFeet ?? feature.properties?.areaSqFt ?? 0),
-      0
-    );
-    const supabase = createSupabaseBrowserClient();
-    if (!supabase) {
-      setMessage("Drawing storage is not configured.");
-      return false;
-    }
-
-    setDeletingDrawingId(drawingId);
-    setMessage(null);
-    const { error } = await supabase
-      .from("projects")
-      .update({
-        polygon_geojson: nextMapData,
-        acres,
-        square_feet: squareFeet,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", projectId)
-      .eq("user_id", userId);
-    setDeletingDrawingId(null);
-
-    if (error) {
-      setMessage(error.message);
-      return false;
-    }
-
-    setProjectRows((current) =>
-      current.map((item) =>
-        item.id === projectId
-          ? { ...item, polygon_geojson: nextMapData, acres, square_feet: squareFeet, updated_at: new Date().toISOString() }
-          : item
-      )
-    );
-    setMessage("Drawing deleted.");
-    return true;
-  }
-
   return (
     <main className="projects-page">
       <aside className="projects-sidebar">
@@ -134,7 +65,7 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
           <Link className="projects-new-button" href="/dashboard">Open Map</Link>
         </section>
 
-        {message ? <p className="projects-error">{message}</p> : null}
+        {errorMessage ? <p className="projects-error">{errorMessage}</p> : null}
 
         <section className="drawings-list" aria-label="Saved drawings">
           {filtered.length ? (
@@ -154,20 +85,13 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
                 <span>{drawing.serviceType}</span>
                 <strong>{formatDrawingQuantity(drawing)}</strong>
                 <div>
+                  <Link href={`/dashboard?project=${drawing.projectId}&drawing=${encodeURIComponent(drawing.id)}`}>Open Inspector</Link>
                   <Link href={`/projects/${drawing.projectId}`}>Project Detail</Link>
-                  <Link href={`/dashboard?project=${drawing.projectId}`}>Open Map</Link>
                   {drawing.billable ? (
                     <Link href={`/quotes?project=${drawing.projectId}&measurement=${encodeURIComponent(drawing.id)}`}>Add to Quote</Link>
                   ) : (
                     <span>Non-billable</span>
                   )}
-                  <button
-                    type="button"
-                    disabled={deletingDrawingId === drawing.id}
-                    onClick={() => setPendingDeleteDrawing({ projectId: drawing.projectId, drawingId: drawing.id, name: drawing.name })}
-                  >
-                    {deletingDrawingId === drawing.id ? "Deleting..." : "Delete"}
-                  </button>
                 </div>
               </article>
                 ))}
@@ -183,34 +107,6 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
           )}
         </section>
       </section>
-      {pendingDeleteDrawing ? (
-        <div className="modal-backdrop" role="presentation">
-          <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-drawing-title">
-            <span className="modal-icon">!</span>
-            <h2 id="delete-drawing-title">Delete drawing?</h2>
-            <p>
-              This permanently removes <strong>{pendingDeleteDrawing.name}</strong> from its project and available quote
-              measurements.
-            </p>
-            <div className="modal-actions">
-              <button type="button" onClick={() => setPendingDeleteDrawing(null)} disabled={deletingDrawingId === pendingDeleteDrawing.drawingId}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className={`danger-button${deletingDrawingId === pendingDeleteDrawing.drawingId ? " is-processing" : ""}`}
-                onClick={async () => {
-                  const deleted = await deleteDrawing(pendingDeleteDrawing.projectId, pendingDeleteDrawing.drawingId);
-                  if (deleted) setPendingDeleteDrawing(null);
-                }}
-                disabled={deletingDrawingId === pendingDeleteDrawing.drawingId}
-              >
-                {deletingDrawingId === pendingDeleteDrawing.drawingId ? "Deleting…" : "Delete Drawing"}
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
       <MobileAppNav active="drawings" />
     </main>
   );

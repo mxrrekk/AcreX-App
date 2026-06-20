@@ -68,7 +68,6 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
           </div>
           <div className="project-detail-header-actions">
             <Link href={`/dashboard?project=${project.id}`}>Open Project Map</Link>
-            <Link href={`/quotes?project=${project.id}`}>{quotes.length ? "Open Quote" : "Create Quote"}</Link>
           </div>
         </header>
 
@@ -106,7 +105,6 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
         <section className="project-detail-section">
           <div className="project-detail-section-heading">
             <div><span>Map Reference</span><strong>Property and saved geometry</strong></div>
-            <Link href={`/dashboard?project=${project.id}`}>Open Map</Link>
           </div>
           <p>{project.address || "No property address saved."} · {project.acres?.toFixed(2) ?? "0.00"} acres · {Math.round(project.square_feet ?? 0).toLocaleString()} sq ft</p>
         </section>

@@ -6907,6 +6907,26 @@ img {
   gap: 8px;
 }
 
+.quote-optional-questions {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+}
+
+.quote-optional-questions > summary {
+  min-height: 42px;
+  cursor: pointer;
+  color: #d9e4dc;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.quote-optional-questions > p {
+  margin: -4px 0 12px;
+  color: #849189;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
 .quote-service-question-groups {
   display: grid;
   gap: 12px;
