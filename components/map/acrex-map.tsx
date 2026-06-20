@@ -167,7 +167,21 @@ type CircleMeasurement = {
   circumferenceFeet: number;
 };
 
+type MobileDrawingDraft = {
+  points: [number, number][];
+  geometry: "line" | "polygon";
+  serviceType: ActiveServiceType;
+};
+
+type MobileDrawingMetrics = {
+  segmentFeet: number[];
+  totalFeet: number;
+  area: ProjectMeasurements | null;
+};
+
 const recentSearchesKey = "acrex-recent-searches";
+const mobileDraftSourceId = "acrex-mobile-draft";
+const mobileDraftLabelsSourceId = "acrex-mobile-draft-labels";
 const explorerGroupOrder: ZoneType[] = ["Grass", "Brush", "Woods", "Fence", "Driveway", "HousePad", "Excluded", "Custom", "Property", "Building"];
 const explorerGroupLabels: Partial<Record<ZoneType, string>> = {
   Grass: "Grass / Mowing",
@@ -279,6 +293,41 @@ function getShapeFeatureId(feature: DrawShapeFeature) {
 function calculateLineFeet(coordinates: number[][]) {
   if (coordinates.length < 2) return 0;
   return turfLength(turfLineString(coordinates), { units: "kilometers" }) * 3280.839895;
+}
+
+function getMobileDrawingMetrics(draft: MobileDrawingDraft | null): MobileDrawingMetrics {
+  if (!draft) return { segmentFeet: [], totalFeet: 0, area: null };
+  const segmentFeet = draft.points.slice(1).map((point, index) =>
+    turfDistance(draft.points[index], point, { units: "miles" }) * 5280
+  );
+  if (draft.geometry === "line") {
+    return {
+      segmentFeet,
+      totalFeet: segmentFeet.reduce((total, feet) => total + feet, 0),
+      area: null
+    };
+  }
+  if (draft.points.length < 3) {
+    return {
+      segmentFeet,
+      totalFeet: segmentFeet.reduce((total, feet) => total + feet, 0),
+      area: null
+    };
+  }
+  const ring = [...draft.points, draft.points[0]];
+  return {
+    segmentFeet: [
+      ...segmentFeet,
+      turfDistance(draft.points[draft.points.length - 1], draft.points[0], { units: "miles" }) * 5280
+    ],
+    totalFeet: calculateLineFeet(ring),
+    area: calculatePolygonMeasurements([ring])
+  };
+}
+
+function isMobileDrawingLayout() {
+  return typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 1024px) and (orientation: portrait), (max-width: 700px)").matches;
 }
 
 function getShapeMeasurements(feature: DrawShapeFeature): ProjectMeasurements {
@@ -509,6 +558,8 @@ export function AcrexMap({
   const spaceRestoreModeRef = useRef<DrawMode | null>(null);
   const measurePointsRef = useRef<[number, number][]>([]);
   const circleCenterRef = useRef<[number, number] | null>(null);
+  const mobileDrawingDraftRef = useRef<MobileDrawingDraft | null>(null);
+  const finishMobileDrawingRef = useRef<(feature: DrawShapeFeature) => void>(() => undefined);
   const refreshZonesRef = useRef<() => WorkZone[]>(() => []);
   const onDrawingStateCommitRef = useRef(onDrawingStateCommit);
   const loadedProjectKeyRef = useRef<string | null | undefined>(undefined);
@@ -538,12 +589,14 @@ export function AcrexMap({
   const [, setCircleMeasurement] = useState<CircleMeasurement | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const [mobileDrawingDraft, setMobileDrawingDraft] = useState<MobileDrawingDraft | null>(null);
   const [savePill, setSavePill] = useState<{ id: string; message: string; color: string; type: ZoneType } | null>(null);
   const [drawingDeleteNotice, setDrawingDeleteNotice] = useState<{ count: number; snapshot: DrawSnapshot } | null>(null);
   const drawingDeleteNoticeRef = useRef<{ count: number; snapshot: DrawSnapshot } | null>(null);
   const [customDrawColor, setCustomDrawColor] = useState(zoneColors.Custom);
   const [explorerFilter, setExplorerFilter] = useState<ZoneType | null>(null);
   const selectedZoneIdsRef = useRef<string[]>([]);
+  const mobileDrawingMetrics = getMobileDrawingMetrics(mobileDrawingDraft);
 
   useEffect(() => {
     onMeasurementsChangeRef.current = onMeasurementsChange;
@@ -762,6 +815,142 @@ export function AcrexMap({
     updateLinearMeasurement([]);
   }
 
+  function updateMobileDrawingPreview(draft = mobileDrawingDraftRef.current) {
+    const map = mapRef.current;
+    const draftSource = map?.getSource(mobileDraftSourceId) as {
+      setData?: (data: FeatureCollection<Polygon | LineString | Point>) => void;
+    } | undefined;
+    const labelsSource = map?.getSource(mobileDraftLabelsSourceId) as {
+      setData?: (data: FeatureCollection<Point>) => void;
+    } | undefined;
+
+    if (!draft || !draft.points.length) {
+      draftSource?.setData?.(emptyFeatureCollection as FeatureCollection<Polygon | LineString | Point>);
+      labelsSource?.setData?.(emptyFeatureCollection as FeatureCollection<Point>);
+      return;
+    }
+
+    const features: Array<Feature<Polygon | LineString | Point>> = draft.points.map((coordinates, index) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates },
+      properties: { kind: "vertex", index: index + 1 }
+    }));
+    if (draft.points.length >= 2) {
+      const coordinates = draft.geometry === "polygon" && draft.points.length >= 3
+        ? [...draft.points, draft.points[0]]
+        : draft.points;
+      features.unshift({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates },
+        properties: { kind: "outline", color: draft.serviceType.color }
+      });
+    }
+    if (draft.geometry === "polygon" && draft.points.length >= 3) {
+      features.unshift({
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: [[...draft.points, draft.points[0]]] },
+        properties: { kind: "fill", color: draft.serviceType.color }
+      });
+    }
+
+    const metrics = getMobileDrawingMetrics(draft);
+    const labelSegments = draft.geometry === "polygon" && draft.points.length >= 3
+      ? [...draft.points.slice(1).map((point, index) => [draft.points[index], point] as [[number, number], [number, number]]), [draft.points[draft.points.length - 1], draft.points[0]] as [[number, number], [number, number]]]
+      : draft.points.slice(1).map((point, index) => [draft.points[index], point] as [[number, number], [number, number]]);
+    const labelFeatures: Feature<Point>[] = labelSegments.map(([start, end], index) => ({
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2]
+      },
+      properties: {
+        label: `${formatFeet(metrics.segmentFeet[index] ?? 0)} ft`
+      }
+    }));
+
+    draftSource?.setData?.({ type: "FeatureCollection", features });
+    labelsSource?.setData?.({ type: "FeatureCollection", features: labelFeatures });
+  }
+
+  function ensureMobileDrawingLayers() {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    if (!map.getSource(mobileDraftSourceId)) {
+      map.addSource(mobileDraftSourceId, {
+        type: "geojson",
+        data: emptyFeatureCollection
+      });
+      map.addLayer({
+        id: "acrex-mobile-draft-fill",
+        type: "fill",
+        source: mobileDraftSourceId,
+        filter: ["==", ["get", "kind"], "fill"],
+        paint: {
+          "fill-color": ["coalesce", ["get", "color"], "#7fd957"],
+          "fill-opacity": 0.2
+        }
+      });
+      map.addLayer({
+        id: "acrex-mobile-draft-line-casing",
+        type: "line",
+        source: mobileDraftSourceId,
+        filter: ["==", ["get", "kind"], "outline"],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "rgba(4, 9, 7, 0.9)",
+          "line-width": 7
+        }
+      });
+      map.addLayer({
+        id: "acrex-mobile-draft-line",
+        type: "line",
+        source: mobileDraftSourceId,
+        filter: ["==", ["get", "kind"], "outline"],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ["coalesce", ["get", "color"], "#7fd957"],
+          "line-width": 4
+        }
+      });
+      map.addLayer({
+        id: "acrex-mobile-draft-points",
+        type: "circle",
+        source: mobileDraftSourceId,
+        filter: ["==", ["get", "kind"], "vertex"],
+        paint: {
+          "circle-radius": 6,
+          "circle-color": "#f5fff1",
+          "circle-stroke-color": "#234d2d",
+          "circle-stroke-width": 2.5
+        }
+      });
+    }
+    if (!map.getSource(mobileDraftLabelsSourceId)) {
+      map.addSource(mobileDraftLabelsSourceId, {
+        type: "geojson",
+        data: emptyFeatureCollection
+      });
+      map.addLayer({
+        id: "acrex-mobile-draft-labels",
+        type: "symbol",
+        source: mobileDraftLabelsSourceId,
+        layout: {
+          "text-field": ["get", "label"],
+          "text-size": 11,
+          "text-font": ["DIN Pro Medium", "Arial Unicode MS Regular"],
+          "text-allow-overlap": false,
+          "text-padding": 4
+        },
+        paint: {
+          "text-color": "#f5fff1",
+          "text-halo-color": "rgba(4, 9, 7, 0.92)",
+          "text-halo-width": 2
+        }
+      });
+    }
+    updateMobileDrawingPreview();
+  }
+
   function updateCirclePreview(center: [number, number] | null, edge?: [number, number]) {
     const map = mapRef.current;
     const source = map?.getSource("acrex-circle-preview") as { setData?: (data: FeatureCollection<Polygon>) => void } | undefined;
@@ -858,6 +1047,7 @@ export function AcrexMap({
 
     updateLinearMeasurement(measurePointsRef.current);
     if (circleCenterRef.current) updateCirclePreview(circleCenterRef.current);
+    ensureMobileDrawingLayers();
   }
 
   function ensureParcelLayers() {
@@ -992,6 +1182,7 @@ export function AcrexMap({
 
     const pausedDrawing = next3D && activeModeRef.current !== "select";
     if (pausedDrawing) {
+      setMobileDrawingDraftState(null);
       drawRef.current?.changeMode("simple_select");
       circleCenterRef.current = null;
       measurePointsRef.current = [];
@@ -1766,12 +1957,12 @@ export function AcrexMap({
 
       refreshZonesRef.current = updateMeasurements;
 
-      const handleDrawCreate = (event: { features: GeoJSON.Feature[] }) => {
+      const completeCreatedFeatures = (features: GeoJSON.Feature[]) => {
         sealExpiredDrawingDeletion();
-        assignZoneDefaults(event.features);
+        assignZoneDefaults(features);
         updateMeasurements();
         pushHistorySnapshot();
-        const createdFeature = event.features.find(isDrawShapeFeature);
+        const createdFeature = features.find(isDrawShapeFeature);
         const nextIds = createdFeature?.id ? [String(createdFeature.id)] : [];
         latestDrawingLocationIdRef.current = nextIds[0] ?? null;
         selectedZoneIdsRef.current = nextIds;
@@ -1790,11 +1981,27 @@ export function AcrexMap({
             setSavePill((current) => (current?.id === createdZone.id ? null : current));
           }, 8000);
         }
-        event.features.filter(isDrawShapeFeature).forEach((feature) => {
+        features.filter(isDrawShapeFeature).forEach((feature) => {
           void resolveDrawingLocation(feature);
         });
         void onDrawingStateCommitRef.current?.(workZonesRef.current, [], "create");
         setActiveMode("select");
+        activeModeRef.current = "select";
+        setActiveMapPanel("explorer");
+        onToolPanelChange?.("explorer");
+      };
+
+      finishMobileDrawingRef.current = (feature) => {
+        const addedIds = draw.add(feature);
+        const addedId = String((Array.isArray(addedIds) ? addedIds[0] : feature.id) ?? feature.id);
+        const addedFeature = draw.get(addedId);
+        if (!addedFeature || !isDrawShapeFeature(addedFeature)) return;
+        completeCreatedFeatures([addedFeature]);
+        draw.changeMode("simple_select", { featureIds: [addedId] });
+      };
+
+      const handleDrawCreate = (event: { features: GeoJSON.Feature[] }) => {
+        completeCreatedFeatures(event.features);
       };
 
       const handleDrawUpdate = (event: { features: GeoJSON.Feature[] }) => {
@@ -1826,6 +2033,10 @@ export function AcrexMap({
       };
 
       const handleSelectionChange = (event: { features: GeoJSON.Feature[] }) => {
+        if (mobileDrawingDraftRef.current) {
+          if (event.features.length) draw.changeMode("simple_select", { featureIds: [] });
+          return;
+        }
         const nextIds = event.features
           .filter(isDrawShapeFeature)
           .map((feature) => (feature.id ? String(feature.id) : ""))
@@ -1955,6 +2166,7 @@ export function AcrexMap({
         drawRef.current = null;
         mapRef.current = null;
         mapboxglRef.current = null;
+        finishMobileDrawingRef.current = () => undefined;
         userLocationMarkerRef.current?.remove();
         userLocationMarkerRef.current = null;
         refreshZonesRef.current = () => [];
@@ -1984,6 +2196,7 @@ export function AcrexMap({
     loadedProjectKeyRef.current = projectLoadKey;
     currentSearchRef.current = null;
     latestDrawingLocationIdRef.current = null;
+    setMobileDrawingDraftState(null);
     selectedParcelRef.current = null;
     updateParcelSources(null, null);
 
@@ -2164,6 +2377,88 @@ export function AcrexMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProjectId, resetKey, initialPolygon, initialAddress, initialSelectedDrawingId, mapReady]);
 
+  function setMobileDrawingDraftState(next: MobileDrawingDraft | null) {
+    mobileDrawingDraftRef.current = next;
+    setMobileDrawingDraft(next);
+    updateMobileDrawingPreview(next);
+  }
+
+  function startMobileDrawing(serviceType = activeServiceTypeRef.current) {
+    const draw = drawRef.current;
+    if (!draw) return;
+    draw.changeMode("simple_select", { featureIds: [] });
+    selectedZoneIdsRef.current = [];
+    setSelectedZoneIds([]);
+    onSelectedZonesChangeRef.current?.([]);
+    const nextDraft: MobileDrawingDraft = {
+      points: [],
+      geometry: serviceType.geometry === "line" ? "line" : "polygon",
+      serviceType
+    };
+    setMobileDrawingDraftState(nextDraft);
+    ensureMobileDrawingLayers();
+    activeModeRef.current = "draw";
+    setActiveMode("draw");
+    setMapPanel(null);
+  }
+
+  function addMobileDrawingPoint() {
+    const map = mapRef.current;
+    const draft = mobileDrawingDraftRef.current;
+    if (!map || !draft) return;
+    const center = map.getCenter();
+    setMobileDrawingDraftState({
+      ...draft,
+      points: [...draft.points, [center.lng, center.lat]]
+    });
+  }
+
+  function undoMobileDrawingPoint() {
+    const draft = mobileDrawingDraftRef.current;
+    if (!draft?.points.length) return;
+    setMobileDrawingDraftState({
+      ...draft,
+      points: draft.points.slice(0, -1)
+    });
+  }
+
+  function cancelMobileDrawing() {
+    setMobileDrawingDraftState(null);
+    drawRef.current?.changeMode("simple_select", { featureIds: [] });
+    activeModeRef.current = "select";
+    setActiveMode("select");
+  }
+
+  function finishMobileDrawing() {
+    const draft = mobileDrawingDraftRef.current;
+    if (!draft) return;
+    const minimumPoints = draft.geometry === "line" ? 2 : 3;
+    if (draft.points.length < minimumPoints) return;
+
+    const featureId = crypto.randomUUID();
+    const feature: DrawShapeFeature = draft.geometry === "line"
+      ? {
+          type: "Feature",
+          id: featureId,
+          geometry: {
+            type: "LineString",
+            coordinates: draft.points
+          },
+          properties: {}
+        }
+      : {
+          type: "Feature",
+          id: featureId,
+          geometry: {
+            type: "Polygon",
+            coordinates: [[...draft.points, draft.points[0]]]
+          },
+          properties: {}
+        };
+    setMobileDrawingDraftState(null);
+    finishMobileDrawingRef.current(feature);
+  }
+
   function setDrawMode(mode: DrawMode) {
     const draw = drawRef.current;
     if (!draw) return;
@@ -2179,6 +2474,10 @@ export function AcrexMap({
     updateCirclePreview(null);
 
     if (mode === "draw") {
+      if (isMobileDrawingLayout()) {
+        startMobileDrawing();
+        return;
+      }
       if (activeServiceTypeRef.current.geometry === "line") {
         draw.changeMode("draw_line_string");
       } else {
@@ -2187,6 +2486,7 @@ export function AcrexMap({
     }
 
     if (mode === "select") {
+      setMobileDrawingDraftState(null);
       draw.changeMode("simple_select");
     }
 
@@ -2631,6 +2931,10 @@ export function AcrexMap({
   }
 
   function clearTransientDrawing() {
+    if (mobileDrawingDraftRef.current) {
+      cancelMobileDrawing();
+      return;
+    }
     circleCenterRef.current = null;
     updateCirclePreview(null);
     clearLinearMeasurement();
@@ -3101,6 +3405,73 @@ export function AcrexMap({
         </div>
       ) : null}
       <div className="map-canvas" ref={mapContainerRef} aria-label="Mapbox property map" />
+      {mobileDrawingDraft ? (
+        <>
+          <div className="mobile-drawing-crosshair" aria-hidden="true">
+            <span />
+          </div>
+          <section className="mobile-drawing-control" aria-label={`Drawing ${mobileDrawingDraft.serviceType.shortLabel}`}>
+            <div className="mobile-drawing-status">
+              <i style={{ background: mobileDrawingDraft.serviceType.color }} aria-hidden="true" />
+              <span>
+                <small>Drawing {mobileDrawingDraft.geometry === "line" ? "line" : "area"}</small>
+                <strong>{mobileDrawingDraft.serviceType.shortLabel}</strong>
+              </span>
+              <dl>
+                <div>
+                  <dt>Points</dt>
+                  <dd>{mobileDrawingDraft.points.length}</dd>
+                </div>
+                {mobileDrawingDraft.geometry === "line" ? (
+                  <div>
+                    <dt>Total</dt>
+                    <dd>{formatFeet(mobileDrawingMetrics.totalFeet)} ft</dd>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <dt>Area</dt>
+                      <dd>
+                        {mobileDrawingMetrics.area
+                          ? `${formatAcres(mobileDrawingMetrics.area.acres)} ac`
+                          : "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Perimeter</dt>
+                      <dd>{formatFeet(mobileDrawingMetrics.totalFeet)} ft</dd>
+                    </div>
+                  </>
+                )}
+              </dl>
+            </div>
+            {mobileDrawingDraft.geometry === "polygon" && mobileDrawingMetrics.area ? (
+              <p>{formatSquareFeet(mobileDrawingMetrics.area.squareFeet)} sq ft</p>
+            ) : (
+              <p>Move the map until the target is over the next point.</p>
+            )}
+            <div className="mobile-drawing-actions">
+              <button className="primary" type="button" onClick={addMobileDrawingPoint}>
+                Add Point
+              </button>
+              <button type="button" onClick={undoMobileDrawingPoint} disabled={!mobileDrawingDraft.points.length}>
+                Undo Point
+              </button>
+              <button
+                className="finish"
+                type="button"
+                onClick={finishMobileDrawing}
+                disabled={mobileDrawingDraft.points.length < (mobileDrawingDraft.geometry === "line" ? 2 : 3)}
+              >
+                Finish
+              </button>
+              <button className="cancel" type="button" onClick={cancelMobileDrawing}>
+                Cancel
+              </button>
+            </div>
+          </section>
+        </>
+      ) : null}
       <div className="parcel-note">Parcel lines require a parcel data provider.</div>
     </>
   );

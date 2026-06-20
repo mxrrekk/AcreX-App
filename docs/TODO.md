@@ -2,6 +2,18 @@
 
 Last updated: June 20, 2026.
 
+## Completed — Mobile Precision Drawing
+
+- [x] Add a fixed AcreX crosshair at the mobile map center while drawing.
+- [x] Keep the map pannable and place each new vertex at the coordinate under the crosshair.
+- [x] Add compact Add Point, Undo Point, Finish, and Cancel controls above the mobile action bar.
+- [x] Require three polygon points or two line points before Finish is enabled.
+- [x] Show live point count, line total, polygon area, square footage, and perimeter.
+- [x] Render live segment-length labels on completed draft edges with collision-safe placement.
+- [x] Finish through the existing drawing save pipeline and open the drawing inspector immediately.
+- [x] Preserve desktop Mapbox click-to-place drawing behavior.
+- [x] Verify zero mobile page scroll and complete control fit at iPhone SE and iPhone 15 Pro dimensions.
+
 ## Completed — Focused Post-Quote QA Audit
 
 - [x] Remove the duplicate mobile Quote tools button and keep one clear extras entry point.

@@ -4,9 +4,9 @@ Last reviewed: June 20, 2026.
 
 ## Current Status
 
-The cross-app data synchronization and cascade hardening pass is complete. Project drawings now reconcile linked draft quotes and invoices through one rollback-safe path, same-tab updates preserve temporary Undo state, and cross-tab changes still refresh dependent routes.
+The mobile precision-drawing pass is complete. Phone and portrait-tablet users now position a fixed center crosshair by moving the map, explicitly add or undo vertices, and review live area, perimeter, line totals, and segment measurements before finishing.
 
-Contractor-edited quote fields remain protected. Untouched linked lines continue to receive corrected source quantities, units, services, rates, and default notes, while deleted sources remain visibly marked instead of silently disappearing.
+Finished mobile geometry continues through the existing drawing persistence, project, quote, and inspector workflow. Desktop drawing remains on the original Mapbox click-to-place path.
 
 ## Verification
 
@@ -134,6 +134,15 @@ Contractor-edited quote fields remain protected. Untouched linked lines continue
 - Draft financial propagation: source edits update the linked draft quote, quote items, and draft invoice total as one compensated operation.
 - Failure rollback regression: an injected invoice-update failure restored the original quote, quote items, and invoice total.
 - Same-tab/cross-tab invalidation regression: executable assertions confirm local events and storage events use the correct delivery mode.
+- Mobile crosshair regression: the target remained centered at 393×852 and 320×568 while the map moved underneath it.
+- Mobile point-control regression: Add Point, Undo Point, Finish, and Cancel updated the draft correctly; Finish remained disabled below the geometry minimum.
+- Mobile measurement regression: Grass and Brush polygons displayed live acreage, square footage, and perimeter; Fence displayed live total linear footage.
+- Mobile segment regression: completed draft edges rendered collision-safe length labels on the map.
+- Mobile finish regression: finishing a Brush polygon created the correctly typed drawing and opened the existing inspector with Save to Project available.
+- Mobile cancel regression: canceling a Fence or Driveway draft removed the crosshair and controls without creating a drawing.
+- Compact-phone regression: at 320×568 all four drawing buttons fit inside the viewport, retained 46px tap height, and produced no horizontal or vertical page scroll.
+- Desktop drawing regression: a Brush polygon completed through normal click-to-place drawing at 1440×900 with no mobile controls rendered.
+- Browser runtime regression: no console warnings or errors occurred during mobile or desktop drawing tests.
 
 ## Remaining Release Work
 
