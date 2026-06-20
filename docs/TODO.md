@@ -133,3 +133,17 @@ Last updated: June 20, 2026.
 ## Next Priority
 
 - [ ] Complete V1 release readiness: production Capacitor URL, icons, privacy declarations, App Store metadata, archive validation, and TestFlight upload.
+
+## Completed — First-Time Contractor Acceptance Test
+
+- [x] Walk the public landing, signup, and login experience at phone and desktop sizes.
+- [x] Exercise property search, drawing creation, drawing editing, visibility, deletion, and project saving.
+- [x] Verify Projects, Drawings, Project Detail, Quotes, Settings, and Account navigation on mobile and desktop.
+- [x] Clarify project draft/saved status and prevent empty projects from being saved.
+- [x] Remove the redundant unavailable drawing-inspector action before a project exists.
+- [x] Clarify quote pricing-default status without overwriting existing edited rates.
+- [x] Keep AI results review compact on mobile while preserving explicit Apply controls.
+- [x] Improve singular/plural measurement and quote item labels.
+- [x] Rename ambiguous project and quote navigation labels.
+- [x] Verify quote editing, totals, preview/PDF workflow, Settings persistence, and AI suggestion application.
+- [x] Run lint, TypeScript validation, and a production build.

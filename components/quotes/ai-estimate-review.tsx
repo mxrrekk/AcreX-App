@@ -235,7 +235,7 @@ export function AiEstimateReview({
       ) : null}
 
       {suggestion.suggestedMaterials.length > 0 ? (
-        <details className="quote-ai-review-section" open>
+        <details className="quote-ai-review-section">
           <summary className="quote-ai-review-section-heading">
             <strong>Suggested Materials</strong>
             <span>{suggestion.suggestedMaterials.length}</span>
@@ -328,7 +328,7 @@ export function AiEstimateReview({
       ) : null}
 
       {suggestion.suggestedLaborEquipment.length > 0 ? (
-        <details className="quote-ai-review-section" open>
+        <details className="quote-ai-review-section">
           <summary className="quote-ai-review-section-heading">
             <strong>Labor / Equipment / Mobilization</strong>
             <span>{suggestion.suggestedLaborEquipment.length}</span>
@@ -418,7 +418,7 @@ export function AiEstimateReview({
       ) : null}
 
       {suggestion.suggestedScopeOfWork || exclusions || suggestion.suggestedTerms ? (
-        <details className="quote-ai-review-section" open>
+        <details className="quote-ai-review-section">
           <summary className="quote-ai-review-section-heading">
             <strong>Scope / Exclusions / Terms</strong>
           </summary>
@@ -473,7 +473,7 @@ export function AiEstimateReview({
       ) : null}
 
       {suggestion.pricingAssumptions.length > 0 || suggestion.warnings.length > 0 ? (
-        <details className="quote-ai-review-section" open>
+        <details className="quote-ai-review-section">
           <summary className="quote-ai-review-section-heading">
             <strong>Assumptions / Warnings</strong>
             <span>{suggestion.pricingAssumptions.length + suggestion.warnings.length}</span>
@@ -496,7 +496,7 @@ export function AiEstimateReview({
       ) : null}
 
       {suggestion.missingQuestions.length > 0 ? (
-        <details className="quote-ai-review-section quote-ai-questions" open>
+        <details className="quote-ai-review-section quote-ai-questions">
           <summary className="quote-ai-review-section-heading">
             <strong>Missing Questions</strong>
             <span>{suggestion.missingQuestions.length}</span>

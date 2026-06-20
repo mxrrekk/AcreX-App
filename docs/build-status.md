@@ -4,7 +4,7 @@ Last reviewed: June 20, 2026.
 
 ## Current Status
 
-The focused post-Quote QA audit is complete. AcreX now prevents stale deleted-project restoration and active-project address overwrite, has one clear mobile Quote tools entry point, removes redundant inspector actions, and makes Save/Preview prerequisites explicit.
+The first-time contractor acceptance pass is complete. AcreX now presents clearer project save state, prevents empty project saves, keeps the drawing inspector focused, explains quote pricing defaults accurately, and makes the AI review significantly more compact on mobile.
 
 Vercel deployment compatibility was also corrected: cloud builds now emit the standard `.next` directory, while local production builds continue using `.next-build` to avoid colliding with the running iOS development server.
 
@@ -80,6 +80,13 @@ Vercel deployment compatibility was also corrected: cloud builds now emit the st
 - Deleted-project regression: a stale local draft referencing a missing project no longer restored its old title, address, or map context
 - Drawing inspector regression: one Delete action remains after selecting a drawing; list-level duplicate deletion was removed
 - Browser runtime errors and warnings during the focused audit: none
+- First-time mobile workflow: landing, signup/login, map search, drawing, inspector editing, project access, quote editing, preview/export, Settings persistence, and AI review exercised at 375×667 with no page-level horizontal overflow
+- First-time desktop workflow: Map, Projects, Project Detail, Drawings, Quotes, and Settings exercised at 1440×900 with no page-level horizontal overflow
+- Project save clarity: drafts now say `Draft saved`, persisted projects say `Project saved`, and an empty map shows `Draw work first`
+- Inspector clarity: unsaved drawings expose one Save to Project action instead of a redundant disabled secondary action
+- Quote pricing clarity: Settings pricing status applies to new lines and explicitly states that existing edited rates remain unchanged
+- AI review density: Project Vision and Suggested Line Items remain open while secondary suggestion groups start collapsed
+- Quote suggestion application: applying an AI item removes it from pending suggestions and creates one editable quote item
 
 ## Remaining Release Work
 

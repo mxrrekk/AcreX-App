@@ -86,7 +86,7 @@ export function DrawingsPage({ userEmail, projects, errorMessage }: DrawingsPage
                 <strong>{formatDrawingQuantity(drawing)}</strong>
                 <div>
                   <Link href={`/dashboard?project=${drawing.projectId}&drawing=${encodeURIComponent(drawing.id)}`}>Open Inspector</Link>
-                  <Link href={`/projects/${drawing.projectId}`}>Project Detail</Link>
+                  <Link href={`/projects/${drawing.projectId}`}>Open Project</Link>
                   {drawing.billable ? (
                     <Link href={`/quotes?project=${drawing.projectId}&measurement=${encodeURIComponent(drawing.id)}`}>Add to Quote</Link>
                   ) : (

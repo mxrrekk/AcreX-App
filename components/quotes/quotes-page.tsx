@@ -1596,7 +1596,7 @@ export function QuotesPage({
 
         <section className="quote-mobile-toolbar" aria-label="Mobile quote workspace">
           <div>
-            <span>All Quotes</span>
+            <span>Quote Workspace</span>
             <strong>{selectedProject?.project_name || selectedProject?.address || "New quote"}</strong>
             <small>{quoteNumber} · {status}</small>
           </div>
@@ -1817,19 +1817,23 @@ export function QuotesPage({
                 </span>
                 <span className={availableMeasurements.length > 0 ? "ready" : ""}>
                   <small>Measurements detected</small>
-                  <strong>{availableMeasurements.length} measurements</strong>
+                  <strong>{availableMeasurements.length} {availableMeasurements.length === 1 ? "measurement" : "measurements"}</strong>
                   {estimateContext.measurements.totals.validMeasurementCount > 0
-                    ? `${estimateContext.measurements.totals.validMeasurementCount} usable quantities`
+                    ? `${estimateContext.measurements.totals.validMeasurementCount} usable ${estimateContext.measurements.totals.validMeasurementCount === 1 ? "quantity" : "quantities"}`
                     : "Draw work areas on the map"}
                 </span>
                 <span className={hasPricingDefaults ? "ready" : ""}>
                   <small>Pricing defaults</small>
-                  <strong>{hasPricingDefaults ? "Pricing defaults found" : "No pricing default set"}</strong>
-                  {hasPricingDefaults ? "Settings rates take priority" : "Set one or enter rates manually"}
+                  <strong>{hasPricingDefaults ? "Settings rates found" : "No Settings rate"}</strong>
+                  {hasPricingDefaults ? "Settings rates apply to new lines" : "Existing quote rates stay unchanged"}
                 </span>
                 <span className={estimateWarnings.length === 0 ? "ready" : ""}>
                   <small>Missing information</small>
-                  <strong>{estimateWarnings.length === 0 ? "Core context complete" : `${estimateWarnings.length} items to review`}</strong>
+                  <strong>
+                    {estimateWarnings.length === 0
+                      ? "Core context complete"
+                      : `${estimateWarnings.length} ${estimateWarnings.length === 1 ? "item" : "items"} to review`}
+                  </strong>
                   {estimateWarnings[0] || "Ready for review"}
                 </span>
                 <span className={estimateConfidence >= 70 ? "ready" : ""}>
@@ -1848,7 +1852,7 @@ export function QuotesPage({
                     onClick={() => setAreMobileQuestionsOpen((current) => !current)}
                   >
                     <span>
-                      <strong>Review job questions</strong>
+                      <strong>{unansweredRelevantQuestions.length ? "Review job questions" : "Job details"}</strong>
                       <small>{completedConditionCount}/{relevantQuestionCount} confirmed</small>
                     </span>
                     <i aria-hidden="true">{areMobileQuestionsOpen ? "−" : "+"}</i>
@@ -2070,8 +2074,8 @@ export function QuotesPage({
                             <small className="measurement-change-warning">
                               Service changed from {measurement.previousQuoteCategory || "the prior category"}. Review the quote line.
                             </small>
-                          ) : !hasPricingDefault && measurement.billable ? (
-                            <small className="measurement-pricing-warning">No pricing default configured</small>
+                          ) : !isAdded && !hasPricingDefault && measurement.billable ? (
+                            <small className="measurement-pricing-warning">No Settings rate configured</small>
                           ) : null}
                         </span>
                         {serviceChanged ? (

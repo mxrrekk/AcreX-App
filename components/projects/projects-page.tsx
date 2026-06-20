@@ -256,7 +256,7 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, err
                 <span>{getZoneCount(project)}</span>
                 <span>{formatCurrency(quoteSummaryByProject.get(project.id) ?? 0)}</span>
                 <span>{formatDate(project.updated_at)}</span>
-                <Link href={`/projects/${project.id}`}>Open Detail</Link>
+                <Link href={`/projects/${project.id}`}>Open Project</Link>
                 <button
                   className={deletingProjectId === project.id ? "is-processing" : ""}
                   type="button"

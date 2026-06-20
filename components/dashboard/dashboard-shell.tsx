@@ -1669,13 +1669,29 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                   <>
                     <div className="mobile-sheet-stats">
                       <span>Address<strong>{projectForm.address || address}</strong></span>
-                      <span>Save status<strong>{isSavingProject ? "Saving…" : draftSavedTime ? `Saved ${draftSavedTime}` : "Unsaved"}</strong></span>
+                      <span>
+                        Save status
+                        <strong>
+                          {isSavingProject
+                            ? "Saving…"
+                            : activeProjectId
+                              ? "Project saved"
+                              : draftSavedTime
+                                ? `Draft saved ${draftSavedTime}`
+                                : "Unsaved"}
+                        </strong>
+                      </span>
                       <span>Drawings<strong>{workZones.length}</strong></span>
                       <span>Quote total<strong>{formatCurrency(activeProjectQuoteTotal)}</strong></span>
                     </div>
                     <div className="mobile-sheet-actions">
-                      <button type="button" onClick={() => void handleSaveProject()} disabled={isSavingProject}>
-                        {isSavingProject ? "Saving…" : "Save to Project"}
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveProject()}
+                        disabled={isSavingProject || !workZones.length}
+                        title={!workZones.length ? "Draw at least one work area before saving a project." : undefined}
+                      >
+                        {isSavingProject ? "Saving…" : workZones.length ? "Save to Project" : "Draw work first"}
                       </button>
                       {activeProjectId ? <Link href={`/projects/${activeProjectId}`}>Open Project</Link> : <button type="button" className="secondary" disabled>Open after save</button>}
                       <button type="button" className="secondary" onClick={() => {
@@ -1827,11 +1843,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                       )}
                       {activeProjectId ? (
                         <Link className="secondary" href={`/projects/${activeProjectId}`}>Open Project</Link>
-                      ) : (
-                        <button className="secondary" type="button" disabled title="Save this drawing to a project first.">
-                          Save first
-                        </button>
-                      )}
+                      ) : null}
                     </div>
                     <details className="mobile-shape-details">
                       <summary>Edit drawing details</summary>
@@ -2295,9 +2307,10 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                   className={`save-project-button${isSavingProject ? " is-processing" : ""}`}
                   type="button"
                   onClick={handleSaveProject}
-                  disabled={isSavingProject}
+                  disabled={isSavingProject || !workZones.length}
+                  title={!workZones.length ? "Draw at least one work area before saving a project." : undefined}
                 >
-                  {isSavingProject ? "Saving..." : "Save to Project"}
+                  {isSavingProject ? "Saving..." : workZones.length ? "Save to Project" : "Draw work first"}
                 </button>
                 {projectMessage ? <p className="project-message">{projectMessage}</p> : null}
               </div>
