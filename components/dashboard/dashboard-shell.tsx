@@ -107,7 +107,7 @@ const emptyProjectForm: ProjectFormState = {
 
 const projectStatuses: ProjectStatus[] = ["Draft", "Estimating", "Quoted", "Won", "Lost", "Completed", "Archived"];
 type DashboardPanelKey = "search" | "layers" | "measurements" | "quote" | "project";
-type MobileSheetKey = "draw" | "project" | "layers" | "more" | "shape";
+type MobileSheetKey = "draw" | "project" | "quote" | "layers" | "more" | "shape";
 type MobileSheetSize = "collapsed" | "half" | "full";
 type MobileMapCommand = {
   id: number;
@@ -376,6 +376,28 @@ function normalizeQuote(row: unknown): QuoteRecord {
   return row as QuoteRecord;
 }
 
+function getSavedQuoteConfidence(quotes: QuoteRecord[], projectId: string | null) {
+  if (!projectId) return null;
+  const projectQuotes = quotes.filter((quote) => quote.project_id === projectId);
+  for (const quote of projectQuotes) {
+    if (!quote.notes) continue;
+    try {
+      const parsed = JSON.parse(quote.notes) as {
+        aiReview?: {
+          confidenceScore?: number | null;
+        };
+      };
+      const score = parsed.aiReview?.confidenceScore;
+      if (typeof score === "number" && Number.isFinite(score)) {
+        return Math.min(100, Math.max(0, Math.round(score)));
+      }
+    } catch {
+      // Legacy plain-text notes do not contain structured AI context.
+    }
+  }
+  return null;
+}
+
 function normalizeInvoice(row: unknown): InvoiceRecord {
   return row as InvoiceRecord;
 }
@@ -579,6 +601,13 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   const activeProjectQuoteTotal = quotes
     .filter((quote) => quote.project_id === activeProjectId)
     .reduce((total, quote) => total + Number(quote.total ?? 0), 0);
+  const availableQuoteZones = workZones.filter(
+    (zone) =>
+      !["Property", "Excluded", "Building"].includes(zone.type) &&
+      !quotedZoneNames.includes(zone.name)
+  );
+  const savedQuoteConfidence = getSavedQuoteConfidence(quotes, activeProjectId);
+  const firstAvailableQuoteZone = availableQuoteZones[0] ?? null;
   const selectedMobileZone = selectedZones.length === 1 ? selectedZones[0] : null;
   const dashboardMetrics = useMemo(() => {
     const now = new Date();
@@ -1510,10 +1539,14 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
               <i aria-hidden="true" />
               <span>Project</span>
             </button>
-            <Link href="/quotes" aria-label="Open all quotes">
+            <button
+              type="button"
+              className={mobileSheet === "quote" ? "active" : ""}
+              onClick={() => openMobileSheet("quote")}
+            >
               <i aria-hidden="true" />
-              <span>Quotes</span>
-            </Link>
+              <span>Quote</span>
+            </button>
             <button
               type="button"
               className={mobileSheet === "more" ? "active" : ""}
@@ -1554,6 +1587,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                   <span>
                     {mobileSheet === "draw" ? "Draw a service" :
                       mobileSheet === "project" ? "Current project" :
+                      mobileSheet === "quote" ? "Quote workspace" :
                       mobileSheet === "layers" ? "Map view" :
                       mobileSheet === "shape" ? "Drawing inspector" : "More"}
                   </span>
@@ -1564,6 +1598,8 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                         ? projectForm.projectName
                         : mobileSheet === "draw"
                             ? "Choose what to measure"
+                            : mobileSheet === "quote"
+                              ? activeProject?.project_name || projectForm.projectName || "Current estimate"
                             : mobileSheet === "layers"
                               ? mapStyles[preferredMapStyle].label
                             : "Workspace shortcuts"}
@@ -1614,14 +1650,51 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                       <span>Quote total<strong>{formatCurrency(activeProjectQuoteTotal)}</strong></span>
                     </div>
                     <div className="mobile-sheet-actions">
-                      {activeProjectId ? <Link href={`/projects/${activeProjectId}`}>Open Project</Link> : <button type="button" disabled>Save project first</button>}
                       <button type="button" onClick={() => void handleSaveProject()} disabled={isSavingProject}>
-                        {isSavingProject ? "Saving…" : "Save Drawing"}
+                        {isSavingProject ? "Saving…" : "Save to Project"}
                       </button>
+                      {activeProjectId ? <Link href={`/projects/${activeProjectId}`}>Open Project</Link> : <button type="button" className="secondary" disabled>Open after save</button>}
                       <button type="button" className="secondary" onClick={() => {
                         handleNewProject();
                         setMobileSheet(null);
                       }}>New Project</button>
+                    </div>
+                  </>
+                ) : null}
+
+                {mobileSheet === "quote" ? (
+                  <>
+                    <div className="mobile-sheet-stats mobile-quote-sheet-stats">
+                      <span>Available measurements<strong>{availableQuoteZones.length}</strong></span>
+                      <span>Current quote total<strong>{formatCurrency(activeProjectQuoteTotal)}</strong></span>
+                      <span>
+                        AI confidence
+                        <strong>{savedQuoteConfidence === null ? "Build estimate to score" : `${savedQuoteConfidence}%`}</strong>
+                      </span>
+                    </div>
+                    <p className="mobile-quote-sheet-note">
+                      Add measured work or open the full quote workspace. Estimate editing stays off the map.
+                    </p>
+                    <div className="mobile-sheet-actions mobile-quote-sheet-actions">
+                      {activeProjectId && firstAvailableQuoteZone ? (
+                        <Link href={`/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(firstAvailableQuoteZone.id)}`}>
+                          Add Measurements
+                        </Link>
+                      ) : (
+                        <button type="button" disabled>
+                          {activeProjectId ? "No measurements available" : "Save project first"}
+                        </button>
+                      )}
+                      {activeProjectId ? (
+                        <Link className="secondary" href={`/quotes?project=${activeProjectId}`}>
+                          Build Estimate
+                        </Link>
+                      ) : (
+                        <button type="button" className="secondary" disabled>Build Estimate</button>
+                      )}
+                      <Link className="secondary mobile-quote-open-action" href={activeProjectId ? `/quotes?project=${activeProjectId}` : "/quotes"}>
+                        Open Quote
+                      </Link>
                     </div>
                   </>
                 ) : null}
@@ -1647,6 +1720,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                       </div>
                     </section>
                     <div className="mobile-more-links">
+                      <Link href="/projects">Projects</Link>
                       <Link href="/drawings">Drawings</Link>
                       <Link href="/clients">Clients</Link>
                       <Link href="/invoices">Invoices</Link>

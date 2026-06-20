@@ -26,7 +26,10 @@ Vercel deployment compatibility was also corrected: cloud builds now emit the st
 - Mobile Map View regression: the floating view control opened a real sheet; Satellite, Satellite Streets, Outdoors, Light, and Dark switched in place; 3D and Reset View returned expected state messages
 - Mobile Locate regression: denied browser location produced explicit device-settings guidance instead of failing silently; successful coordinates now create a persistent green map marker
 - iOS location readiness: `NSLocationWhenInUseUsageDescription` is present, the plist validates, and the iPhone 17 simulator build passes
-- Map Quotes action: routes directly to `/quotes` instead of opening a limited snapshot sheet
+- Map Quote action: opens the same reusable bottom sheet used by Draw, Project, More, Layers, and the drawing inspector
+- Map Quote sheet: displays available measurements, current saved quote total, saved AI confidence when present, Add Measurements, Build Estimate, and Open Quote
+- More sheet: includes Projects, Drawings, Clients, Invoices, Exports, Settings, and Account
+- Project sheet: presents Save to Project, Open Project, and New Project in workflow order
 - Drawing inspector: opens half-height on selection with visible measurement, project, location, quote, drawing, and expandable edit/delete controls
 - Drawing inspector interaction regression: sheet controls no longer propagate into the map; rename, hide/show, delete, and delete-timeout behavior were exercised successfully
 - Drawing deletion regression: Undo is available only during the temporary delete window and disappears after timeout
@@ -51,6 +54,7 @@ Vercel deployment compatibility was also corrected: cloud builds now emit the st
 - Landing header: top CTA removed with the logo and desktop information navigation retained
 - Landing width regression: document and body widths exactly matched 320px, 375px, 393px, 768px, and 1440px viewports
 - Responsive application regression: no horizontal overflow at 320×568, 393×852, 430×932, 768×1024, 820×1180, 1024×1366, or 1366×1024 across Projects, Project Detail, Drawings, Quotes, Clients, Invoices, Settings, and Map
+- Mobile Map viewport regression: document dimensions exactly matched 320×568 and 393×852; search, account control, bottom bar, and sheets remained overlays without page scroll
 - Accessibility label audit: no visible unnamed buttons, links, images, or form controls remain on tested routes
 
 ## Remaining Release Work

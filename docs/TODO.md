@@ -49,8 +49,9 @@ Last updated: June 19, 2026.
 
 ## Completed — Mobile Quote and Map Workflow Refinement
 
-- [x] Route the Map action bar Quotes control directly to the full Quotes workspace.
-- [x] Remove the duplicate Map quote snapshot sheet.
+- [x] Integrate the Map action bar Quote control into the shared mobile bottom-sheet shell.
+- [x] Keep the Quote sheet compact with measurement count, quote total, saved AI confidence, and links to the full editor.
+- [x] Keep full quote editing on `/quotes` instead of duplicating the editor over the map.
 - [x] Open the selected drawing inspector at a usable half-height on phones and portrait tablets.
 - [x] Keep essential drawing facts and quote actions visible while placing rename, service, color, visibility, zoom, and delete controls under one detail disclosure.
 - [x] Replace the location dot with a precise dot-and-crosshair marker.
@@ -77,6 +78,7 @@ Last updated: June 19, 2026.
 - [x] Use bottom navigation for Map, Projects, Quotes, Clients, and More on phones and portrait tablets.
 - [x] Route Drawings, Invoices, Exports, Settings, and Account through More.
 - [x] Keep the Map full-screen with its existing Draw, Project, Quote, and More sheet workflow.
+- [x] Keep Draw, Project, Quote, More, Layers, and selected drawings inside one mutually exclusive bottom-sheet system.
 - [x] Show all eight drawing services in large mobile sheet controls.
 - [x] Use a compact selected-drawing sheet with quote/project actions and expanded location metadata.
 - [x] Render Projects and project detail as cards and segmented tabs.
@@ -86,6 +88,7 @@ Last updated: June 19, 2026.
 - [x] Render Settings as grouped, one-column mobile preferences.
 - [x] Use a compact left rail on tablet landscape.
 - [x] Eliminate page-level horizontal overflow across required phone and tablet sizes.
+- [x] Verify the Map document remains exactly one visible viewport at 320×568 and 393×852 with all four bottom actions visible.
 
 ## Next Priority
 
