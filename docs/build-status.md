@@ -1,10 +1,10 @@
 # AcreX Build Status
 
-Last reviewed: June 19, 2026.
+Last reviewed: June 20, 2026.
 
 ## Current Status
 
-The Quote and AI Estimator workflow rework is complete. The workspace now presents clear project context, strictly service-specific questions, Settings-first pricing, explicit AI review decisions, stronger confidence signals, and editable quote destinations without silently replacing manual work.
+The focused post-Quote QA audit is complete. AcreX now prevents stale deleted-project restoration and active-project address overwrite, has one clear mobile Quote tools entry point, removes redundant inspector actions, and makes Save/Preview prerequisites explicit.
 
 Vercel deployment compatibility was also corrected: cloud builds now emit the standard `.next` directory, while local production builds continue using `.next-build` to avoid colliding with the running iOS development server.
 
@@ -70,6 +70,16 @@ Vercel deployment compatibility was also corrected: cloud builds now emit the st
 - Quote responsive regression: desktop and 375×667 phone layouts rendered with zero horizontal overflow
 - Settings pricing: service units are labeled and land clearing, crew size, overhead, and target profit are persisted with the existing pricing defaults
 - AI review: pending service, material, cost, scope, exclusion, and terms suggestions expose Apply, Edit, and Ignore; applying still removes the pending suggestion
+- Mobile Map audit: 375×667 document and viewport stayed exact with `scrollX=0`, `scrollY=0`, body overflow locked, and only one bottom sheet open
+- Mobile clipping audit: no visible Map or Quote elements extended beyond the 375px viewport
+- Responsive Quote audit: no horizontal overflow at 375×667, 834×1112, or 1440×900
+- Quote actions: one visible mobile tools button; Preview/Export remains disabled until content exists; Save remains disabled until a project is selected
+- Empty Quote state: no dead “No questions needed” toggle is shown
+- Drawing sync: a saved mowing drawing produced one editable quote line and retained one Available Measurement reference without duplicate editor sections
+- Settings integration regression: a saved $146/acre mowing default populated the new line exactly
+- Deleted-project regression: a stale local draft referencing a missing project no longer restored its old title, address, or map context
+- Drawing inspector regression: one Delete action remains after selecting a drawing; list-level duplicate deletion was removed
+- Browser runtime errors and warnings during the focused audit: none
 
 ## Remaining Release Work
 

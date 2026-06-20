@@ -548,8 +548,8 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   const workflowState = useMemo(() => {
     if (address === "No address selected") return { step: "Search", message: "Start by searching a property address." };
     if (!workZones.length) return { step: "Select Service", message: "Next: choose what you want to measure, then draw on the map." };
-    if (!quotes.some((quote) => quote.project_id === activeProjectId)) return { step: "Quote", message: "Measurement saved. Add measurements to your quote." };
     if (!activeProjectId) return { step: "Save", message: "Save this property to keep measurements, notes, and quotes together." };
+    if (!quotes.some((quote) => quote.project_id === activeProjectId)) return { step: "Quote", message: "Measurement saved. Add measurements to your quote." };
     return { step: "Export", message: "Project is ready to share or export when needed." };
   }, [activeProjectId, address, quotes, workZones.length]);
   const effectivePanel = activePanel;
@@ -969,6 +969,28 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   }, [isLoadingProjects, projects, requestedProjectId]);
 
   useEffect(() => {
+    if (isLoadingProjects || !activeProjectId) return;
+    if (projects.some((project) => project.id === activeProjectId)) return;
+
+    setActiveProjectId(null);
+    setAddress("No address selected");
+    setAddressDetails(null);
+    setProjectForm(emptyProjectForm);
+    setTitleManuallyEdited(false);
+    titleManuallyEditedRef.current = false;
+    setMeasurements(null);
+    setPolygon(null);
+    setWorkZones([]);
+    setSelectedZones([]);
+    setDraftMapData(null);
+    setActivePanel(null);
+    setMapResetKey((current) => current + 1);
+    window.localStorage.removeItem(getDashboardDraftKey(userEmail));
+    lastDraftJsonRef.current = "";
+    setProjectMessage("The previously selected project no longer exists. A new workspace is ready.");
+  }, [activeProjectId, isLoadingProjects, projects, userEmail]);
+
+  useEffect(() => {
     if (!requestedPanel) {
       setActivePanel(null);
       return;
@@ -1001,16 +1023,16 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
     setAddress(nextAddress);
     setProjectForm((current) => ({
       ...current,
-      address: nextAddress || current.address,
+      address: activeProjectId ? current.address : nextAddress || current.address,
       projectName:
-        !titleManuallyEditedRef.current && nextAddress
+        !activeProjectId && !titleManuallyEditedRef.current && nextAddress
           ? getAutoProjectTitle(nextAddress, current.customerName)
           : current.projectName
     }));
     if (nextAddress) {
       addActivity("Address searched", nextAddress, "Address");
     }
-  }, [addActivity]);
+  }, [activeProjectId, addActivity]);
 
   const sendMobileMapCommand = useCallback((action: MobileMapCommand["action"], value?: string) => {
     setMobileMapCommand({ id: Date.now(), action, value });
@@ -1793,12 +1815,18 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                     </div>
                     <div className="mobile-sheet-actions mobile-shape-primary-actions">
                       {activeProjectId ? (
-                        <Link href={`/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(selectedMobileZone.id)}`}>Add to Quote</Link>
+                        <Link href={quotedZoneNames.includes(selectedMobileZone.name)
+                          ? `/quotes?project=${activeProjectId}`
+                          : `/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(selectedMobileZone.id)}`}>
+                          {quotedZoneNames.includes(selectedMobileZone.name) ? "Open Quote" : "Add to Quote"}
+                        </Link>
                       ) : (
-                        <button type="button" onClick={() => void handleSaveProject()}>Save to Project</button>
+                        <button type="button" onClick={() => void handleSaveProject()} disabled={isSavingProject}>
+                          {isSavingProject ? "Saving…" : "Save to Project"}
+                        </button>
                       )}
                       {activeProjectId ? (
-                        <Link className="secondary" href="/drawings">Open Drawing</Link>
+                        <Link className="secondary" href={`/projects/${activeProjectId}`}>Open Project</Link>
                       ) : (
                         <button className="secondary" type="button" disabled title="Save this drawing to a project first.">
                           Save first

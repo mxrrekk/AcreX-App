@@ -781,6 +781,11 @@ export function QuotesPage({
   const taxAmount = taxableSubtotal * (parseAmount(taxPercent) / 100);
   const grandTotal = taxableSubtotal + taxAmount;
   const depositRequired = grandTotal * (parseAmount(depositPercent) / 100);
+  const hasQuoteContent =
+    lineItems.length > 0 ||
+    materials.length > 0 ||
+    costLines.length > 0 ||
+    Boolean(notes.scopeOfWork.trim());
   const customerEmail = selectedClient?.email?.trim() ?? "";
   const quoteEmailHref = customerEmail
     ? `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(`Quote ${quoteNumber} from AcreX`)}&body=${encodeURIComponent(
@@ -1409,6 +1414,17 @@ export function QuotesPage({
   }
 
   async function saveQuote() {
+    if (!selectedProject) {
+      setSaveState("error");
+      setSaveMessage("Select a project before saving this quote.");
+      return;
+    }
+    if (!quoteNumber.trim()) {
+      setSaveState("error");
+      setSaveMessage("Add a quote number before saving.");
+      return;
+    }
+
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       setSaveState("error");
@@ -1613,7 +1629,14 @@ export function QuotesPage({
               <button type="button" onClick={() => { setActiveTab("labor"); setMobileQuotePanel(null); }}>Labor & equipment <small>{costLines.length} added</small></button>
               <button type="button" onClick={() => { setActiveTab("scope"); setMobileQuotePanel(null); }}>Scope & terms <small>Notes and exclusions</small></button>
               <button type="button" onClick={() => { setActiveTab("review"); setMobileQuotePanel(null); }}>Review quote <small>Final checks</small></button>
-              <button type="button" onClick={() => { setIsPreviewOpen(true); setMobileQuotePanel(null); }}>Preview & export <small>Customer-ready PDF view</small></button>
+              <button
+                type="button"
+                disabled={!hasQuoteContent}
+                onClick={() => { setIsPreviewOpen(true); setMobileQuotePanel(null); }}
+              >
+                Preview & export
+                <small>{hasQuoteContent ? "Customer-ready PDF view" : "Add quote content first"}</small>
+              </button>
               <button type="button" onClick={() => setMobileQuotePanel("pricing")}>Pricing summary <small>{formatCurrency(grandTotal)}</small></button>
             </div>
           </section>
@@ -1738,9 +1761,6 @@ export function QuotesPage({
               >
                 Line Items {lineItems.length > 0 ? <span>{lineItems.length}</span> : null}
               </button>
-              <button type="button" onClick={() => setMobileQuotePanel("menu")} aria-label="Open quote tools">
-                <i aria-hidden="true">•••</i>
-              </button>
             </nav>
 
             {!["estimate", "line-items"].includes(activeTab) ? (
@@ -1820,22 +1840,20 @@ export function QuotesPage({
               </div>
 
               <div className="quote-ai-conditions">
-                <button
-                  type="button"
-                  className="quote-mobile-question-toggle"
-                  aria-expanded={areMobileQuestionsOpen}
-                  onClick={() => setAreMobileQuestionsOpen((current) => !current)}
-                >
-                  <span>
-                    <strong>Review job questions</strong>
-                    <small>
-                      {relevantQuestionCount
-                        ? `${completedConditionCount}/${relevantQuestionCount} confirmed`
-                        : "No questions needed"}
-                    </small>
-                  </span>
-                  <i aria-hidden="true">{areMobileQuestionsOpen ? "−" : "+"}</i>
-                </button>
+                {relevantQuestionCount > 0 ? (
+                  <button
+                    type="button"
+                    className="quote-mobile-question-toggle"
+                    aria-expanded={areMobileQuestionsOpen}
+                    onClick={() => setAreMobileQuestionsOpen((current) => !current)}
+                  >
+                    <span>
+                      <strong>Review job questions</strong>
+                      <small>{completedConditionCount}/{relevantQuestionCount} confirmed</small>
+                    </span>
+                    <i aria-hidden="true">{areMobileQuestionsOpen ? "−" : "+"}</i>
+                  </button>
+                ) : null}
                 <div className={`quote-question-workspace${areMobileQuestionsOpen ? " is-open" : ""}`}>
                 <div className="quote-ai-section-heading">
                   <div>
@@ -2474,12 +2492,23 @@ export function QuotesPage({
             </div>
 
             <div className="quote-summary-actions">
-              <button type="button" onClick={saveQuote} disabled={saveState === "saving"}>
+              <button
+                type="button"
+                onClick={saveQuote}
+                disabled={saveState === "saving" || !selectedProject}
+                title={!selectedProject ? "Select a project before saving." : undefined}
+              >
                 {saveState === "saving" ? "Saving..." : "Save Quote"}
               </button>
-              <button type="button" className="secondary" onClick={() => setIsPreviewOpen(true)}>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setIsPreviewOpen(true)}
+                disabled={!hasQuoteContent}
+                title={!hasQuoteContent ? "Add quote content before previewing or exporting." : undefined}
+              >
                 Preview / Export
-                <small>Customer-ready view</small>
+                <small>{hasQuoteContent ? "Customer-ready view" : "Add quote content first"}</small>
               </button>
               <div className="quote-summary-action-grid">
                 {quoteEmailHref ? (
@@ -2509,7 +2538,12 @@ export function QuotesPage({
             <strong>{formatCurrency(grandTotal)}</strong>
           </button>
           <button type="button" onClick={() => setActiveTab("review")}>Review</button>
-          <button type="button" onClick={saveQuote} disabled={saveState === "saving"}>
+          <button
+            type="button"
+            onClick={saveQuote}
+            disabled={saveState === "saving" || !selectedProject}
+            title={!selectedProject ? "Select a project before saving." : undefined}
+          >
             {saveState === "saving" ? "Saving…" : "Save"}
           </button>
         </aside>

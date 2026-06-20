@@ -1,6 +1,18 @@
 # AcreX Prioritized TODO
 
-Last updated: June 19, 2026.
+Last updated: June 20, 2026.
+
+## Completed — Focused Post-Quote QA Audit
+
+- [x] Remove the duplicate mobile Quote tools button and keep one clear extras entry point.
+- [x] Remove the mobile “Review job questions” action when there are no relevant questions.
+- [x] Prevent stale deleted-project drafts from restoring project drawings, address, or selection.
+- [x] Prevent a new map search from silently overwriting the saved address/title of an active project.
+- [x] Keep one drawing Delete action in the detailed inspector instead of duplicating it in the drawing list.
+- [x] Clarify mobile drawing actions with Open Quote/Open Project states and project-save loading feedback.
+- [x] Disable Quote Preview/Export until quote content exists.
+- [x] Disable Quote Save until a project is selected and validate quote number before persistence.
+- [x] Reverify Settings pricing, drawing-to-quote sync, mobile map viewport lock, text clipping, empty states, and responsive layouts.
 
 ## Completed — Quote + AI Estimator Workflow Rework
 

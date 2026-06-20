@@ -12286,7 +12286,7 @@ img {
 
   .quote-mobile-primary-tabs {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 62px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 5px;
     margin-bottom: 10px;
     border: 1px solid rgba(255, 255, 255, 0.07);

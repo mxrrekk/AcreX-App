@@ -2973,13 +2973,6 @@ export function AcrexMap({
 
                             <div className="project-explorer-actions">
                               <button type="button" onClick={() => selectExplorerZone(zone, true)}>Zoom To</button>
-                              <button
-                                className="danger"
-                                type="button"
-                                onClick={() => deleteExplorerZone(zone)}
-                              >
-                                Delete
-                              </button>
                             </div>
                           </article>
                         );
