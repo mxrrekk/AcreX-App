@@ -4,7 +4,7 @@ Last reviewed: June 20, 2026.
 
 ## Current Status
 
-The durable Supabase storage foundation is implemented in code and schema. Project saves now normalize drawings and measurements when the new schema is available, settings have a database-backed source of truth, invoice creation copies quote lines, AI estimate contexts can be snapshotted, and file/export operations are centralized.
+The data-safety and backup foundation is complete. Every saved project can produce a versioned JSON backup designed for future import, including related geometry, financial records, file metadata, account settings, AI snapshots, activity, and integrity results.
 
 The production Supabase project has not received the additive table migration yet. Public REST checks return `PGRST205` for drawings, measurements, normalized quote/invoice lines, exports, attachments, settings, and AI snapshots. The `acrex-files` bucket already responds successfully. Existing project, quote, invoice, and local-settings workflows retain compatibility until an authorized migration is applied.
 
@@ -23,6 +23,14 @@ Measured projects now draft automatically when they have no saved quote content.
 - Safe-area regression: the public landing header now reserves the iPhone status-bar/Dynamic-Island inset
 - `npm run lint`: passing
 - `npm run build`: passing
+- `npm run test:safety`: passing
+- Project backup route: authenticated `/api/projects/[id]/export` returns a downloadable JSON document
+- Backup format: `acrex-project-backup` version 1 with explicit create-new-project restore strategy and preserved relationship IDs
+- Backup coverage: project, client, drawings, measurements, quotes, quote lines, invoices, invoice lines, files, exports, settings, AI snapshots, activity, and integrity findings
+- Activity foundation: project create/update, drawing add/update/delete, quote create/edit, invoice create, file upload, and export generation events persist to `project_activity`
+- Save-state foundation: shared `Saved`, `Saving…`, and `Save failed` labels are available to quote, settings, and future autosave workflows
+- Integrity audit: identifies quote lines tied to deleted drawings, invoices tied to deleted quotes, orphan drawings, and missing pricing defaults
+- Project safety visibility: integrity findings render in the existing Overview section without adding a new panel or navigation destination
 - `npx tsc --noEmit --incremental false`: passing after the AI-first Quote Workspace update
 - Quote workspace: AI Estimate, Quote, Scope, and PDF / Send are the only primary tabs
 - Quote quick context: project/customer identity, address, project selector, measurement count, and live total render above the workspace

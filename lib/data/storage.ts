@@ -8,6 +8,7 @@ import type {
   SavedZoneProperties
 } from "@/lib/projects/types";
 import { deleteQuoteLines, insertQuoteLines } from "@/lib/data/quote-lines";
+import { recordProjectActivity } from "@/lib/data/activity";
 
 export const ACREX_FILES_BUCKET = "acrex-files";
 
@@ -272,7 +273,17 @@ export async function saveDrawing(
   );
   return measurementError
     ? resultError(measurementError.message)
-    : { data: data as DrawingWrite, error: null };
+    : await (async () => {
+        await recordProjectActivity(supabase, {
+          userId: drawing.user_id,
+          projectId: drawing.project_id,
+          eventType: "drawing_updated",
+          entityType: "drawing",
+          entityId: drawing.id,
+          description: `${drawing.name} saved.`
+        });
+        return { data: data as DrawingWrite, error: null };
+      })();
 }
 
 export async function syncProjectDrawings(
@@ -351,6 +362,14 @@ export async function saveProject(
   if (drawingsResult.error && !missingFoundationTableMessage(drawingsResult.error, "drawings")) {
     return resultError(drawingsResult.error);
   }
+  await recordProjectActivity(supabase, {
+    userId: savedProject.user_id,
+    projectId: savedProject.id,
+    eventType: payload.id ? "project_updated" : "project_created",
+    entityType: "project",
+    entityId: savedProject.id,
+    description: payload.id ? "Project updated." : "Project created."
+  });
   return { data: savedProject, error: null };
 }
 
@@ -381,6 +400,16 @@ export async function saveQuote(
       }))
     );
     if (lineError) return resultError(lineError.message);
+  }
+  if (savedQuote.project_id) {
+    await recordProjectActivity(supabase, {
+      userId: savedQuote.user_id,
+      projectId: savedQuote.project_id,
+      eventType: quote.id ? "quote_edited" : "quote_created",
+      entityType: "quote",
+      entityId: savedQuote.id,
+      description: `Quote ${savedQuote.quote_number} ${quote.id ? "updated" : "created"}.`
+    });
   }
   return { data: savedQuote, error: null };
 }
@@ -419,6 +448,16 @@ export async function saveInvoice(
       }))
     );
     if (lineError) return resultError(lineError.message);
+  }
+  if (savedInvoice.project_id) {
+    await recordProjectActivity(supabase, {
+      userId: savedInvoice.user_id,
+      projectId: savedInvoice.project_id,
+      eventType: "invoice_created",
+      entityType: "invoice",
+      entityId: savedInvoice.id,
+      description: `Invoice ${savedInvoice.invoice_number} created.`
+    });
   }
   return { data: savedInvoice, error: null };
 }
@@ -466,7 +505,18 @@ export async function uploadProjectFile(
     })
     .select("*")
     .single();
-  if (!error && data) return { data: data as AttachmentRecord, error: null };
+  if (!error && data) {
+    await recordProjectActivity(supabase, {
+      userId: input.userId,
+      projectId: input.projectId,
+      eventType: "file_uploaded",
+      entityType: "attachment",
+      entityId: data.id,
+      description: `${input.fileName} uploaded.`,
+      metadata: { fileType: input.fileType }
+    });
+    return { data: data as AttachmentRecord, error: null };
+  }
 
   await supabase.storage.from(ACREX_FILES_BUCKET).remove([storagePath]);
   return resultError(error?.message ?? "File metadata could not be saved.");
@@ -510,6 +560,17 @@ async function uploadExportPdf(
     .update({ status: "ready", storage_path: uploaded.data.storage_path })
     .eq("id", exportRow.id)
     .eq("user_id", input.userId);
+  if (!updateError && input.projectId) {
+    await recordProjectActivity(supabase, {
+      userId: input.userId,
+      projectId: input.projectId,
+      eventType: "export_generated",
+      entityType: "export",
+      entityId: exportRow.id,
+      description: `${input.fileName} generated.`,
+      metadata: { exportType: input.exportType }
+    });
+  }
   return updateError ? resultError(updateError.message) : uploaded;
 }
 

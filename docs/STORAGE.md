@@ -22,6 +22,15 @@ The schema is additive and keeps the legacy `quote_items` table available while 
 - `attachments` records project, quote, invoice, and export files.
 - `user_settings` stores company, quote, pricing, drawing, and map defaults.
 - `ai_estimate_snapshots` stores the structured context and result used for an AI estimate.
+- `project_activity` stores the durable job history used across sessions and devices.
+
+## Project backups
+
+`GET /api/projects/<project-id>/export` creates a private, authenticated JSON backup.
+
+The current format is `acrex-project-backup` version `1`. It contains the original record IDs and an explicit `create-new-project` restore strategy so a future importer can remap IDs without losing relationships.
+
+Backups include project and client data, drawings, measurements, quotes, quote lines, invoices, invoice lines, attachments, exports, settings, AI estimate snapshots, activity, and integrity warnings.
 
 ## File bucket
 

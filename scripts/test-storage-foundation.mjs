@@ -17,7 +17,8 @@ const requiredTables = [
   "exports",
   "attachments",
   "user_settings",
-  "ai_estimate_snapshots"
+  "ai_estimate_snapshots",
+  "project_activity"
 ];
 
 for (const table of requiredTables) {
@@ -40,7 +41,8 @@ const rlsTables = [
   "exports",
   "attachments",
   "user_settings",
-  "ai_estimate_snapshots"
+  "ai_estimate_snapshots",
+  "project_activity"
 ];
 for (const table of rlsTables) {
   assert.match(

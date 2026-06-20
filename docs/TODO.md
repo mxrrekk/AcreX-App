@@ -2,6 +2,16 @@
 
 Last updated: June 20, 2026.
 
+## Completed — Data Safety and Project Backups
+
+- [x] Add a versioned, restore-ready AcreX project backup format.
+- [x] Include project, client, drawings, measurements, quotes, quote lines, invoices, invoice lines, file metadata, exports, settings, AI snapshots, activity, and integrity results.
+- [x] Add authenticated JSON backup downloads from Project Detail and Exports.
+- [x] Add shared Saved, Saving…, and Save failed status definitions.
+- [x] Add durable project activity records for project, drawing, quote, invoice, file, and export events.
+- [x] Add integrity checks for deleted drawing references, deleted quote references, orphan drawings, and missing pricing defaults.
+- [x] Surface integrity warnings in the existing Project Overview without redesigning the page.
+
 ## In Progress — Durable Supabase Storage
 
 - [x] Define normalized drawings, measurements, quote line items, invoice line items, exports, attachments, settings, and AI snapshot records.

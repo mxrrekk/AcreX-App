@@ -7,6 +7,7 @@ import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { publishDataChange } from "@/lib/data/sync";
 import { saveUserSettings as saveUserSettingsToDatabase } from "@/lib/data/storage";
+import { type SaveStatus } from "@/lib/data/save-status";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import { serviceCatalog } from "@/lib/services/catalog";
 import {
@@ -61,7 +62,7 @@ export function SettingsPage({ account, storedSettings }: SettingsPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [settings, setSettings] = useState<AcrexUserSettings>(defaultUserSettings);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveState, setSaveState] = useState<SaveStatus>("idle");
   const [saveMessage, setSaveMessage] = useState("");
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [activeTab, setActiveTab] = useState<"account" | "company" | "pricing" | "quote" | "drawing" | "map">("company");

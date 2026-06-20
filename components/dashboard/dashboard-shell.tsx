@@ -10,6 +10,7 @@ import type { Feature, Polygon } from "geojson";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { saveProject } from "@/lib/data/storage";
 import { readQuoteLines } from "@/lib/data/quote-lines";
+import { getProjectActivity, recordProjectActivity, type ProjectActivityType } from "@/lib/data/activity";
 import { publishDataChange } from "@/lib/data/sync";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import { formatAcres, formatFeet, formatSquareFeet } from "@/lib/geo/format";
@@ -724,7 +725,29 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
       },
       ...current
     ].slice(0, 80));
-  }, []);
+    if (activeProjectId) {
+      const supabase = createSupabaseBrowserClient();
+      if (supabase) {
+        const eventType: ProjectActivityType =
+          action === "Drawing deleted"
+            ? "drawing_deleted"
+            : action === "Drawing saved"
+              ? "drawing_added"
+              : action.startsWith("Drawing")
+                ? "drawing_updated"
+                : action === "Project created"
+                  ? "project_created"
+                  : "project_updated";
+        void recordProjectActivity(supabase, {
+          userId,
+          projectId: activeProjectId,
+          eventType,
+          entityType: entity.toLowerCase(),
+          description
+        });
+      }
+    }
+  }, [activeProjectId, userId]);
 
   useEffect(() => {
     setTagStore(readStoredValue<ProjectTagStore>(getGlobalStorageKey(userEmail, "project-tags"), {}));
@@ -743,10 +766,26 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
 
     setChecklistItems(storedChecklist.length ? storedChecklist : createChecklistFromService(projectForm.serviceType));
     setProjectNotes(readStoredValue<ProjectNote[]>(notesKey, []));
-    setActivityLog(readStoredValue<ProjectActivity[]>(activityKey, []));
+    const localActivity = readStoredValue<ProjectActivity[]>(activityKey, []);
+    setActivityLog(localActivity);
+    if (activeProjectId) {
+      const supabase = createSupabaseBrowserClient();
+      if (supabase) {
+        void getProjectActivity(supabase, userId, activeProjectId).then(({ data }) => {
+          if (!data.length) return;
+          setActivityLog(data.map((activity) => ({
+            id: activity.id,
+            action: activity.event_type.replaceAll("_", " "),
+            description: activity.description,
+            entity: activity.entity_type,
+            createdAt: activity.created_at
+          })));
+        });
+      }
+    }
     setSnapshots(readStoredValue<ProjectSnapshot[]>(snapshotsKey, []));
     previousZoneSnapshotRef.current = "";
-  }, [activeProjectId, projectForm.serviceType, userEmail]);
+  }, [activeProjectId, projectForm.serviceType, userEmail, userId]);
 
   useEffect(() => {
     writeStoredValue(getProjectStorageKey(userEmail, activeProjectId, "checklist"), checklistItems);

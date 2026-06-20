@@ -10,12 +10,14 @@ import { publishDataChange } from "@/lib/data/sync";
 import { formatDrawingQuantity, getProjectDrawings } from "@/lib/projects/drawings";
 import { getProjectStorageKey, readStoredValue, writeStoredValue, type ProjectNote } from "@/lib/projects/operations";
 import type { ClientRecord, InvoiceRecord, ProjectRecord, QuoteRecord, SavedProjectMapData } from "@/lib/projects/types";
+import type { IntegrityIssue } from "@/lib/data/integrity";
 
 type ProjectDetailPageProps = {
   project: ProjectRecord;
   client?: ClientRecord;
   quotes: QuoteRecord[];
   invoices: InvoiceRecord[];
+  integrityIssues: IntegrityIssue[];
   userEmail: string;
 };
 
@@ -32,7 +34,7 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
 }
 
-export function ProjectDetailPage({ project, client, quotes, invoices, userEmail }: ProjectDetailPageProps) {
+export function ProjectDetailPage({ project, client, quotes, invoices, integrityIssues, userEmail }: ProjectDetailPageProps) {
   const router = useRouter();
   const drawings = getProjectDrawings(project);
   const notesKey = getProjectStorageKey(userEmail, project.id, "notes");
@@ -84,6 +86,7 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
             <p>{project.address || "No address saved"}</p>
           </div>
           <div className="project-detail-header-actions">
+            <a href={`/api/projects/${project.id}/export`} download>Export Backup</a>
             <Link href={`/dashboard?project=${project.id}`}>Open Project Map</Link>
           </div>
         </header>
@@ -124,6 +127,14 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
             <div><span>Map Reference</span><strong>Property and saved geometry</strong></div>
           </div>
           <p>{project.address || "No property address saved."} · {project.acres?.toFixed(2) ?? "0.00"} acres · {Math.round(project.square_feet ?? 0).toLocaleString()} sq ft</p>
+          {integrityIssues.length ? (
+            <div className="project-integrity-warnings" role="status">
+              <strong>Data checks</strong>
+              {integrityIssues.map((issue, index) => (
+                <p key={`${issue.code}-${issue.entityId ?? index}`}>{issue.message}</p>
+              ))}
+            </div>
+          ) : null}
         </section>
         ) : null}
 

@@ -706,6 +706,18 @@ create table if not exists public.ai_estimate_snapshots (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.project_activity (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  project_id uuid not null references public.projects(id) on delete cascade,
+  event_type text not null,
+  entity_type text not null,
+  entity_id text,
+  description text not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists drawings_user_project_idx
   on public.drawings(user_id, project_id, updated_at desc);
 create index if not exists measurements_user_project_idx
@@ -724,6 +736,8 @@ create index if not exists attachments_user_invoice_idx
   on public.attachments(user_id, invoice_id, created_at desc);
 create index if not exists ai_estimate_snapshots_user_project_idx
   on public.ai_estimate_snapshots(user_id, project_id, created_at desc);
+create index if not exists project_activity_user_project_idx
+  on public.project_activity(user_id, project_id, created_at desc);
 
 alter table public.drawings enable row level security;
 alter table public.measurements enable row level security;
@@ -733,6 +747,7 @@ alter table public.exports enable row level security;
 alter table public.attachments enable row level security;
 alter table public.user_settings enable row level security;
 alter table public.ai_estimate_snapshots enable row level security;
+alter table public.project_activity enable row level security;
 
 grant select, insert, update, delete on public.drawings to authenticated;
 grant select, insert, update, delete on public.measurements to authenticated;
@@ -742,6 +757,7 @@ grant select, insert, update, delete on public.exports to authenticated;
 grant select, insert, update, delete on public.attachments to authenticated;
 grant select, insert, update, delete on public.user_settings to authenticated;
 grant select, insert, update, delete on public.ai_estimate_snapshots to authenticated;
+grant select, insert, delete on public.project_activity to authenticated;
 
 drop policy if exists "Users can manage their own drawings" on public.drawings;
 create policy "Users can manage their own drawings"
@@ -880,6 +896,24 @@ create policy "Users can manage their own AI estimate snapshots"
     and exists (
       select 1 from public.projects
       where projects.id = ai_estimate_snapshots.project_id and projects.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Users can manage their own project activity" on public.project_activity;
+create policy "Users can manage their own project activity"
+  on public.project_activity for all
+  using (
+    auth.uid() = user_id
+    and exists (
+      select 1 from public.projects
+      where projects.id = project_activity.project_id and projects.user_id = auth.uid()
+    )
+  )
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1 from public.projects
+      where projects.id = project_activity.project_id and projects.user_id = auth.uid()
     )
   );
 

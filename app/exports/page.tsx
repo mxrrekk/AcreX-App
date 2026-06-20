@@ -12,6 +12,11 @@ export default async function ExportsPage() {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  const { data: projects } = await supabase
+    .from("projects")
+    .select("id, project_name, address")
+    .eq("user_id", user.id)
+    .order("updated_at", { ascending: false });
 
   return (
     <main className="projects-page exports-page">
@@ -34,10 +39,15 @@ export default async function ExportsPage() {
             <Link href="/quotes">Open Quotes</Link>
           </article>
           <article>
-            <span>Project Report</span>
-            <strong>Measurement deliverable</strong>
-            <p>Project data and measurements remain available from each project detail page.</p>
-            <div className="export-availability">Report export becomes available after project report formatting is finalized.</div>
+            <span>Project Backup</span>
+            <strong>Portable, restore-ready JSON</strong>
+            <p>Download projects with drawings, measurements, financial records, file metadata, settings, and integrity checks.</p>
+            {(projects ?? []).slice(0, 8).map((project) => (
+              <a key={project.id} href={`/api/projects/${project.id}/export`} download>
+                Export {project.project_name || project.address || "Project"}
+              </a>
+            ))}
+            {!projects?.length ? <div className="export-availability">Save a project before creating a backup.</div> : null}
           </article>
         </section>
       </section>

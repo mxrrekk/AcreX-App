@@ -18,7 +18,8 @@ const requiredTables = [
   "exports",
   "attachments",
   "user_settings",
-  "ai_estimate_snapshots"
+  "ai_estimate_snapshots",
+  "project_activity"
 ];
 
 const missing = [];

@@ -44,6 +44,8 @@ import { cascadeDeleteQuote } from "@/lib/data/cascades";
 import { publishDataChange } from "@/lib/data/sync";
 import { saveAiEstimateSnapshot } from "@/lib/data/storage";
 import { deleteQuoteLines, insertQuoteLines, readQuoteLines } from "@/lib/data/quote-lines";
+import { recordProjectActivity } from "@/lib/data/activity";
+import { saveStatusLabel, type SaveStatus } from "@/lib/data/save-status";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import { reconcileSourceLinkedLines, sourceSnapshot, type MeasurementSource } from "@/lib/quotes/source-sync";
 
@@ -715,7 +717,7 @@ export function QuotesPage({
     paymentTerms: initialSavedPayload.paymentTerms ?? "",
     estimatedTimeline: initialSavedPayload.estimatedTimeline ?? ""
   }));
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveState, setSaveState] = useState<SaveStatus>("idle");
   const [saveMessage, setSaveMessage] = useState("");
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(initialSavedQuote?.id ?? null);
   const [savedTemplates, setSavedTemplates] = useState<ServiceTemplate[] | null>(null);
@@ -1944,6 +1946,16 @@ export function QuotesPage({
     setSavedQuoteId(quote.id);
     setSaveState("saved");
     setSaveMessage(selectedProject ? "Quote saved to project." : "Quote saved.");
+    if (selectedProject?.id) {
+      await recordProjectActivity(supabase, {
+        userId,
+        projectId: selectedProject.id,
+        eventType: previousSavedQuote ? "quote_edited" : "quote_created",
+        entityType: "quote",
+        entityId: quote.id,
+        description: `Quote ${quote.quote_number} ${previousSavedQuote ? "edited" : "created"}.`
+      });
+    }
     publishDataChange({ type: "quote-saved", projectId: selectedProject?.id ?? null, quoteId: quote.id });
   }
 
@@ -2105,13 +2117,7 @@ export function QuotesPage({
                   <strong>Project and customer details</strong>
                 </div>
                 <span className={`quote-save-state quote-save-state-${saveState}`}>
-                  {saveState === "saving"
-                    ? "Saving"
-                    : saveState === "saved"
-                      ? "Saved"
-                      : saveState === "error"
-                        ? "Save needs attention"
-                        : "Unsaved draft"}
+                  {saveState === "idle" ? "Unsaved draft" : saveStatusLabel[saveState]}
                 </span>
               </div>
 
