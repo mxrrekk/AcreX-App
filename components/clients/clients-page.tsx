@@ -70,6 +70,8 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
   const [message, setMessage] = useState<string | null>(errorMessage ? getReadableClientError(errorMessage) : null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  const [mobileSection, setMobileSection] = useState<"list" | "form">("list");
+  const [pendingDeleteClient, setPendingDeleteClient] = useState<ClientRecord | null>(null);
 
   const filteredClients = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -101,11 +103,13 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
       notes: client.notes ?? ""
     });
     setMessage(null);
+    setMobileSection("form");
   }
 
   function resetForm() {
     setEditingClientId(null);
     setFormState(emptyClientForm);
+    setMobileSection("list");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -154,13 +158,14 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
     });
     resetForm();
     setMessage(editingClientId ? "✓ Client Updated" : "✓ Client Saved");
+    setMobileSection("list");
   }
 
   async function handleDelete(clientId: string) {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       setMessage("Supabase is not configured.");
-      return;
+      return false;
     }
 
     setIsDeletingId(clientId);
@@ -171,12 +176,13 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
 
     if (error) {
       setMessage(getReadableClientError(error.message));
-      return;
+      return false;
     }
 
     setClientRows((current) => current.filter((client) => client.id !== clientId));
     if (editingClientId === clientId) resetForm();
     setMessage("Client deleted.");
+    return true;
   }
 
   return (
@@ -197,8 +203,17 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
           </div>
         </header>
 
-        <section className="clients-grid">
-          <form className="client-form-card" onSubmit={handleSubmit}>
+        <nav className="client-mobile-tabs" aria-label="Client workspace">
+          <button type="button" className={mobileSection === "list" ? "active" : ""} onClick={() => setMobileSection("list")}>
+            Clients <span>{clientRows.length}</span>
+          </button>
+          <button type="button" className={mobileSection === "form" ? "active" : ""} onClick={() => setMobileSection("form")}>
+            {editingClientId ? "Edit Client" : "Add Client"}
+          </button>
+        </nav>
+
+        <section className={`clients-grid mobile-clients-${mobileSection}`}>
+          <form className="client-form-card client-form-workspace" onSubmit={handleSubmit}>
             <div className="client-form-heading">
               <span>{editingClientId ? "Edit Client" : "Add Client"}</span>
               {editingClientId ? (
@@ -238,7 +253,7 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
             {message ? <p className="client-message">{message}</p> : null}
           </form>
 
-          <section className="client-list-card">
+          <section className="client-list-card client-list-workspace">
             <div className="clients-controls">
               <input
                 value={searchTerm}
@@ -278,7 +293,7 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
                         <button type="button" onClick={() => startEdit(client)}>
                           Edit
                         </button>
-                        <button type="button" onClick={() => handleDelete(client.id)} disabled={isDeletingId === client.id}>
+                        <button type="button" onClick={() => setPendingDeleteClient(client)} disabled={isDeletingId === client.id}>
                           {isDeletingId === client.id ? "Deleting..." : "Delete"}
                         </button>
                       </div>
@@ -298,6 +313,34 @@ export function ClientsPage({ userId, userEmail, clients, projects, quotes, invo
           </section>
         </section>
       </section>
+      {pendingDeleteClient ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-client-title">
+            <span className="modal-icon">!</span>
+            <h2 id="delete-client-title">Delete client?</h2>
+            <p>
+              This removes <strong>{pendingDeleteClient.name}</strong> from Clients. Existing projects and quotes remain
+              saved, but they will no longer be linked to this client.
+            </p>
+            <div className="modal-actions">
+              <button type="button" onClick={() => setPendingDeleteClient(null)} disabled={isDeletingId === pendingDeleteClient.id}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={`danger-button${isDeletingId === pendingDeleteClient.id ? " is-processing" : ""}`}
+                onClick={async () => {
+                  const deleted = await handleDelete(pendingDeleteClient.id);
+                  if (deleted) setPendingDeleteClient(null);
+                }}
+                disabled={isDeletingId === pendingDeleteClient.id}
+              >
+                {isDeletingId === pendingDeleteClient.id ? "Deleting…" : "Delete Client"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       <MobileAppNav active="clients" />
     </main>
   );

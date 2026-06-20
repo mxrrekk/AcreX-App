@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AiEstimateReview,
@@ -713,6 +714,8 @@ export function QuotesPage({
   const [aiEditMessage, setAiEditMessage] = useState("");
   const [activeTab, setActiveTab] = useState<QuoteWorkspaceTab>("estimate");
   const [mobileQuotePanel, setMobileQuotePanel] = useState<MobileQuotePanel>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [areMobileQuestionsOpen, setAreMobileQuestionsOpen] = useState(false);
 
   useEffect(() => {
     if (!initialProjectId || initialProjectId === selectedProjectId) return;
@@ -798,6 +801,21 @@ export function QuotesPage({
   const taxAmount = taxableSubtotal * (parseAmount(taxPercent) / 100);
   const grandTotal = taxableSubtotal + taxAmount;
   const depositRequired = grandTotal * (parseAmount(depositPercent) / 100);
+  const customerEmail = selectedClient?.email?.trim() ?? "";
+  const quoteEmailHref = customerEmail
+    ? `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(`Quote ${quoteNumber} from AcreX`)}&body=${encodeURIComponent(
+        [
+          `Quote: ${quoteNumber}`,
+          `Project: ${selectedProject?.project_name || "Project"}`,
+          `Address: ${selectedProject?.address || "Address not provided"}`,
+          `Total: ${formatCurrency(grandTotal)}`,
+          "",
+          notes.scopeOfWork || "Please review the attached project estimate.",
+          "",
+          notes.paymentTerms || ""
+        ].filter(Boolean).join("\n")
+      )}`
+    : null;
   const detectedServices = useMemo(
     () => detectProjectServices(selectedProject, availableMeasurements, lineItems, notes, siteConditions.notes),
     [availableMeasurements, lineItems, notes, selectedProject, siteConditions.notes]
@@ -1554,6 +1572,7 @@ export function QuotesPage({
               <button type="button" onClick={() => { setActiveTab("labor"); setMobileQuotePanel(null); }}>Labor & equipment <small>{costLines.length} added</small></button>
               <button type="button" onClick={() => { setActiveTab("scope"); setMobileQuotePanel(null); }}>Scope & terms <small>Notes and exclusions</small></button>
               <button type="button" onClick={() => { setActiveTab("review"); setMobileQuotePanel(null); }}>Review quote <small>Final checks</small></button>
+              <button type="button" onClick={() => { setIsPreviewOpen(true); setMobileQuotePanel(null); }}>Preview & export <small>Customer-ready PDF view</small></button>
               <button type="button" onClick={() => setMobileQuotePanel("pricing")}>Pricing summary <small>{formatCurrency(grandTotal)}</small></button>
             </div>
           </section>
@@ -1746,6 +1765,23 @@ export function QuotesPage({
               </div>
 
               <div className="quote-ai-conditions">
+                <button
+                  type="button"
+                  className="quote-mobile-question-toggle"
+                  aria-expanded={areMobileQuestionsOpen}
+                  onClick={() => setAreMobileQuestionsOpen((current) => !current)}
+                >
+                  <span>
+                    <strong>Review job questions</strong>
+                    <small>
+                      {relevantQuestionCount
+                        ? `${completedConditionCount}/${relevantQuestionCount} confirmed`
+                        : "No questions needed"}
+                    </small>
+                  </span>
+                  <i aria-hidden="true">{areMobileQuestionsOpen ? "−" : "+"}</i>
+                </button>
+                <div className={`quote-question-workspace${areMobileQuestionsOpen ? " is-open" : ""}`}>
                 <div className="quote-ai-section-heading">
                   <div>
                     <span>Project Questions</span>
@@ -1810,6 +1846,7 @@ export function QuotesPage({
                     onChange={(event) => updateSiteCondition("notes", event.target.value)}
                   />
                 </label>
+                </div>
               </div>
 
               <div className="quote-ai-composer">
@@ -2339,38 +2376,27 @@ export function QuotesPage({
               <button type="button" onClick={saveQuote} disabled={saveState === "saving"}>
                 {saveState === "saving" ? "Saving..." : "Save Quote"}
               </button>
-              <button type="button" className="secondary" disabled title="Quote preview is coming soon">
-                Preview Quote
-                <small>Coming soon</small>
+              <button type="button" className="secondary" onClick={() => setIsPreviewOpen(true)}>
+                Preview / Export
+                <small>Customer-ready view</small>
               </button>
               <div className="quote-summary-action-grid">
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled
-                  title={saveState === "saved" ? "PDF export is coming soon" : "Save the quote before exporting"}
-                >
-                  Export PDF
-                  <small>{saveState === "saved" ? "Coming soon" : "Requires saved quote"}</small>
-                </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled
-                  title={saveState === "saved" ? "Customer sending is coming soon" : "Save the quote before sending"}
-                >
-                  Send to Customer
-                  <small>{saveState === "saved" ? "Coming soon" : "Requires saved quote"}</small>
-                </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled
-                  title={saveState === "saved" ? "Invoice conversion is coming soon" : "Save the quote before converting"}
-                >
-                  Convert to Invoice
-                  <small>{saveState === "saved" ? "Coming soon" : "Requires saved quote"}</small>
-                </button>
+                {quoteEmailHref ? (
+                  <a className="secondary" href={quoteEmailHref}>
+                    Email Customer
+                    <small>{customerEmail}</small>
+                  </a>
+                ) : (
+                  <span className="quote-action-status">Add a customer email to send this quote.</span>
+                )}
+                {savedQuoteId ? (
+                  <Link className="secondary" href={`/invoices?quote=${encodeURIComponent(savedQuoteId)}`}>
+                    Convert to Invoice
+                    <small>Use saved quote</small>
+                  </Link>
+                ) : (
+                  <span className="quote-action-status">Save the quote before converting it to an invoice.</span>
+                )}
               </div>
             </div>
           </aside>
@@ -2387,6 +2413,62 @@ export function QuotesPage({
           </button>
         </aside>
       </section>
+      {isPreviewOpen ? (
+        <div className="quote-preview-overlay" role="presentation">
+          <section className="quote-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="quote-preview-title">
+            <div className="quote-preview-toolbar">
+              <div>
+                <span>Quote preview</span>
+                <strong id="quote-preview-title">{quoteNumber}</strong>
+              </div>
+              <div>
+                <button type="button" className="secondary" onClick={() => setIsPreviewOpen(false)}>Close</button>
+                <button type="button" onClick={() => window.print()}>Print / Save PDF</button>
+              </div>
+            </div>
+            <article className="quote-preview-document">
+              <header>
+                <div>
+                  <span>AcreX Quote</span>
+                  <strong>{selectedProject?.project_name || "Project estimate"}</strong>
+                </div>
+                <div>
+                  <span>{quoteNumber}</span>
+                  <strong>{status}</strong>
+                </div>
+              </header>
+              <dl>
+                <div><dt>Customer</dt><dd>{selectedClient?.name || selectedProject?.customer_name || "Not assigned"}</dd></div>
+                <div><dt>Project address</dt><dd>{selectedProject?.address || "Not provided"}</dd></div>
+              </dl>
+              <section className="quote-preview-lines" aria-label="Quote line items">
+                {lineItems.length ? lineItems.map((item) => (
+                  <div key={item.id}>
+                    <span>{item.serviceName || "Custom service"} · {item.quantity || "0"} {item.unit}</span>
+                    <strong>{formatCurrency(lineTotal(item))}</strong>
+                  </div>
+                )) : <p>No service line items added.</p>}
+                {materials.length ? <div><span>Materials</span><strong>{formatCurrency(materialsSubtotal)}</strong></div> : null}
+                {costLines.length ? <div><span>Labor, equipment, and mobilization</span><strong>{formatCurrency(laborEquipmentSubtotal + mobilization)}</strong></div> : null}
+              </section>
+              <section className="quote-preview-totals">
+                <div><span>Subtotal</span><strong>{formatCurrency(subtotalBeforeAdjustments)}</strong></div>
+                {discountAmount > 0 ? <div><span>Discount</span><strong>-{formatCurrency(discountAmount)}</strong></div> : null}
+                {taxAmount > 0 ? <div><span>Tax</span><strong>{formatCurrency(taxAmount)}</strong></div> : null}
+                <div><span>Grand total</span><strong>{formatCurrency(grandTotal)}</strong></div>
+                {depositRequired > 0 ? <div><span>Deposit required</span><strong>{formatCurrency(depositRequired)}</strong></div> : null}
+              </section>
+              <section className="quote-preview-terms">
+                {notes.scopeOfWork ? <div><strong>Scope of work</strong><p>{notes.scopeOfWork}</p></div> : null}
+                {notes.exclusions ? <div><strong>Exclusions</strong><p>{notes.exclusions}</p></div> : null}
+                {notes.paymentTerms ? <div><strong>Payment terms</strong><p>{notes.paymentTerms}</p></div> : null}
+                {notes.estimatedTimeline ? <div><strong>Timeline</strong><p>{notes.estimatedTimeline}</p></div> : null}
+                {notes.customerNotes ? <div><strong>Notes</strong><p>{notes.customerNotes}</p></div> : null}
+              </section>
+            </article>
+          </section>
+        </div>
+      ) : null}
       <MobileAppNav active="quotes" />
     </main>
   );

@@ -5,6 +5,12 @@ import type { InvoiceRecord, QuoteRecord } from "@/lib/projects/types";
 
 export const dynamic = "force-dynamic";
 
+type InvoicesRouteProps = {
+  searchParams?: {
+    quote?: string;
+  };
+};
+
 function normalizeInvoice(row: unknown): InvoiceRecord {
   return row as InvoiceRecord;
 }
@@ -13,7 +19,7 @@ function normalizeQuote(row: unknown): QuoteRecord {
   return row as QuoteRecord;
 }
 
-export default async function InvoicesRoute() {
+export default async function InvoicesRoute({ searchParams }: InvoicesRouteProps) {
   const supabase = createSupabaseServerClient();
 
   if (!supabase) {
@@ -39,6 +45,7 @@ export default async function InvoicesRoute() {
       userEmail={user.email ?? "Contractor"}
       quotes={(quotes ?? []).map(normalizeQuote)}
       invoices={(invoices ?? []).map(normalizeInvoice)}
+      initialQuoteId={searchParams?.quote ?? null}
       errorMessage={quotesError?.message ?? invoicesError?.message ?? null}
     />
   );

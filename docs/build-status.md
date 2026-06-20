@@ -4,7 +4,7 @@ Last reviewed: June 19, 2026.
 
 ## Current Status
 
-The landing header fit adjustment is complete. The top CTA has been removed and the page width now matches every tested viewport without horizontal sliding.
+The production QA and polish pass is complete. AcreX now has verified public/auth routing, responsive dashboard workflows, a stable mobile map inspector, functional quote preview/export, cleaner destructive actions, persistent settings defaults, and corrected desktop/mobile layout defects.
 
 ## Verification
 
@@ -12,6 +12,7 @@ The landing header fit adjustment is complete. The top CTA has been removed and 
 - `npm run build`: passing
 - Static and dynamic routes: passing, including `/exports`
 - Browser console errors during final responsive check: none
+- Browser console warnings during final responsive check: none
 - Page-level horizontal overflow: none on tested routes
 - Phone sizes verified: iPhone SE, iPhone 15, iPhone 15 Pro Max
 - Portrait tablets verified: iPad Mini, iPad Air, iPad Pro
@@ -25,7 +26,14 @@ The landing header fit adjustment is complete. The top CTA has been removed and 
 - iOS location readiness: `NSLocationWhenInUseUsageDescription` is present, the plist validates, and the iPhone 17 simulator build passes
 - Map Quotes action: routes directly to `/quotes` instead of opening a limited snapshot sheet
 - Drawing inspector: opens half-height on selection with visible measurement, project, location, quote, drawing, and expandable edit/delete controls
+- Drawing inspector interaction regression: sheet controls no longer propagate into the map; rename, hide/show, delete, and delete-timeout behavior were exercised successfully
+- Drawing deletion regression: Undo is available only during the temporary delete window and disappears after timeout
 - Mobile Quote workspace: Estimate and Line Items remain primary; quote details, materials, labor/equipment, scope, review, and pricing open on demand
+- Quote preview/export: customer-ready preview opens on desktop and mobile with zero horizontal overflow and Print / Save PDF support
+- Quote pricing defaults: newly added measurements use matching Settings defaults while existing edited quote rates remain unchanged
+- Invoice conversion: saved quote IDs route into `/invoices?quote=...` and preselect the matching quote
+- Settings persistence: saved browser settings reload correctly for the current account
+- Gemini connectivity: the configured server-side key returned HTTP 200 from the current `gemini-3.5-flash` endpoint; the key was not logged or exposed client-side
 - Location marker: uses an HTML Mapbox marker with a centered dot, crosshairs, and accuracy halo that remains visible across style changes
 - `npx tsc --noEmit`: passing
 - Latest iPhone 17 simulator build and launch: passing with no Xcode warnings or errors
@@ -40,6 +48,8 @@ The landing header fit adjustment is complete. The top CTA has been removed and 
 - Desktop signup regression: form card reduced to approximately 554px tall with no removed fields
 - Landing header: top CTA removed with the logo and desktop information navigation retained
 - Landing width regression: document and body widths exactly matched 320px, 375px, 393px, 768px, and 1440px viewports
+- Responsive application regression: no horizontal overflow at 320×568, 393×852, 430×932, 768×1024, 820×1180, 1024×1366, or 1366×1024 across Projects, Project Detail, Drawings, Quotes, Clients, Invoices, Settings, and Map
+- Accessibility label audit: no visible unnamed buttons, links, images, or form controls remain on tested routes
 
 ## Remaining Release Work
 

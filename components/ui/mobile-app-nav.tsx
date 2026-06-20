@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import type { AppSidebarKey } from "@/components/ui/app-sidebar";
+import { AppSidebarIcon, type AppNavigationIcon, type AppSidebarKey } from "@/components/ui/app-sidebar";
 
 type MobileAppNavProps = {
   active: AppSidebarKey;
 };
 
 const primaryItems = [
-  { key: "map", label: "Map", href: "/dashboard", glyph: "⌖" },
-  { key: "projects", label: "Projects", href: "/projects", glyph: "▣" },
-  { key: "quotes", label: "Quotes", href: "/quotes", glyph: "$" },
-  { key: "clients", label: "Clients", href: "/clients", glyph: "◎" }
-] as const;
+  { key: "map", label: "Map", href: "/dashboard", icon: "map" },
+  { key: "projects", label: "Projects", href: "/projects", icon: "folder" },
+  { key: "quotes", label: "Quotes", href: "/quotes", icon: "file" },
+  { key: "clients", label: "Clients", href: "/clients", icon: "users" }
+] as const satisfies ReadonlyArray<{ key: AppSidebarKey; label: string; href: string; icon: AppNavigationIcon }>;
 
 const moreItems = [
   { key: "drawings", label: "Drawings", href: "/drawings" },
@@ -61,7 +61,7 @@ export function MobileAppNav({ active }: MobileAppNavProps) {
       <nav className="mobile-app-nav" aria-label="Mobile app navigation">
         {primaryItems.map((item) => (
           <Link className={active === item.key ? "active" : undefined} href={item.href} key={item.key}>
-            <i aria-hidden="true">{item.glyph}</i>
+            <i aria-hidden="true"><AppSidebarIcon icon={item.icon} /></i>
             <span>{item.label}</span>
           </Link>
         ))}
@@ -71,7 +71,7 @@ export function MobileAppNav({ active }: MobileAppNavProps) {
           aria-expanded={isMoreOpen}
           onClick={() => setIsMoreOpen((current) => !current)}
         >
-          <i aria-hidden="true">•••</i>
+          <i className="mobile-more-glyph" aria-hidden="true"><span /><span /><span /></i>
           <span>More</span>
         </button>
       </nav>

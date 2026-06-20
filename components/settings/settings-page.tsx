@@ -173,15 +173,15 @@ export function SettingsPage({ account }: SettingsPageProps) {
             <div><span>Subscription source</span><strong>{account.subscriptionSource}</strong></div>
             <div><span>Account created</span><strong>{formatDate(account.createdAt)}</strong></div>
           </div>
-          <div className="settings-placeholder-actions">
-            <button type="button" disabled title="Billing management will be enabled when Stripe is configured.">
-              Manage Billing
-              <small>Billing not configured</small>
-            </button>
-            <button type="button" disabled title="Plan upgrades will be enabled when billing is configured.">
-              Upgrade Plan
-              <small>Coming later</small>
-            </button>
+          <div className="settings-availability" role="status">
+            <div>
+              <strong>Billing management</strong>
+              <small>Available after Stripe is connected.</small>
+            </div>
+            <div>
+              <strong>Plan upgrades</strong>
+              <small>Your current free plan remains active.</small>
+            </div>
           </div>
         </section>
         ) : null}

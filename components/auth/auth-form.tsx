@@ -38,6 +38,10 @@ function getCleanAuthError(message: string) {
     return "An account already exists for this email. Log in instead.";
   }
 
+  if (normalized.includes("email not confirmed")) {
+    return "Confirm your email using the link Supabase sent, then log in.";
+  }
+
   if (normalized.includes("password")) {
     return "Use a stronger password with at least 6 characters.";
   }
@@ -91,6 +95,12 @@ export function AuthForm({ mode }: AuthFormProps) {
 
       if (result.error) {
         setMessage(getCleanAuthError(result.error.message));
+        return;
+      }
+
+      if (isSignup && !result.data.session) {
+        setPassword("");
+        setMessage("Account created. Check your email to confirm it, then log in.");
         return;
       }
 

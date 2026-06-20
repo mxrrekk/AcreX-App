@@ -17,11 +17,13 @@ type AppSidebarProps = {
   ariaLabel?: string;
 };
 
+export type AppNavigationIcon = "map" | "folder" | "file" | "users" | "draw" | "receipt" | "export" | "account" | "gear";
+
 const appSidebarItems: Array<{
   key: AppSidebarKey;
   label: string;
   href: string;
-  icon: "map" | "folder" | "file" | "users" | "draw" | "receipt" | "export" | "account" | "gear";
+  icon: AppNavigationIcon;
 }> = [
   { key: "map", label: "Map", href: "/dashboard", icon: "map" },
   { key: "projects", label: "Projects", href: "/projects", icon: "folder" },
@@ -33,7 +35,7 @@ const appSidebarItems: Array<{
   { key: "settings", label: "Settings", href: "/settings", icon: "gear" }
 ];
 
-function AppSidebarIcon({ icon }: { icon: (typeof appSidebarItems)[number]["icon"] }) {
+export function AppSidebarIcon({ icon }: { icon: AppNavigationIcon }) {
   const commonProps = {
     fill: "none",
     stroke: "currentColor",

@@ -20,6 +20,7 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
   const [projectRows, setProjectRows] = useState(projects);
   const [message, setMessage] = useState(errorMessage);
   const [deletingDrawingId, setDeletingDrawingId] = useState<string | null>(null);
+  const [pendingDeleteDrawing, setPendingDeleteDrawing] = useState<{ projectId: string; drawingId: string; name: string } | null>(null);
   const drawings = useMemo(() => projectRows.flatMap(getProjectDrawings), [projectRows]);
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -50,7 +51,10 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
   async function deleteDrawing(projectId: string, drawingId: string) {
     const project = projectRows.find((item) => item.id === projectId);
     const mapData = project?.polygon_geojson as SavedProjectMapData | null;
-    if (!project || !mapData) return;
+    if (!project || !mapData) {
+      setMessage("Drawing could not be found.");
+      return false;
+    }
 
     const nextMapData: SavedProjectMapData | null =
       mapData.type === "FeatureCollection"
@@ -74,7 +78,7 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       setMessage("Drawing storage is not configured.");
-      return;
+      return false;
     }
 
     setDeletingDrawingId(drawingId);
@@ -93,7 +97,7 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
 
     if (error) {
       setMessage(error.message);
-      return;
+      return false;
     }
 
     setProjectRows((current) =>
@@ -103,7 +107,8 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
           : item
       )
     );
-    setMessage("Drawing deleted permanently.");
+    setMessage("Drawing deleted.");
+    return true;
   }
 
   return (
@@ -159,7 +164,7 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
                   <button
                     type="button"
                     disabled={deletingDrawingId === drawing.id}
-                    onClick={() => void deleteDrawing(drawing.projectId, drawing.id)}
+                    onClick={() => setPendingDeleteDrawing({ projectId: drawing.projectId, drawingId: drawing.id, name: drawing.name })}
                   >
                     {deletingDrawingId === drawing.id ? "Deleting..." : "Delete"}
                   </button>
@@ -178,6 +183,34 @@ export function DrawingsPage({ userId, userEmail, projects, errorMessage }: Draw
           )}
         </section>
       </section>
+      {pendingDeleteDrawing ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-drawing-title">
+            <span className="modal-icon">!</span>
+            <h2 id="delete-drawing-title">Delete drawing?</h2>
+            <p>
+              This permanently removes <strong>{pendingDeleteDrawing.name}</strong> from its project and available quote
+              measurements.
+            </p>
+            <div className="modal-actions">
+              <button type="button" onClick={() => setPendingDeleteDrawing(null)} disabled={deletingDrawingId === pendingDeleteDrawing.drawingId}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={`danger-button${deletingDrawingId === pendingDeleteDrawing.drawingId ? " is-processing" : ""}`}
+                onClick={async () => {
+                  const deleted = await deleteDrawing(pendingDeleteDrawing.projectId, pendingDeleteDrawing.drawingId);
+                  if (deleted) setPendingDeleteDrawing(null);
+                }}
+                disabled={deletingDrawingId === pendingDeleteDrawing.drawingId}
+              >
+                {deletingDrawingId === pendingDeleteDrawing.drawingId ? "Deleting…" : "Delete Drawing"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       <MobileAppNav active="drawings" />
     </main>
   );

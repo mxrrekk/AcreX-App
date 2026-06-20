@@ -1582,7 +1582,11 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                 </button>
               </div>
 
-              <div className="mobile-sheet-content">
+              <div
+                className="mobile-sheet-content"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
                 {mobileSheet === "draw" ? (
                   <div className="mobile-draw-services">
                     {serviceTypes.filter((service) => service.id !== "property-boundary").map((service) => (
@@ -1646,7 +1650,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                       <Link href="/drawings">Drawings</Link>
                       <Link href="/clients">Clients</Link>
                       <Link href="/invoices">Invoices</Link>
-                      <button type="button" disabled>Exports <small>Coming soon</small></button>
+                      <Link href="/exports">Exports</Link>
                       <Link href="/settings">Settings</Link>
                       <Link href="/settings?tab=account">Account</Link>
                     </div>
@@ -1735,7 +1739,13 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                       ) : (
                         <button type="button" onClick={() => void handleSaveProject()}>Save to Project</button>
                       )}
-                      <Link className="secondary" href="/drawings">Open Drawing</Link>
+                      {activeProjectId ? (
+                        <Link className="secondary" href="/drawings">Open Drawing</Link>
+                      ) : (
+                        <button className="secondary" type="button" disabled title="Save this drawing to a project first.">
+                          Save first
+                        </button>
+                      )}
                     </div>
                     <details className="mobile-shape-details">
                       <summary>Edit drawing details</summary>

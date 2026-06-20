@@ -8,6 +8,24 @@ Last updated: June 19, 2026.
 - [x] Simplify the landing header grid after removing the CTA.
 - [x] Verify the landing page has no horizontal overflow at 320px, 375px, 393px, 768px, or 1440px.
 
+## Completed — Production QA and Polish Pass
+
+- [x] Verify all public and protected routes, navigation targets, legal pages, and authentication redirects.
+- [x] Fix iOS/Capacitor viewport sizing and safe-area placement so web content renders at device width.
+- [x] Add confirmation dialogs for drawing and client deletion and keep failed deletions visible.
+- [x] Verify map search, drawing, inspector editing, hide, delete, undo, style switching, 3D, reset, and location feedback.
+- [x] Stop mobile bottom-sheet interactions from clearing the selected map drawing.
+- [x] Keep unsaved drawing actions honest by requiring project save before opening the drawing manager.
+- [x] Add a working customer-ready quote preview with print/PDF support and a direct mobile Preview & Export action.
+- [x] Route saved quotes into invoice creation and preserve quote selection.
+- [x] Verify Settings persistence and confirm new quote lines use pricing defaults without overwriting edited lines.
+- [x] Replace dead billing/export controls with clear availability states and restore the mobile Exports route.
+- [x] Improve mobile Clients, Drawings, Quotes, Invoices, and Settings layouts at iPhone SE through iPad Pro sizes.
+- [x] Fix desktop client history overflow, invoice setup proportions, AI context truncation, and logo aspect-ratio warnings.
+- [x] Add accessible labels to unlabeled project filters and invoice status controls.
+- [x] Verify the configured Gemini key and `gemini-3.5-flash` endpoint server-side without exposing the key.
+- [x] Run lint, TypeScript, production build, browser route/workflow checks, and iOS simulator validation.
+
 ## Completed — Compact Authentication Pages
 
 - [x] Remove “AcreX Early Access” text from the application.

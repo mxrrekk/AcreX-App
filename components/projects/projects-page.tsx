@@ -196,7 +196,7 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, err
             placeholder="Search projects..."
             type="search"
           />
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as ProjectStatus | "All")}>
+          <select aria-label="Filter projects by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as ProjectStatus | "All")}>
             <option value="All">All Statuses</option>
             {projectStatuses.map((status) => (
               <option key={status} value={status}>
@@ -204,7 +204,7 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, err
               </option>
             ))}
           </select>
-          <select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}>
+          <select aria-label="Filter projects by tag" value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}>
             <option value="All">All Tags</option>
             {defaultProjectTags.map((tag) => (
               <option key={tag} value={tag}>{tag}</option>

@@ -12,6 +12,7 @@ type InvoicesPageProps = {
   userEmail: string;
   quotes: QuoteRecord[];
   invoices: InvoiceRecord[];
+  initialQuoteId?: string | null;
   errorMessage: string | null;
 };
 
@@ -87,8 +88,11 @@ function getReadableInvoiceError(message: string) {
   return message;
 }
 
-export function InvoicesPage({ userId, userEmail, quotes, invoices, errorMessage }: InvoicesPageProps) {
-  const [formState, setFormState] = useState<InvoiceFormState>(emptyInvoiceForm);
+export function InvoicesPage({ userId, userEmail, quotes, invoices, initialQuoteId, errorMessage }: InvoicesPageProps) {
+  const [formState, setFormState] = useState<InvoiceFormState>(() => ({
+    ...emptyInvoiceForm,
+    quoteId: initialQuoteId && quotes.some((quote) => quote.id === initialQuoteId) ? initialQuoteId : ""
+  }));
   const [savedInvoices, setSavedInvoices] = useState<InvoiceRecord[]>(invoices);
   const [message, setMessage] = useState<string | null>(errorMessage ? getReadableInvoiceError(errorMessage) : null);
   const [isSaving, setIsSaving] = useState(false);
@@ -221,7 +225,7 @@ export function InvoicesPage({ userId, userEmail, quotes, invoices, errorMessage
                 <span>Invoice Setup</span>
                 <strong>{selectedQuote?.quote_number ?? "Select a quote"}</strong>
               </div>
-              <select value={formState.status} onChange={(event) => setFormState((current) => ({ ...current, status: event.target.value as InvoiceStatus }))}>
+              <select aria-label="Invoice status" value={formState.status} onChange={(event) => setFormState((current) => ({ ...current, status: event.target.value as InvoiceStatus }))}>
                 {invoiceStatuses.map((status) => (
                   <option key={status} value={status}>
                     {status}
