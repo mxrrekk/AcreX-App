@@ -244,7 +244,9 @@ function sanitizeContext(value: unknown) {
           unit: cleanText(line.unit, 40),
           rate: cleanOptionalNumber(line.rate),
           total: Math.max(0, cleanNumber(line.total)),
-          notes: cleanText(line.notes, 600)
+          notes: cleanText(line.notes, 600),
+          sourceDeleted: line.sourceDeleted === true,
+          sourceChangeAvailable: line.sourceChangeAvailable === true
         };
       })
     : [];
@@ -406,6 +408,8 @@ Rules:
 - Treat measurements with selected=true, measurements.selected, selectedSourceIds, and current quote lines as the active quote scope.
 - Available measurements that are not selected are reference-only. Do not generate service lines, materials, costs, scope, or questions for them unless the user's notes explicitly include them.
 - Do not suggest a service line when the same sourceMeasurementId already exists in current quote lines. Suggest supporting job costs or assumptions instead.
+- A current quote line with sourceDeleted=true is preserved for contractor review, but its deleted drawing must not influence project-type detection, measurement context, materials, or follow-up questions.
+- A current quote line with sourceChangeAvailable=true was manually edited and must remain untouched; call out the source mismatch as a warning instead of overwriting it.
 - Make the estimate specific to that project type. Mowing should focus on acreage, frequency, edging, weed eating, blowing, obstacles, gate access, and clippings. Fence installation should consider material, height, gates, removal, concrete, terrain, and linear footage. Brush or forestry mulching should consider density, haul-off or onsite mulch, stumps, selective/full clearing, wet areas, terrain, and access. Driveways should consider install/refresh, gravel type, depth, base preparation, delivery, grading, drainage, culverts, and compaction. House pads should consider dimensions, clearing, fill, compaction, drainage, and elevation. Land clearing should consider selective/full clearing, trees/stumps, debris disposal, finish grade, and access.
 - The client has already detected the active service types and supplied service-specific questionGroups and unansweredQuestions.
 - Ask only questions listed in siteConditions.unansweredQuestions. Never invent a cross-service or generic questionnaire.

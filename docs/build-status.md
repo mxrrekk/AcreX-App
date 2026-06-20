@@ -4,7 +4,7 @@ Last reviewed: June 20, 2026.
 
 ## Current Status
 
-The first-time contractor acceptance pass is complete. AcreX now presents clearer project save state, prevents empty project saves, keeps the drawing inspector focused, explains quote pricing defaults accurately, and makes the AI review significantly more compact on mobile.
+The cross-app data synchronization pass is complete. AcreX now uses one mutation notification path, immediately persists saved-project drawing changes, refreshes related routes, reconciles source-linked quote lines, and protects finalized financial records during cascades.
 
 Vercel deployment compatibility was also corrected: cloud builds now emit the standard `.next` directory, while local production builds continue using `.next-build` to avoid colliding with the running iOS development server.
 
@@ -87,6 +87,15 @@ Vercel deployment compatibility was also corrected: cloud builds now emit the st
 - Quote pricing clarity: Settings pricing status applies to new lines and explicitly states that existing edited rates remain unchanged
 - AI review density: Project Vision and Suggested Line Items remain open while secondary suggestion groups start collapsed
 - Quote suggestion application: applying an AI item removes it from pending suggestions and creates one editable quote item
+- Cross-route invalidation: project, drawing, quote, and invoice mutations refresh all open AcreX routes through same-tab and cross-tab events
+- Drawing persistence: create, edit, service, geometry, color, reverse-geocoded location, delete, and undo changes save immediately when a project exists
+- Quote source reconciliation: untouched linked lines update quantity, unit, service, label, and matching Settings rate; manually edited lines remain unchanged with `update available`
+- Deleted drawing handling: linked quote lines remain editable with `Source drawing deleted`, while Available Measurements and AI service detection remove the deleted source
+- Project cascade protection: draft quotes and invoices are removed; sent, accepted, overdue, and paid records block destructive project deletion with an explanation
+- Quote/invoice cascades: draft quote deletion removes draft invoices, draft invoice deletion is available, and linked totals/statuses refresh immediately
+- Executable source-sync assertions: auto-update, manual preservation, delete marking, and undo restoration passed
+- Executable cascade assertions: protected-record blocking and draft deletion order passed
+- Browser acceptance harness: source-change warning, source-deleted warning, manual quantity preservation, and irrelevant deleted-source AI questions passed with no console warnings or errors
 
 ## Remaining Release Work
 

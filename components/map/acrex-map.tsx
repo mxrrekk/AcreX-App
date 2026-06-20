@@ -29,7 +29,7 @@ type AcrexMapProps = {
   onDrawingStateCommit?: (
     zones: WorkZone[],
     deletedZones: WorkZone[],
-    reason: "delete" | "undo"
+    reason: "create" | "edit" | "delete" | "undo"
   ) => boolean | Promise<boolean>;
   onSelectedZonesChange?: (zones: WorkZone[]) => void;
   onAddressDetailsChange?: (details: AddressDetails | null) => void;
@@ -1192,6 +1192,7 @@ export function AcrexMap({
         address: centroidAddress,
         source: "reverse_geocode"
       });
+      void onDrawingStateCommitRef.current?.(workZonesRef.current, [], "edit");
       return;
     }
 
@@ -1207,6 +1208,7 @@ export function AcrexMap({
       parcelId: null,
       source: "reverse_geocode"
     });
+    void onDrawingStateCommitRef.current?.(workZonesRef.current, [], "edit");
   }
 
   async function lookupParcelBoundary(center: [number, number]) {
@@ -1791,6 +1793,7 @@ export function AcrexMap({
         event.features.filter(isDrawShapeFeature).forEach((feature) => {
           void resolveDrawingLocation(feature);
         });
+        void onDrawingStateCommitRef.current?.(workZonesRef.current, [], "create");
         setActiveMode("select");
       };
 
@@ -1804,6 +1807,7 @@ export function AcrexMap({
           latestDrawingLocationIdRef.current = String(updatedFeature.id);
           void resolveDrawingLocation(updatedFeature);
         }
+        void onDrawingStateCommitRef.current?.(workZonesRef.current, [], "edit");
       };
 
       const handleDrawDelete = (event: { features: GeoJSON.Feature[] }) => {
@@ -2309,6 +2313,7 @@ export function AcrexMap({
     }
     refreshZonesRef.current();
     pushHistorySnapshot();
+    void onDrawingStateCommitRef.current?.(workZonesRef.current, [], "edit");
   }
 
   function updateSelectedZoneColor(color: string) {
@@ -2319,6 +2324,7 @@ export function AcrexMap({
     draw.setFeatureProperty(selectedZone.id, "color", color);
     refreshZonesRef.current();
     pushHistorySnapshot();
+    void onDrawingStateCommitRef.current?.(workZonesRef.current, [], "edit");
   }
 
   function zoomToSelectedZone() {
@@ -2349,6 +2355,7 @@ export function AcrexMap({
     draw.setFeatureProperty(selectedZone.id, "visible", layerVisibilityRef.current[serviceType.zoneType]);
     refreshZonesRef.current();
     pushHistorySnapshot();
+    void onDrawingStateCommitRef.current?.(workZonesRef.current, [], "edit");
     return true;
   }
 

@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { cascadeDeleteProject } from "@/lib/data/cascades";
+import { publishDataChange } from "@/lib/data/sync";
+import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import { formatAcres } from "@/lib/geo/format";
 import {
   clearDeletedProjectLocalState,
@@ -66,7 +69,7 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 }
 
-export function ProjectsPage({ userId, userEmail, projects, clients, quotes, errorMessage }: ProjectsPageProps) {
+export function ProjectsPage({ userId, userEmail, projects, clients, quotes, invoices, errorMessage }: ProjectsPageProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "All">("All");
   const [projectRows, setProjectRows] = useState<ProjectRecord[]>(projects);
@@ -75,6 +78,11 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, err
   const [pendingDeleteProject, setPendingDeleteProject] = useState<ProjectRecord | null>(null);
   const [tagFilter, setTagFilter] = useState("All");
   const [tagStore, setTagStore] = useState<ProjectTagStore>(() => readStoredValue<ProjectTagStore>(getGlobalStorageKey(userEmail, "project-tags"), {}));
+  useAcrexDataRefresh();
+
+  useEffect(() => {
+    setProjectRows(projects);
+  }, [projects]);
 
   const clientById = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
   const quoteSummaryByProject = useMemo(() => {
@@ -135,26 +143,17 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, err
     setDeletingProjectId(pendingDeleteProject.id);
     setMessage(null);
     const projectId = pendingDeleteProject.id;
-    const { error: invoiceError } = await supabase
-      .from("invoices")
-      .delete()
-      .eq("project_id", projectId)
-      .eq("user_id", userId);
-    const { error: quoteError } = invoiceError
-      ? { error: null }
-      : await supabase
-          .from("quotes")
-          .delete()
-          .eq("project_id", projectId)
-          .eq("user_id", userId);
-    const { error: projectError } = invoiceError || quoteError
-      ? { error: null }
-      : await supabase.from("projects").delete().eq("id", projectId).eq("user_id", userId);
+    const result = await cascadeDeleteProject({
+      supabase,
+      userId,
+      projectId,
+      quotes,
+      invoices
+    });
     setDeletingProjectId(null);
 
-    const deleteError = invoiceError || quoteError || projectError;
-    if (deleteError) {
-      setMessage(getReadableProjectError(deleteError.message));
+    if (!result.ok) {
+      setMessage(getReadableProjectError(result.message));
       return;
     }
 
@@ -169,6 +168,7 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, err
     clearDeletedProjectLocalState(userEmail, deletedProjectId);
     setPendingDeleteProject(null);
     setMessage("Project deleted.");
+    publishDataChange({ type: "project-deleted", projectId: deletedProjectId });
   }
 
   return (
@@ -282,8 +282,8 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, err
             <span className="modal-icon">!</span>
             <h2 id="delete-project-title">Delete project?</h2>
             <p>
-              This permanently removes <strong>{pendingDeleteProject.project_name}</strong>, its drawings, quotes, quote
-              items, and invoices.
+              This permanently removes <strong>{pendingDeleteProject.project_name}</strong>, its drawings, draft quotes,
+              quote items, and draft invoices. Sent, accepted, or paid financial records must be resolved first.
             </p>
             <div className="modal-actions">
               <button type="button" onClick={() => setPendingDeleteProject(null)} disabled={deletingProjectId === pendingDeleteProject.id}>

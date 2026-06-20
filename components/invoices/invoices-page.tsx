@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { deleteDraftInvoice } from "@/lib/data/cascades";
+import { publishDataChange } from "@/lib/data/sync";
+import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import type { InvoiceFormState, InvoiceRecord, InvoiceStatus, QuoteRecord } from "@/lib/projects/types";
 
 type InvoicesPageProps = {
@@ -97,6 +100,19 @@ export function InvoicesPage({ userId, userEmail, quotes, invoices, initialQuote
   const [message, setMessage] = useState<string | null>(errorMessage ? getReadableInvoiceError(errorMessage) : null);
   const [isSaving, setIsSaving] = useState(false);
   const [updatingInvoiceId, setUpdatingInvoiceId] = useState<string | null>(null);
+  const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
+  useAcrexDataRefresh();
+
+  useEffect(() => {
+    setSavedInvoices(invoices);
+  }, [invoices]);
+
+  useEffect(() => {
+    if (formState.quoteId && !quotes.some((quote) => quote.id === formState.quoteId)) {
+      setFormState((current) => ({ ...current, quoteId: "" }));
+      setMessage("The selected quote was deleted. Invoice setup was cleared.");
+    }
+  }, [formState.quoteId, quotes]);
 
   const selectedQuote = useMemo(
     () => quotes.find((quote) => quote.id === formState.quoteId) ?? null,
@@ -166,8 +182,17 @@ export function InvoicesPage({ userId, userEmail, quotes, invoices, initialQuote
 
     const savedInvoice = normalizeInvoice(data);
     setSavedInvoices((current) => [savedInvoice, ...current]);
+    if (savedInvoice.status !== "Draft") {
+      await supabase.from("quotes").update({ status: "Accepted" }).eq("id", savedInvoice.quote_id).eq("user_id", userId);
+    }
     resetForm();
     setMessage(`✓ Invoice ${savedInvoice.invoice_number} saved and linked to quote ${selectedQuote.quote_number}.`);
+    publishDataChange({
+      type: "invoice-saved",
+      projectId: savedInvoice.project_id,
+      quoteId: savedInvoice.quote_id,
+      invoiceId: savedInvoice.id
+    });
   }
 
   async function markInvoicePaid(invoice: InvoiceRecord) {
@@ -194,8 +219,39 @@ export function InvoicesPage({ userId, userEmail, quotes, invoices, initialQuote
     }
 
     const updatedInvoice = normalizeInvoice(data);
+    await supabase.from("quotes").update({ status: "Accepted" }).eq("id", updatedInvoice.quote_id).eq("user_id", userId);
     setSavedInvoices((current) => current.map((item) => (item.id === updatedInvoice.id ? updatedInvoice : item)));
     setMessage(`✓ Invoice ${updatedInvoice.invoice_number} marked paid.`);
+    publishDataChange({
+      type: "invoice-updated",
+      projectId: updatedInvoice.project_id,
+      quoteId: updatedInvoice.quote_id,
+      invoiceId: updatedInvoice.id
+    });
+  }
+
+  async function handleDeleteInvoice(invoice: InvoiceRecord) {
+    if (!window.confirm(`Delete draft invoice ${invoice.invoice_number}?`)) return;
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      setMessage("Supabase is not configured.");
+      return;
+    }
+    setDeletingInvoiceId(invoice.id);
+    const result = await deleteDraftInvoice({ supabase, userId, invoice });
+    setDeletingInvoiceId(null);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    setSavedInvoices((current) => current.filter((item) => item.id !== invoice.id));
+    setMessage("Invoice deleted.");
+    publishDataChange({
+      type: "invoice-deleted",
+      projectId: invoice.project_id,
+      quoteId: invoice.quote_id,
+      invoiceId: invoice.id
+    });
   }
 
   return (
@@ -352,6 +408,16 @@ export function InvoicesPage({ userId, userEmail, quotes, invoices, initialQuote
                         {updatingInvoiceId === invoice.id ? "Updating..." : "Mark Paid"}
                       </button>
                     )}
+                    {invoice.status === "Draft" ? (
+                      <button
+                        type="button"
+                        className="danger-button"
+                        onClick={() => void handleDeleteInvoice(invoice)}
+                        disabled={deletingInvoiceId === invoice.id}
+                      >
+                        {deletingInvoiceId === invoice.id ? "Deleting…" : "Delete"}
+                      </button>
+                    ) : null}
                   </div>
                 </article>
               ))

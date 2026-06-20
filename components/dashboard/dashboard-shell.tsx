@@ -8,6 +8,8 @@ import Link from "next/link";
 import { AppSidebar, type AppSidebarKey } from "@/components/ui/app-sidebar";
 import type { Feature, Polygon } from "geojson";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { publishDataChange } from "@/lib/data/sync";
+import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import { formatAcres, formatFeet, formatSquareFeet } from "@/lib/geo/format";
 import type { ProjectMeasurements } from "@/lib/geo/measurements";
 import { mapStyleOptions, mapStyles, type MapStyle } from "@/lib/map/styles";
@@ -46,6 +48,7 @@ import { serviceTypes } from "@/lib/projects/service-types";
 import type { ClientRecord, DrawingLocationSource, InvoiceRecord, ProjectFormState, ProjectRecord, ProjectStatus, QuoteItemRecord, QuoteRecord, SavedProjectMapData, WorkZone, ZoneType } from "@/lib/projects/types";
 import { zoneColors, zoneLabels } from "@/lib/projects/zones";
 import { defaultUserSettings, loadUserSettings } from "@/lib/settings/user-settings";
+import { reconcileSourceLinkedLines, type MeasurementSource, type SourceLinkedLine } from "@/lib/quotes/source-sync";
 
 type DashboardShellProps = {
   userId: string;
@@ -374,6 +377,117 @@ function normalizeClient(row: unknown): ClientRecord {
 
 function normalizeQuote(row: unknown): QuoteRecord {
   return row as QuoteRecord;
+}
+
+function measurementSourcesFromZones(zones: WorkZone[], templates: ServiceTemplate[]): MeasurementSource[] {
+  return zones.map((zone) => {
+    const template = getTemplateForZone(zone.type, templates);
+    const isLinear = zone.geometryType === "line" || zone.feature.geometry.type === "LineString" || zone.type === "Fence";
+    const isSquareFeet =
+      !isLinear && (zone.unit === "sq ft" || zone.type === "Driveway" || zone.type === "HousePad" || zone.type === "Building");
+    const quantity = isLinear ? zone.lengthFt ?? zone.perimeterFeet : isSquareFeet ? zone.areaSqFt ?? zone.squareFeet : zone.areaAcres ?? zone.acres;
+    const unit = isLinear ? "linear feet" : isSquareFeet ? "sq ft" : "acres";
+    const normalizedTemplateUnit = template.unitType === "acre"
+      ? "acres"
+      : template.unitType === "linear ft"
+        ? "linear feet"
+        : template.unitType;
+    return {
+      sourceId: zone.id,
+      label: zone.name,
+      serviceName: zone.quoteCategory || zone.serviceTypeLabel || template.serviceName,
+      zoneType: zone.type,
+      quantity,
+      unit,
+      rate: normalizedTemplateUnit === unit && template.defaultUnitPrice > 0 ? template.defaultUnitPrice : null
+    };
+  });
+}
+
+async function syncProjectQuotesToDrawings(
+  supabase: NonNullable<ReturnType<typeof createSupabaseBrowserClient>>,
+  userId: string,
+  projectId: string,
+  zones: WorkZone[],
+  templates: ServiceTemplate[]
+) {
+  const { data: quoteRows, error } = await supabase
+    .from("quotes")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("user_id", userId);
+  if (error) return false;
+
+  const sources = measurementSourcesFromZones(zones, templates);
+  for (const row of quoteRows ?? []) {
+    if (!row.notes) continue;
+    try {
+      const payload = JSON.parse(row.notes) as {
+        lineItems?: SourceLinkedLine[];
+        materials?: Array<{ quantity?: string; unitCost?: string }>;
+        costLines?: Array<{ amount?: string }>;
+        discount?: number;
+        taxPercent?: number;
+        totals?: Record<string, number>;
+      };
+      const currentLines = payload.lineItems ?? [];
+      const protectedLines = row.status === "Draft"
+        ? currentLines
+        : currentLines.map((line) => ({ ...line, sourceManuallyEdited: true }));
+      const reconciled = reconcileSourceLinkedLines(protectedLines, sources);
+      if (!reconciled.changed) continue;
+
+      payload.lineItems = reconciled.lines;
+      const update: Record<string, unknown> = { notes: JSON.stringify(payload) };
+      if (row.status === "Draft") {
+        const services = reconciled.lines.reduce(
+          (total, line) => total + (Number.parseFloat(line.quantity) || 0) * (Number.parseFloat(line.rate) || 0),
+          0
+        );
+        const materials = (payload.materials ?? []).reduce(
+          (total, item) => total + (Number.parseFloat(item.quantity ?? "") || 0) * (Number.parseFloat(item.unitCost ?? "") || 0),
+          0
+        );
+        const costs = (payload.costLines ?? []).reduce(
+          (total, item) => total + (Number.parseFloat(item.amount ?? "") || 0),
+          0
+        );
+        const taxable = Math.max(services + materials + costs - Number(payload.discount ?? 0), 0);
+        const total = taxable * (1 + Number(payload.taxPercent ?? 0) / 100);
+        update.subtotal = services;
+        update.total = total;
+        payload.totals = { ...(payload.totals ?? {}), services, materials, grandTotal: total };
+        update.notes = JSON.stringify(payload);
+      }
+      const { error: quoteUpdateError } = await supabase.from("quotes").update(update).eq("id", row.id).eq("user_id", userId);
+      if (quoteUpdateError) continue;
+      if (row.status === "Draft") {
+        const savedLines = reconciled.lines as Array<SourceLinkedLine & { notes?: string }>;
+        await supabase.from("quote_items").delete().eq("quote_id", row.id).eq("user_id", userId);
+        if (savedLines.length) {
+          await supabase.from("quote_items").insert(
+            savedLines.map((line, index) => ({
+              quote_id: row.id,
+              user_id: userId,
+              service: line.serviceName || "Custom",
+              description: line.description,
+              quantity: Number.parseFloat(line.quantity) || 0,
+              unit: line.unit,
+              unit_price: Number.parseFloat(line.rate) || 0,
+              total: (Number.parseFloat(line.quantity) || 0) * (Number.parseFloat(line.rate) || 0),
+              zone_name: line.sourceMeasurement,
+              zone_type: line.zoneType,
+              notes: line.notes ?? "",
+              sort_order: index
+            }))
+          );
+        }
+      }
+    } catch {
+      // Legacy plain-text quote notes have no source links to reconcile.
+    }
+  }
+  return true;
 }
 
 function getSavedQuoteConfidence(quotes: QuoteRecord[], projectId: string | null) {
@@ -942,6 +1056,24 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
     void loadFinancialRecords();
   }, [loadFinancialRecords]);
 
+  const handleExternalDataChange = useCallback(
+    (change: { type: string; projectId?: string | null }) => {
+      if (change.type === "project-deleted" && change.projectId === activeProjectId) {
+        setActiveProjectId(null);
+        setWorkZones([]);
+        setSelectedZones([]);
+        setDraftMapData(null);
+        setActivePanel(null);
+        setMobileSheet(null);
+        window.localStorage.removeItem(getDashboardDraftKey(userEmail));
+      }
+      void loadProjects();
+      void loadFinancialRecords();
+    },
+    [activeProjectId, loadFinancialRecords, loadProjects, userEmail]
+  );
+  useAcrexDataRefresh(handleExternalDataChange);
+
   useEffect(() => {
     if (!requestedProjectId || isLoadingProjects || loadedRequestedProjectIdRef.current === requestedProjectId) return;
     loadedRequestedProjectIdRef.current = requestedProjectId;
@@ -1095,7 +1227,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   }
 
   const handleDrawingStateCommit = useCallback(
-    async (zones: WorkZone[], deletedZones: WorkZone[], reason: "delete" | "undo") => {
+    async (zones: WorkZone[], deletedZones: WorkZone[], reason: "create" | "edit" | "delete" | "undo") => {
       const currentProject = activeProjectId
         ? projects.find((project) => project.id === activeProjectId) ?? null
         : null;
@@ -1176,7 +1308,9 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
               message: error.message
             });
           }
+          return;
         }
+        await syncProjectQuotesToDrawings(supabase, currentUserId, currentProject.id, zones, serviceTemplates);
       };
 
       const queuedOperation = drawingPersistenceQueueRef.current.then(operation, operation);
@@ -1192,18 +1326,31 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
         return false;
       }
 
-      setProjectMessage(reason === "delete" ? "Drawing deleted" : "Drawing restored");
+      const successMessage =
+        reason === "delete"
+          ? "Drawing deleted"
+          : reason === "undo"
+            ? "Drawing restored"
+            : reason === "create"
+              ? "Drawing saved"
+              : "Drawing updated";
+      setProjectMessage(successMessage);
       addActivity(
-        reason === "delete" ? "Drawing deleted" : "Drawing restored",
+        successMessage,
         reason === "delete"
           ? `${deletedZones.length || 1} drawing${deletedZones.length === 1 ? "" : "s"} removed from ${projectName}.`
-          : `A recently deleted drawing was restored to ${projectName}.`,
+          : reason === "undo"
+            ? `A recently deleted drawing was restored to ${projectName}.`
+            : `${projectName} drawing measurements were saved.`,
         "Map"
       );
+      publishDataChange({
+        type: reason === "delete" ? "drawing-deleted" : "drawing-saved",
+        projectId: currentProject.id,
+        drawingIds: reason === "delete" ? deletedZones.map((zone) => zone.id) : zones.map((zone) => zone.id)
+      });
       window.setTimeout(() => {
-        setProjectMessage((current) =>
-          current === "Drawing deleted" || current === "Drawing restored" ? null : current
-        );
+        setProjectMessage((current) => (current === successMessage ? null : current));
       }, 3200);
       return true;
     },
@@ -1337,6 +1484,24 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
     }
 
     const savedProject = normalizeProject(data);
+    const financialReference = {
+      project_name: savedProject.project_name,
+      address: savedProject.address,
+      client_id: savedProject.client_id,
+      client_name: linkedClient?.name ?? savedProject.customer_name
+    };
+    await Promise.all([
+      supabase
+        .from("quotes")
+        .update(financialReference)
+        .eq("project_id", savedProject.id)
+        .eq("user_id", currentUserId),
+      supabase
+        .from("invoices")
+        .update(financialReference)
+        .eq("project_id", savedProject.id)
+        .eq("user_id", currentUserId)
+    ]);
     setActiveProjectId(savedProject.id);
     setAddress(savedProject.address || projectAddress);
     setProjectForm((current) => ({
@@ -1350,6 +1515,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
     });
     setProjectMessage("Saved to Project");
     showToast("Saved to Project");
+    publishDataChange({ type: "project-saved", projectId: savedProject.id });
     addActivity(existingProjectId ? "Project updated" : "Project created", `${projectName} saved with ${workZones.length} zone${workZones.length === 1 ? "" : "s"}.`, "Project");
     window.setTimeout(() => {
       setProjectMessage((current) => (current === "Saved to Project" ? null : current));

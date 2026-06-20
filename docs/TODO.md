@@ -134,6 +134,23 @@ Last updated: June 20, 2026.
 
 - [ ] Complete V1 release readiness: production Capacitor URL, icons, privacy declarations, App Store metadata, archive validation, and TestFlight upload.
 
+## Completed — Cross-App Data Sync and Cascades
+
+- [x] Add one shared project/drawing/quote/invoice invalidation event path across routes and browser tabs.
+- [x] Refresh Projects, Drawings, Project Detail, Quotes, Invoices, and the active Map workspace after related mutations.
+- [x] Persist drawing creation, geometry edits, service changes, names, colors, measurements, deletes, undo, and reverse-geocoded metadata immediately for saved projects.
+- [x] Reconcile linked quote lines when source drawings change.
+- [x] Automatically update untouched linked lines while preserving manually edited lines with an update-available warning.
+- [x] Preserve quote lines whose source drawing was deleted and label them as `Source drawing deleted`.
+- [x] Remove deleted drawings from Available Measurements and AI measurement context.
+- [x] Exclude deleted-source lines from AI service detection and guided questions.
+- [x] Cascade project deletion through draft quotes and draft invoices while blocking deletion when sent, accepted, overdue, or paid financial records exist.
+- [x] Add safe draft quote deletion with related draft invoice cleanup.
+- [x] Add safe draft invoice deletion and linked quote status updates.
+- [x] Propagate project reference changes into linked quotes and invoices.
+- [x] Propagate quote totals and references into linked draft invoices.
+- [x] Verify source reconciliation and cascade protection with executable assertions and browser-rendered acceptance checks.
+
 ## Completed — First-Time Contractor Acceptance Test
 
 - [x] Walk the public landing, signup, and login experience at phone and desktop sizes.

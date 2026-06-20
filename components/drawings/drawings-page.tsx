@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
+import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import { formatDrawingQuantity, getProjectDrawings } from "@/lib/projects/drawings";
 import type { ProjectRecord } from "@/lib/projects/types";
 
@@ -14,6 +15,7 @@ type DrawingsPageProps = {
 };
 
 export function DrawingsPage({ userEmail, projects, errorMessage }: DrawingsPageProps) {
+  useAcrexDataRefresh();
   const [search, setSearch] = useState("");
   const drawings = useMemo(() => projects.flatMap(getProjectDrawings), [projects]);
   const filtered = useMemo(() => {

@@ -32,6 +32,10 @@ import {
 } from "@/lib/settings/user-settings";
 import type { ClientRecord, ProjectRecord, QuoteRecord, QuoteStatus, SavedZoneProperties, ZoneType } from "@/lib/projects/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { cascadeDeleteQuote } from "@/lib/data/cascades";
+import { publishDataChange } from "@/lib/data/sync";
+import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
+import { reconcileSourceLinkedLines, sourceSnapshot, type MeasurementSource } from "@/lib/quotes/source-sync";
 
 type QuotesPageProps = {
   userId: string;
@@ -75,6 +79,16 @@ type QuoteLineItem = {
   unit: string;
   rate: string;
   notes: string;
+  sourceManuallyEdited?: boolean;
+  sourceChangeAvailable?: boolean;
+  sourceDeleted?: boolean;
+  sourceSnapshot?: {
+    label: string;
+    serviceName: string;
+    zoneType: string;
+    quantity: number;
+    unit: string;
+  };
 };
 
 type MaterialItem = {
@@ -194,6 +208,8 @@ type EstimateContext = {
       rate: number | null;
       total: number;
       notes: string;
+      sourceDeleted: boolean;
+      sourceChangeAvailable: boolean;
     }>;
     materials: Array<{
       name: string;
@@ -472,6 +488,14 @@ function createLineItemFromMeasurement(measurement: MeasurementRow, savedTemplat
     measurement.quoteCategory === "Non-billable"
       ? measurement.serviceType
       : measurement.quoteCategory || measurement.serviceType || measurement.label;
+  const source: MeasurementSource = {
+    sourceId: measurement.sourceId,
+    label: measurement.label,
+    serviceName,
+    zoneType: String(measurement.zoneType),
+    quantity: measurement.quantity,
+    unit: measurement.unit
+  };
 
   return {
     id: createId("line"),
@@ -483,7 +507,11 @@ function createLineItemFromMeasurement(measurement: MeasurementRow, savedTemplat
     quantity: quantityToInput(measurement.quantity, measurement.unit),
     unit: measurement.unit,
     rate,
-    notes: matchingTemplate?.notes ?? ""
+    notes: matchingTemplate?.notes ?? "",
+    sourceSnapshot: sourceSnapshot(source),
+    sourceManuallyEdited: false,
+    sourceChangeAvailable: false,
+    sourceDeleted: false
   };
 }
 
@@ -576,7 +604,7 @@ function detectProjectServices(
   siteNotes: string
 ) {
   const selectedServices = detectEstimateServices([
-    ...lineItems.flatMap((item) => [item.serviceName, item.zoneType]),
+    ...lineItems.filter((item) => !item.sourceDeleted).flatMap((item) => [item.serviceName, item.zoneType]),
     ...measurements
       .filter((measurement) => lineItems.some((item) => item.sourceId === measurement.sourceId))
       .flatMap((measurement) => [measurement.serviceType, measurement.quoteCategory, String(measurement.zoneType)])
@@ -696,12 +724,25 @@ export function QuotesPage({
   const [mobileQuotePanel, setMobileQuotePanel] = useState<MobileQuotePanel>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [areMobileQuestionsOpen, setAreMobileQuestionsOpen] = useState(false);
+  const [isDeletingQuote, setIsDeletingQuote] = useState(false);
+  useAcrexDataRefresh();
 
   useEffect(() => {
     if (!initialProjectId || initialProjectId === selectedProjectId) return;
     if (!projects.some((project) => project.id === initialProjectId)) return;
     setSelectedProjectId(initialProjectId);
   }, [initialProjectId, projects, selectedProjectId]);
+
+  useEffect(() => {
+    if (!selectedProjectId || projects.some((project) => project.id === selectedProjectId)) return;
+    setSelectedProjectId(projects[0]?.id ?? "");
+    setSavedQuoteId(null);
+    setLineItems([]);
+    setMaterials([]);
+    setCostLines([]);
+    setAiSuggestion(null);
+    setSaveMessage("The selected project was deleted. Quote context was cleared.");
+  }, [projects, selectedProjectId]);
 
   useEffect(() => {
     const userSettings = loadSavedUserSettings(userId);
@@ -752,6 +793,30 @@ export function QuotesPage({
 
   const availableMeasurements = useMemo(() => getFeatureMeasurements(selectedProject), [selectedProject]);
   const addedSourceIds = useMemo(() => new Set(lineItems.map((item) => item.sourceId).filter(Boolean)), [lineItems]);
+
+  useEffect(() => {
+    if (!templatesLoaded) return;
+    const sources: MeasurementSource[] = availableMeasurements.map((measurement) => {
+      const template = findRateTemplate(measurement, savedTemplates);
+      return {
+        sourceId: measurement.sourceId,
+        label: measurement.label,
+        serviceName: measurement.quoteCategory || measurement.serviceType,
+        zoneType: String(measurement.zoneType),
+        quantity: measurement.quantity,
+        unit: measurement.unit,
+        rate:
+          template && normalizePricingUnit(template.unitType) === measurement.unit && template.defaultUnitPrice > 0
+            ? template.defaultUnitPrice
+            : null
+      };
+    });
+    const reconciled = reconcileSourceLinkedLines(lineItems, sources);
+    if (!reconciled.changed) return;
+    setLineItems(reconciled.lines);
+    setSaveState("idle");
+    setSaveMessage("A source drawing changed. Review the linked quote line before saving.");
+  }, [availableMeasurements, lineItems, savedTemplates, templatesLoaded]);
 
   useEffect(() => {
     if (!templatesLoaded || !initialMeasurementId || autoAddedMeasurementRef.current === initialMeasurementId) return;
@@ -952,7 +1017,10 @@ export function QuotesPage({
           billable: measurement.billable,
           selected: addedSourceIds.has(measurement.sourceId)
         })),
-        selectedSourceIds: lineItems.map((item) => item.sourceId).filter((sourceId): sourceId is string => Boolean(sourceId)),
+        selectedSourceIds: lineItems
+          .filter((item) => !item.sourceDeleted)
+          .map((item) => item.sourceId)
+          .filter((sourceId): sourceId is string => Boolean(sourceId)),
         selected: selectedMeasurements,
         totals: measurementTotals
       },
@@ -969,7 +1037,9 @@ export function QuotesPage({
           unit: item.unit,
           rate: item.rate.trim() ? parseAmount(item.rate) : null,
           total: lineTotal(item),
-          notes: item.notes
+          notes: item.notes,
+          sourceDeleted: Boolean(item.sourceDeleted),
+          sourceChangeAvailable: Boolean(item.sourceChangeAvailable)
         })),
         materials: materials.map((item) => ({
           name: item.name,
@@ -1160,7 +1230,19 @@ export function QuotesPage({
     : null;
 
   function updateLineItem(id: string, patch: Partial<QuoteLineItem>) {
-    setLineItems((items) => items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    const sourceFields = ["serviceName", "description", "quantity", "unit"] as const;
+    const editsSource = sourceFields.some((field) => Object.prototype.hasOwnProperty.call(patch, field));
+    setLineItems((items) =>
+      items.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              ...patch,
+              sourceManuallyEdited: Boolean(item.sourceId && editsSource) ? true : item.sourceManuallyEdited
+            }
+          : item
+      )
+    );
     setSaveState("idle");
   }
 
@@ -1180,7 +1262,19 @@ export function QuotesPage({
   }
 
   function duplicateLineItem(item: QuoteLineItem) {
-    setLineItems((items) => [...items, { ...item, id: createId("line") }]);
+    setLineItems((items) => [
+      ...items,
+      {
+        ...item,
+        id: createId("line"),
+        sourceId: null,
+        sourceMeasurement: "Duplicated line",
+        sourceSnapshot: undefined,
+        sourceManuallyEdited: true,
+        sourceChangeAvailable: false,
+        sourceDeleted: false
+      }
+    ]);
     setSaveState("idle");
   }
 
@@ -1197,7 +1291,11 @@ export function QuotesPage({
               quantity: replacement.quantity,
               unit: replacement.unit,
               rate: replacement.rate,
-              notes: replacement.notes
+              notes: replacement.notes,
+              sourceSnapshot: replacement.sourceSnapshot,
+              sourceManuallyEdited: false,
+              sourceChangeAvailable: false,
+              sourceDeleted: false
             }
           : item
       )
@@ -1567,9 +1665,70 @@ export function QuotesPage({
       }
     }
 
+    await supabase
+      .from("invoices")
+      .update({
+        project_id: quote.project_id,
+        client_id: quote.client_id,
+        client_name: quote.client_name,
+        project_name: quote.project_name,
+        address: quote.address,
+        total: quote.total
+      })
+      .eq("quote_id", quote.id)
+      .eq("user_id", userId)
+      .eq("status", "Draft");
+
     setSavedQuoteId(quote.id);
     setSaveState("saved");
     setSaveMessage(selectedProject ? "Quote saved to project." : "Quote saved.");
+    publishDataChange({ type: "quote-saved", projectId: selectedProject?.id ?? null, quoteId: quote.id });
+  }
+
+  async function deleteCurrentQuote() {
+    const currentSavedQuote = savedQuotes.find((quote) => quote.id === savedQuoteId) ?? null;
+    if (!savedQuoteId || !currentSavedQuote || isDeletingQuote) return;
+    if (!window.confirm(`Delete draft quote ${currentSavedQuote.quote_number}?`)) return;
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      setSaveState("error");
+      setSaveMessage("Supabase is not configured.");
+      return;
+    }
+    setIsDeletingQuote(true);
+    const { data: invoiceRows, error: invoiceError } = await supabase
+      .from("invoices")
+      .select("*")
+      .eq("quote_id", savedQuoteId)
+      .eq("user_id", userId);
+    if (invoiceError) {
+      setIsDeletingQuote(false);
+      setSaveState("error");
+      setSaveMessage(invoiceError.message);
+      return;
+    }
+    const result = await cascadeDeleteQuote({
+      supabase,
+      userId,
+      quote: currentSavedQuote,
+      invoices: invoiceRows ?? []
+    });
+    setIsDeletingQuote(false);
+    if (!result.ok) {
+      setSaveState("error");
+      setSaveMessage(result.message);
+      return;
+    }
+    const deletedId = savedQuoteId;
+    setSavedQuoteId(null);
+    setQuoteNumber(`Q-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`);
+    setLineItems([]);
+    setMaterials([]);
+    setCostLines([]);
+    setAiSuggestion(null);
+    setSaveState("idle");
+    setSaveMessage("Quote deleted.");
+    publishDataChange({ type: "quote-deleted", projectId: selectedProject?.id ?? null, quoteId: deletedId });
   }
 
   return (
@@ -1638,6 +1797,12 @@ export function QuotesPage({
                 <small>{hasQuoteContent ? "Customer-ready PDF view" : "Add quote content first"}</small>
               </button>
               <button type="button" onClick={() => setMobileQuotePanel("pricing")}>Pricing summary <small>{formatCurrency(grandTotal)}</small></button>
+              {savedQuoteId && status === "Draft" ? (
+                <button type="button" className="danger-button" onClick={() => void deleteCurrentQuote()} disabled={isDeletingQuote}>
+                  {isDeletingQuote ? "Deleting quote…" : "Delete draft quote"}
+                  <small>Also removes its draft invoice</small>
+                </button>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -2062,23 +2227,26 @@ export function QuotesPage({
                     const serviceChanged =
                       Boolean(existingLine && measurement.serviceTypeChangedAt) &&
                       existingLine?.serviceName !== measurement.quoteCategory;
+                    const sourceChanged = Boolean(existingLine?.sourceChangeAvailable);
                     return (
-                      <div className={`available-measurement-row quote-measurement-row${serviceChanged ? " service-changed" : ""}`} key={measurement.id}>
+                      <div className={`available-measurement-row quote-measurement-row${serviceChanged || sourceChanged ? " service-changed" : ""}`} key={measurement.id}>
                         <i style={{ background: measurement.color }} aria-hidden="true" />
                         <span>
                           <strong>{measurement.label}</strong>
                           <small>
                             {measurement.serviceType} · {formatMeasurement(measurement.quantity, measurement.unit)}
                           </small>
-                          {serviceChanged ? (
+                          {serviceChanged || sourceChanged ? (
                             <small className="measurement-change-warning">
-                              Service changed from {measurement.previousQuoteCategory || "the prior category"}. Review the quote line.
+                              {sourceChanged
+                                ? "Source measurement changed. Your edited line was preserved."
+                                : `Service changed from ${measurement.previousQuoteCategory || "the prior category"}. Review the quote line.`}
                             </small>
                           ) : !isAdded && !hasPricingDefault && measurement.billable ? (
                             <small className="measurement-pricing-warning">No Settings rate configured</small>
                           ) : null}
                         </span>
-                        {serviceChanged ? (
+                        {serviceChanged || sourceChanged ? (
                           <button type="button" onClick={() => updateLineFromMeasurement(measurement)}>Update Quote Line</button>
                         ) : (
                           <button
@@ -2135,10 +2303,11 @@ export function QuotesPage({
                     <div className="quote-editor-row quote-editor-line-grid" key={item.id}>
                       <label className="quote-mobile-field"><span>Service</span><input aria-label="Service name" value={item.serviceName} onChange={(event) => updateLineItem(item.id, { serviceName: event.target.value })} /></label>
                       <label className="quote-mobile-field"><span>Description</span><input aria-label="Description" value={item.description} onChange={(event) => updateLineItem(item.id, { description: event.target.value })} /></label>
-                      <span className={`quote-source-measurement${item.sourceId && !availableSourceIds.has(item.sourceId) ? " is-deleted" : ""}`}>
+                      <span className={`quote-source-measurement${item.sourceDeleted || (item.sourceId && !availableSourceIds.has(item.sourceId)) ? " is-deleted" : ""}`}>
                         <small>Source measurement</small>
                         {item.sourceMeasurement}
-                        {item.sourceId && !availableSourceIds.has(item.sourceId) ? " · Drawing deleted" : ""}
+                        {item.sourceDeleted || (item.sourceId && !availableSourceIds.has(item.sourceId)) ? " · Source drawing deleted" : ""}
+                        {item.sourceChangeAvailable ? " · Source measurement changed — update available" : ""}
                       </span>
                       <label className="quote-mobile-field"><span>Quantity</span><input aria-label="Quantity" value={item.quantity} inputMode="decimal" onChange={(event) => updateLineItem(item.id, { quantity: event.target.value })} /></label>
                       <label className="quote-mobile-field"><span>Unit</span><input aria-label="Unit" value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} /></label>
@@ -2514,6 +2683,16 @@ export function QuotesPage({
                 Preview / Export
                 <small>{hasQuoteContent ? "Customer-ready view" : "Add quote content first"}</small>
               </button>
+              {savedQuoteId && status === "Draft" ? (
+                <button
+                  type="button"
+                  className="danger-button"
+                  onClick={() => void deleteCurrentQuote()}
+                  disabled={isDeletingQuote}
+                >
+                  {isDeletingQuote ? "Deleting…" : "Delete Quote"}
+                </button>
+              ) : null}
               <div className="quote-summary-action-grid">
                 {quoteEmailHref ? (
                   <a className="secondary" href={quoteEmailHref}>
