@@ -682,6 +682,7 @@ export function QuotesPage({
   const initialSavedQuote = savedQuotes.find((quote) => quote.project_id === initialProject?.id) ?? null;
   const initialSavedPayload = parseSavedQuotePayload(initialSavedQuote);
   const autoAddedMeasurementRef = useRef<string | null>(null);
+  const autoEstimateAttemptRef = useRef<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState(initialProject?.id ?? "");
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -816,6 +817,9 @@ export function QuotesPage({
     setSaveState(savedQuote ? "saved" : "idle");
     setSaveMessage("");
     setAiSuggestion(null);
+    setAiBuildState("idle");
+    setAiBuildMessage("");
+    autoEstimateAttemptRef.current = null;
   }, [savedQuotes, selectedProject]);
 
   const availableMeasurements = useMemo(() => getFeatureMeasurements(selectedProject), [selectedProject]);
@@ -904,11 +908,22 @@ export function QuotesPage({
   const taxAmount = taxableSubtotal * (parseAmount(taxPercent) / 100);
   const grandTotal = taxableSubtotal + taxAmount;
   const depositRequired = grandTotal * (parseAmount(depositPercent) / 100);
+  const aiSuggestedTotal = useMemo(
+    () =>
+      (aiSuggestion?.suggestedLineItems ?? []).reduce(
+        (total, item) => total + (item.total ?? item.quantity * (item.recommendedRate ?? 0)),
+        0
+      ) +
+      (aiSuggestion?.suggestedLaborEquipment ?? []).reduce((total, item) => total + (item.amount ?? 0), 0),
+    [aiSuggestion]
+  );
   const hasQuoteContent =
     lineItems.length > 0 ||
     materials.length > 0 ||
     costLines.length > 0 ||
     Boolean(notes.scopeOfWork.trim());
+  const hasPreviewContent = hasQuoteContent || Boolean(aiSuggestion);
+  const displayedQuoteTotal = aiSuggestion ? aiSuggestedTotal : grandTotal;
   const customerEmail = selectedClient?.email?.trim() ?? "";
   const quoteEmailHref = customerEmail
     ? `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(`Quote ${quoteNumber} from AcreX`)}&body=${encodeURIComponent(
@@ -1182,6 +1197,30 @@ export function QuotesPage({
     estimateContext.project.id &&
       (estimateContext.measurements.totals.validMeasurementCount > 0 || estimateContext.quote.lineItems.length > 0)
   );
+  const automaticEstimateKey = useMemo(() => {
+    if (!selectedProject?.id) return "";
+    const measurementSignature = availableMeasurements
+      .filter((measurement) => measurement.billable && measurement.quantity > 0)
+      .map((measurement) => [
+        measurement.sourceId,
+        measurement.zoneType,
+        measurement.quantity,
+        measurement.unit
+      ].join(":"))
+      .sort()
+      .join("|");
+    const pricingSignature = (savedTemplates ?? [])
+      .filter((template) => template.active !== false)
+      .map((template) => [
+        template.serviceName,
+        template.unitType,
+        template.defaultUnitPrice,
+        template.minimumCharge
+      ].join(":"))
+      .sort()
+      .join("|");
+    return `${selectedProject.id}::${measurementSignature}::${pricingSignature}`;
+  }, [availableMeasurements, savedTemplates, selectedProject?.id]);
   const estimateConfidence = useMemo(() => {
     let score = 0;
     const materialsRequired = detectedServices.some((service) =>
@@ -1398,11 +1437,15 @@ export function QuotesPage({
     setAiBuildMessage("Context updated. Generate the AI estimate again when you want refreshed recommendations.");
   }
 
-  async function buildEstimate() {
+  const buildEstimate = useCallback(async (mode: "automatic" | "manual" = "manual") => {
     if (!estimateContextReady || aiBuildState === "loading") return;
 
     setAiBuildState("loading");
-    setAiBuildMessage("AcreX is analyzing the current quote context.");
+    setAiBuildMessage(
+      mode === "automatic"
+        ? "AcreX detected project measurements and is drafting the quote automatically."
+        : "AcreX is analyzing the current quote context."
+    );
 
     try {
       const response = await fetch("/api/ai/quote", {
@@ -1420,7 +1463,21 @@ export function QuotesPage({
 
       setAiSuggestion(data.suggestion);
       setAiBuildState("success");
-      setAiBuildMessage("Estimate suggestions are ready for review. Nothing was applied automatically.");
+      setAiBuildMessage(
+        mode === "automatic"
+          ? "AcreX drafted this quote from the selected project. Review, edit, or accept it."
+          : "Estimate suggestions are ready for review. Nothing was applied automatically."
+      );
+      if (automaticEstimateKey) {
+        try {
+          window.sessionStorage.setItem(
+            `acrex-ai-draft:${automaticEstimateKey}`,
+            JSON.stringify(data.suggestion)
+          );
+        } catch {
+          // Session caching is optional; the estimator remains functional without it.
+        }
+      }
       markQuoteUnsaved();
     } catch (error) {
       if (process.env.NODE_ENV === "development") {
@@ -1431,7 +1488,44 @@ export function QuotesPage({
       setAiBuildState("error");
       setAiBuildMessage("AI service unavailable");
     }
-  }
+  }, [aiBuildState, automaticEstimateKey, estimateContext, estimateContextReady]);
+
+  useEffect(() => {
+    if (
+      !templatesLoaded ||
+      !automaticEstimateKey ||
+      !estimateContextReady ||
+      hasQuoteContent ||
+      aiSuggestion ||
+      aiBuildState !== "idle"
+    ) {
+      return;
+    }
+    if (autoEstimateAttemptRef.current === automaticEstimateKey) return;
+
+    autoEstimateAttemptRef.current = automaticEstimateKey;
+    try {
+      const cachedDraft = window.sessionStorage.getItem(`acrex-ai-draft:${automaticEstimateKey}`);
+      if (cachedDraft) {
+        setAiSuggestion(JSON.parse(cachedDraft) as AiEstimateSuggestion);
+        setAiBuildState("success");
+        setAiBuildMessage("AcreX restored the draft estimate for this project.");
+        return;
+      }
+    } catch {
+      // Invalid or unavailable session cache falls through to a fresh server request.
+    }
+
+    void buildEstimate("automatic");
+  }, [
+    aiBuildState,
+    aiSuggestion,
+    automaticEstimateKey,
+    buildEstimate,
+    estimateContextReady,
+    hasQuoteContent,
+    templatesLoaded
+  ]);
 
   async function proposeAiChanges() {
     const command = aiEditCommand.trim();
@@ -1913,7 +2007,10 @@ export function QuotesPage({
             </select>
           </label>
           <div><span>Measurements</span><strong>{availableMeasurements.length} found</strong></div>
-          <div className="quote-quick-total"><span>Quote total</span><strong>{formatCurrency(grandTotal)}</strong></div>
+          <div className="quote-quick-total">
+            <span>{aiSuggestion ? "AI draft total" : "Quote total"}</span>
+            <strong>{formatCurrency(displayedQuoteTotal)}</strong>
+          </div>
         </section>
 
         <section className="quote-mobile-toolbar" aria-label="Mobile quote workspace">
@@ -1952,13 +2049,15 @@ export function QuotesPage({
               <button type="button" onClick={() => { setActiveTab("send"); setMobileQuotePanel(null); }}>PDF / Send <small>Preview and delivery</small></button>
               <button
                 type="button"
-                disabled={!hasQuoteContent}
+                disabled={!hasPreviewContent}
                 onClick={() => { setIsPreviewOpen(true); setMobileQuotePanel(null); }}
               >
                 Preview & export
-                <small>{hasQuoteContent ? "Customer-ready PDF view" : "Add quote content first"}</small>
+                <small>{hasPreviewContent ? "Customer-ready PDF view" : "Waiting for the AI draft"}</small>
               </button>
-              <button type="button" onClick={() => setMobileQuotePanel("pricing")}>Pricing summary <small>{formatCurrency(grandTotal)}</small></button>
+              <button type="button" onClick={() => setMobileQuotePanel("pricing")}>
+                Pricing summary <small>{formatCurrency(displayedQuoteTotal)}</small>
+              </button>
               {savedQuoteId && status === "Draft" ? (
                 <button type="button" className="danger-button" onClick={() => void deleteCurrentQuote()} disabled={isDeletingQuote}>
                   {isDeletingQuote ? "Deleting quote…" : "Delete draft quote"}
@@ -2131,20 +2230,30 @@ export function QuotesPage({
 
               <div className="quote-ai-composer">
                 <div>
-                  <strong>{estimateContextReady ? "Estimate context assembled" : "Complete the estimate context"}</strong>
+                  <strong>
+                    {aiBuildState === "loading"
+                      ? "Drafting your quote automatically"
+                      : estimateContextReady
+                        ? "Project context detected"
+                        : "Complete the estimate context"}
+                  </strong>
                   <p>
                     {estimateContextReady
-                      ? `${estimateContext.measurements.totals.validMeasurementCount} measurements, ${estimateContext.quote.lineItems.length} current lines, and ${completedConditionCount} of ${relevantQuestionCount} relevant questions are confirmed.`
+                      ? `${estimateContext.measurements.totals.validMeasurementCount} measurements detected. AcreX uses the drawings, service types, job answers, and pricing defaults to create the draft.`
                       : "Select a project and add a valid measurement or manual service line before building an estimate."}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={buildEstimate}
+                  onClick={() => void buildEstimate("manual")}
                   disabled={!estimateContextReady || aiBuildState === "loading"}
-                  title={estimateContextReady ? "Generate an AI estimate" : "Select a project and add measured or manual work first"}
+                  title={estimateContextReady ? "Regenerate the AI estimate" : "Select a project with measured work first"}
                 >
-                  {aiBuildState === "loading" ? "Generating Estimate…" : "Generate AI Estimate"}
+                  {aiBuildState === "loading"
+                    ? "Drafting Quote…"
+                    : aiSuggestion
+                      ? "Regenerate Estimate"
+                      : "Generate AI Estimate"}
                 </button>
               </div>
 
@@ -2329,7 +2438,7 @@ export function QuotesPage({
                 onApplyText={applySuggestedText}
                 onAcceptAll={acceptAiEstimate}
                 onEditQuote={() => setActiveTab("quote")}
-                onRegenerate={() => void buildEstimate()}
+                onRegenerate={() => void buildEstimate("manual")}
                 onGeneratePdf={() => setIsPreviewOpen(true)}
                 onClear={() => {
                   setAiSuggestion(null);
@@ -2767,7 +2876,7 @@ export function QuotesPage({
                     <p>
                       {aiSuggestion
                         ? [...aiSuggestion.pricingAssumptions, ...aiSuggestion.warnings].join(" · ") || "No active AI advisories."
-                        : "Build an estimate to review AI assumptions."}
+                        : "AcreX will show assumptions after drafting the estimate."}
                     </p>
                   </article>
                 </div>
@@ -2783,7 +2892,7 @@ export function QuotesPage({
                     type="button"
                     className="secondary"
                     onClick={() => setIsPreviewOpen(true)}
-                    disabled={!hasQuoteContent}
+                    disabled={!hasPreviewContent}
                   >
                     Preview / Generate PDF
                   </button>
@@ -2909,11 +3018,11 @@ export function QuotesPage({
                 type="button"
                 className="secondary"
                 onClick={() => setIsPreviewOpen(true)}
-                disabled={!hasQuoteContent}
-                title={!hasQuoteContent ? "Add quote content before previewing or exporting." : undefined}
+                disabled={!hasPreviewContent}
+                title={!hasPreviewContent ? "Select a measured project to generate quote content." : undefined}
               >
                 Preview / Export
-                <small>{hasQuoteContent ? "Customer-ready view" : "Add quote content first"}</small>
+                <small>{hasPreviewContent ? "Customer-ready view" : "Generate an AI estimate first"}</small>
               </button>
               {savedQuoteId && status === "Draft" ? (
                 <button
@@ -2950,7 +3059,7 @@ export function QuotesPage({
         <aside className="quote-mobile-summary-bar" aria-label="Mobile quote summary">
           <button type="button" className="quote-mobile-total-button" onClick={() => setMobileQuotePanel("pricing")}>
             <span>Grand total</span>
-            <strong>{formatCurrency(grandTotal)}</strong>
+            <strong>{formatCurrency(displayedQuoteTotal)}</strong>
           </button>
           <button type="button" onClick={() => setActiveTab("send")}>PDF</button>
           <button
@@ -2997,22 +3106,54 @@ export function QuotesPage({
                     <span>{item.serviceName || "Custom service"} · {item.quantity || "0"} {item.unit}</span>
                     <strong>{formatCurrency(lineTotal(item))}</strong>
                   </div>
+                )) : aiSuggestion?.suggestedLineItems.length ? aiSuggestion.suggestedLineItems.map((item, index) => (
+                  <div key={`ai-preview-${index}`}>
+                    <span>{item.serviceName || "Custom service"} · {item.quantity || 0} {item.unit}</span>
+                    <strong>{formatCurrency(item.total ?? item.quantity * (item.recommendedRate ?? 0))}</strong>
+                  </div>
                 )) : <p>No service line items added.</p>}
                 {materials.length ? <div><span>Materials</span><strong>{formatCurrency(materialsSubtotal)}</strong></div> : null}
                 {costLines.length ? <div><span>Labor, equipment, and mobilization</span><strong>{formatCurrency(laborEquipmentSubtotal + mobilization)}</strong></div> : null}
+                {!costLines.length && aiSuggestion?.suggestedLaborEquipment.length ? (
+                  <div>
+                    <span>Labor, equipment, and mobilization</span>
+                    <strong>
+                      {formatCurrency(
+                        aiSuggestion.suggestedLaborEquipment.reduce((total, item) => total + (item.amount ?? 0), 0)
+                      )}
+                    </strong>
+                  </div>
+                ) : null}
               </section>
               <section className="quote-preview-totals">
-                <div><span>Subtotal</span><strong>{formatCurrency(subtotalBeforeAdjustments)}</strong></div>
+                <div>
+                  <span>Subtotal</span>
+                  <strong>{formatCurrency(aiSuggestion && !hasQuoteContent ? aiSuggestedTotal : subtotalBeforeAdjustments)}</strong>
+                </div>
                 {fuelSurchargeAmount > 0 ? <div><span>Fuel surcharge</span><strong>{formatCurrency(fuelSurchargeAmount)}</strong></div> : null}
                 {discountAmount > 0 ? <div><span>Discount</span><strong>-{formatCurrency(discountAmount)}</strong></div> : null}
                 {taxAmount > 0 ? <div><span>Tax</span><strong>{formatCurrency(taxAmount)}</strong></div> : null}
-                <div><span>Grand total</span><strong>{formatCurrency(grandTotal)}</strong></div>
+                <div><span>Grand total</span><strong>{formatCurrency(displayedQuoteTotal)}</strong></div>
                 {depositRequired > 0 ? <div><span>Deposit required</span><strong>{formatCurrency(depositRequired)}</strong></div> : null}
               </section>
               <section className="quote-preview-terms">
-                {notes.scopeOfWork ? <div><strong>Scope of work</strong><p>{notes.scopeOfWork}</p></div> : null}
-                {notes.exclusions ? <div><strong>Exclusions</strong><p>{notes.exclusions}</p></div> : null}
-                {notes.paymentTerms ? <div><strong>Payment terms</strong><p>{notes.paymentTerms}</p></div> : null}
+                {notes.scopeOfWork || aiSuggestion?.suggestedScopeOfWork ? (
+                  <div><strong>Scope of work</strong><p>{notes.scopeOfWork || aiSuggestion?.suggestedScopeOfWork}</p></div>
+                ) : null}
+                {notes.exclusions || aiSuggestion?.suggestedExclusions ? (
+                  <div>
+                    <strong>Exclusions</strong>
+                    <p>
+                      {notes.exclusions ||
+                        (Array.isArray(aiSuggestion?.suggestedExclusions)
+                          ? aiSuggestion?.suggestedExclusions.join("\n")
+                          : aiSuggestion?.suggestedExclusions)}
+                    </p>
+                  </div>
+                ) : null}
+                {notes.paymentTerms || aiSuggestion?.suggestedTerms ? (
+                  <div><strong>Payment terms</strong><p>{notes.paymentTerms || aiSuggestion?.suggestedTerms}</p></div>
+                ) : null}
                 {notes.estimatedTimeline ? <div><strong>Timeline</strong><p>{notes.estimatedTimeline}</p></div> : null}
                 {notes.customerNotes ? <div><strong>Notes</strong><p>{notes.customerNotes}</p></div> : null}
               </section>

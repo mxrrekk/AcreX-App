@@ -8,6 +8,8 @@ The AI-first Quote Workspace pass is complete. The primary path is now project c
 
 No important workflow was removed. Detailed editing remains available on demand, while the default view prioritizes the next contractor action.
 
+Measured projects now draft automatically when they have no saved quote content. AcreX does not overwrite accepted or edited quote data, and it restores the same in-session AI draft after navigation or reload.
+
 ## Verification
 
 - iOS production server: `https://acre-x-app.vercel.app`, synced with cleartext transport disabled
@@ -25,6 +27,10 @@ No important workflow was removed. Detailed editing remains available on demand,
 - Quote workspace: AI Estimate, Quote, Scope, and PDF / Send are the only primary tabs
 - Quote quick context: project/customer identity, address, project selector, measurement count, and live total render above the workspace
 - AI primary action: Generate AI Estimate is visible in the main estimator card
+- Automatic AI draft: opening the tested measured mowing project triggered `/api/ai/quote` without a button click and returned a $296.31 draft
+- Automatic request safety: one attempt is made per project/measurement/pricing signature; accepted, saved, or edited quote content blocks automatic replacement
+- Draft restoration: reloading the tested quote restored the same $296.31 session draft without another AI request
+- Draft PDF readiness: AI service lines, labor/equipment costs, scope, exclusions, terms, and draft total can populate the customer preview before acceptance
 - AI review: aggregate Accept Estimate, Edit Quote, Regenerate, and Generate PDF actions are available without automatic application
 - AI change command: hidden before generation and displayed below generated suggestions as Update Estimate
 - Advanced quote controls: manual service creation, materials, labor/equipment, detailed quote metadata, discount, tax, deposit, and pricing breakdown remain available on demand

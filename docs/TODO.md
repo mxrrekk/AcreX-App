@@ -4,6 +4,12 @@ Last updated: June 20, 2026.
 
 ## Completed — AI-First Quote Workspace
 
+- [x] Automatically generate an AI draft when a newly selected project has valid drawings and no existing quote content.
+- [x] Prevent duplicate automatic requests for the same project, measurement, and pricing context.
+- [x] Restore the current AI draft during the browser session instead of charging for another request after navigation or reload.
+- [x] Keep existing saved or contractor-edited quotes from being overwritten automatically.
+- [x] Show the AI draft total in the primary quote header before the contractor accepts it.
+- [x] Allow the AI draft to render as customer-ready PDF preview content before acceptance.
 - [x] Make Generate AI Estimate the primary Quote action and remove old Build Estimate wording.
 - [x] Reduce the primary workspace to AI Estimate, Quote, Scope, and PDF / Send.
 - [x] Add a compact project, customer, address, measurement count, and live total header.
