@@ -96,6 +96,12 @@ Vercel deployment compatibility was also corrected: cloud builds now emit the st
 - Executable source-sync assertions: auto-update, manual preservation, delete marking, and undo restoration passed
 - Executable cascade assertions: protected-record blocking and draft deletion order passed
 - Browser acceptance harness: source-change warning, source-deleted warning, manual quantity preservation, and irrelevant deleted-source AI questions passed with no console warnings or errors
+- Project notes: Map and Project Detail publish and consume the same project-metadata invalidation event
+- AI freshness: existing AI recommendations clear when source measurements change and require a new Build Estimate
+- Legacy quote safety: linked lines without source snapshots are treated as contractor-edited when values differ, preventing silent overwrite
+- Cascade authority: project, quote, and invoice deletion re-read current database statuses before deleting anything
+- Durable regression command: `npm run test:data-sync` covers same-tab/cross-tab invalidation, auto-updates, manual preservation, deleted-source restoration, protected records, and draft cascade order
+- Responsive sync regression: 375×667 and 1440×900 quote workspaces retained exact viewport width, displayed both source warnings, preserved the manual `2.5` quantity, and logged no runtime warnings or errors
 
 ## Remaining Release Work
 

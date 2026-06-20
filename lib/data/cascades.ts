@@ -9,18 +9,33 @@ export type CascadeResult = {
 export async function cascadeDeleteProject({
   supabase,
   userId,
-  projectId,
-  quotes,
-  invoices
+  projectId
 }: {
   supabase: SupabaseClient;
   userId: string;
   projectId: string;
-  quotes: QuoteRecord[];
-  invoices: InvoiceRecord[];
 }): Promise<CascadeResult> {
-  const projectQuotes = quotes.filter((quote) => quote.project_id === projectId);
-  const projectInvoices = invoices.filter((invoice) => invoice.project_id === projectId);
+  const [{ data: quoteRows, error: quoteReadError }, { data: invoiceRows, error: invoiceReadError }] =
+    await Promise.all([
+      supabase
+        .from("quotes")
+        .select("id, project_id, quote_number, status")
+        .eq("project_id", projectId)
+        .eq("user_id", userId),
+      supabase
+        .from("invoices")
+        .select("id, project_id, invoice_number, status")
+        .eq("project_id", projectId)
+        .eq("user_id", userId)
+    ]);
+  if (quoteReadError || invoiceReadError) {
+    return {
+      ok: false,
+      message: quoteReadError?.message ?? invoiceReadError?.message ?? "Related records could not be verified."
+    };
+  }
+  const projectQuotes = (quoteRows ?? []) as Pick<QuoteRecord, "id" | "project_id" | "quote_number" | "status">[];
+  const projectInvoices = (invoiceRows ?? []) as Pick<InvoiceRecord, "id" | "project_id" | "invoice_number" | "status">[];
   const protectedQuote = projectQuotes.find((quote) => quote.status !== "Draft");
   const protectedInvoice = projectInvoices.find((invoice) => invoice.status !== "Draft");
 
@@ -66,18 +81,36 @@ export async function cascadeDeleteProject({
 export async function cascadeDeleteQuote({
   supabase,
   userId,
-  quote,
-  invoices
+  quote
 }: {
   supabase: SupabaseClient;
   userId: string;
   quote: QuoteRecord;
-  invoices: InvoiceRecord[];
 }): Promise<CascadeResult> {
-  if (quote.status !== "Draft") {
-    return { ok: false, message: `${quote.status} quotes must be preserved.` };
+  const [{ data: currentQuote, error: quoteReadError }, { data: invoiceRows, error: invoiceReadError }] =
+    await Promise.all([
+      supabase
+        .from("quotes")
+        .select("id, status")
+        .eq("id", quote.id)
+        .eq("user_id", userId)
+        .single(),
+      supabase
+        .from("invoices")
+        .select("id, quote_id, invoice_number, status")
+        .eq("quote_id", quote.id)
+        .eq("user_id", userId)
+    ]);
+  if (quoteReadError || invoiceReadError || !currentQuote) {
+    return {
+      ok: false,
+      message: quoteReadError?.message ?? invoiceReadError?.message ?? "Quote could not be verified."
+    };
   }
-  const linkedInvoices = invoices.filter((invoice) => invoice.quote_id === quote.id);
+  if (currentQuote.status !== "Draft") {
+    return { ok: false, message: `${currentQuote.status} quotes must be preserved.` };
+  }
+  const linkedInvoices = (invoiceRows ?? []) as Pick<InvoiceRecord, "id" | "quote_id" | "invoice_number" | "status">[];
   const protectedInvoice = linkedInvoices.find((invoice) => invoice.status !== "Draft");
   if (protectedInvoice) {
     return {
@@ -107,8 +140,17 @@ export async function deleteDraftInvoice({
   userId: string;
   invoice: InvoiceRecord;
 }): Promise<CascadeResult> {
-  if (invoice.status !== "Draft") {
-    return { ok: false, message: `${invoice.status} invoices must be preserved.` };
+  const { data: currentInvoice, error: readError } = await supabase
+    .from("invoices")
+    .select("id, status")
+    .eq("id", invoice.id)
+    .eq("user_id", userId)
+    .single();
+  if (readError || !currentInvoice) {
+    return { ok: false, message: readError?.message ?? "Invoice could not be verified." };
+  }
+  if (currentInvoice.status !== "Draft") {
+    return { ok: false, message: `${currentInvoice.status} invoices must be preserved.` };
   }
   const { error } = await supabase.from("invoices").delete().eq("id", invoice.id).eq("user_id", userId);
   return error ? { ok: false, message: error.message } : { ok: true, message: "Invoice deleted" };

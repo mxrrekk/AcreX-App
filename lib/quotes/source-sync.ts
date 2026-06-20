@@ -83,10 +83,15 @@ export function reconcileSourceLinkedLines<T extends SourceLinkedLine>(
       };
     }
 
-    if (line.sourceManuallyEdited) {
+    if (line.sourceManuallyEdited || !snapshot) {
       if (line.sourceChangeAvailable && !line.sourceDeleted) return line;
       changed = true;
-      return { ...line, sourceDeleted: false, sourceChangeAvailable: true };
+      return {
+        ...line,
+        sourceDeleted: false,
+        sourceManuallyEdited: true,
+        sourceChangeAvailable: true
+      };
     }
 
     changed = true;

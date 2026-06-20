@@ -1,5 +1,6 @@
 export type AcrexDataChangeType =
   | "project-saved"
+  | "project-metadata-saved"
   | "project-deleted"
   | "drawing-saved"
   | "drawing-deleted"

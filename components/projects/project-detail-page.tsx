@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
+import { publishDataChange } from "@/lib/data/sync";
 import { formatDrawingQuantity, getProjectDrawings } from "@/lib/projects/drawings";
 import { getProjectStorageKey, readStoredValue, writeStoredValue, type ProjectNote } from "@/lib/projects/operations";
 import type { ClientRecord, InvoiceRecord, ProjectRecord, QuoteRecord, SavedProjectMapData } from "@/lib/projects/types";
@@ -33,20 +34,23 @@ function formatDate(value: string) {
 
 export function ProjectDetailPage({ project, client, quotes, invoices, userEmail }: ProjectDetailPageProps) {
   const router = useRouter();
-  const handleDataChange = useCallback(
-    (change: { type: string; projectId?: string | null }) => {
-      if (change.type === "project-deleted" && change.projectId === project.id) {
-        router.replace("/projects");
-      }
-    },
-    [project.id, router]
-  );
-  useAcrexDataRefresh(handleDataChange);
   const drawings = getProjectDrawings(project);
   const notesKey = getProjectStorageKey(userEmail, project.id, "notes");
   const [notes, setNotes] = useState<ProjectNote[]>(() => readStoredValue<ProjectNote[]>(notesKey, []));
   const [noteText, setNoteText] = useState("");
   const [activeTab, setActiveTab] = useState<"overview" | "drawings" | "quotes" | "invoices" | "notes">("overview");
+  const handleDataChange = useCallback(
+    (change: { type: string; projectId?: string | null }) => {
+      if (change.type === "project-deleted" && change.projectId === project.id) {
+        router.replace("/projects");
+      }
+      if (change.type === "project-metadata-saved" && change.projectId === project.id) {
+        setNotes(readStoredValue<ProjectNote[]>(notesKey, []));
+      }
+    },
+    [notesKey, project.id, router]
+  );
+  useAcrexDataRefresh(handleDataChange);
 
   function addNote() {
     const text = noteText.trim();
@@ -64,6 +68,7 @@ export function ProjectDetailPage({ project, client, quotes, invoices, userEmail
     setNotes(nextNotes);
     writeStoredValue(notesKey, nextNotes);
     setNoteText("");
+    publishDataChange({ type: "project-metadata-saved", projectId: project.id });
   }
 
   return (

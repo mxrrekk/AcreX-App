@@ -146,9 +146,7 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
     const result = await cascadeDeleteProject({
       supabase,
       userId,
-      projectId,
-      quotes,
-      invoices
+      projectId
     });
     setDeletingProjectId(null);
 

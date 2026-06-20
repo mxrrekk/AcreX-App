@@ -816,6 +816,9 @@ export function QuotesPage({
     setLineItems(reconciled.lines);
     setSaveState("idle");
     setSaveMessage("A source drawing changed. Review the linked quote line before saving.");
+    setAiSuggestion(null);
+    setAiBuildState("idle");
+    setAiBuildMessage("Project measurements changed. Build Estimate again for current suggestions.");
   }, [availableMeasurements, lineItems, savedTemplates, templatesLoaded]);
 
   useEffect(() => {
@@ -1696,22 +1699,10 @@ export function QuotesPage({
       return;
     }
     setIsDeletingQuote(true);
-    const { data: invoiceRows, error: invoiceError } = await supabase
-      .from("invoices")
-      .select("*")
-      .eq("quote_id", savedQuoteId)
-      .eq("user_id", userId);
-    if (invoiceError) {
-      setIsDeletingQuote(false);
-      setSaveState("error");
-      setSaveMessage(invoiceError.message);
-      return;
-    }
     const result = await cascadeDeleteQuote({
       supabase,
       userId,
-      quote: currentSavedQuote,
-      invoices: invoiceRows ?? []
+      quote: currentSavedQuote
     });
     setIsDeletingQuote(false);
     if (!result.ok) {

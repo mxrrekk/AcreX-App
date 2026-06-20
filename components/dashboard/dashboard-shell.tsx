@@ -1067,6 +1067,14 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
         setMobileSheet(null);
         window.localStorage.removeItem(getDashboardDraftKey(userEmail));
       }
+      if (change.type === "project-metadata-saved" && change.projectId === activeProjectId) {
+        setProjectNotes(
+          readStoredValue<ProjectNote[]>(
+            getProjectStorageKey(userEmail, activeProjectId, "notes"),
+            []
+          )
+        );
+      }
       void loadProjects();
       void loadFinancialRecords();
     },
@@ -1559,7 +1567,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   function addProjectNote() {
     const text = noteText.trim();
     if (!text) return;
-    setProjectNotes((current) => [
+    const nextNotes = [
       {
         id: crypto.randomUUID(),
         text,
@@ -1567,10 +1575,15 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
         createdAt: new Date().toISOString(),
         createdBy: userEmail
       },
-      ...current
-    ]);
+      ...projectNotes
+    ];
+    setProjectNotes(nextNotes);
+    writeStoredValue(getProjectStorageKey(userEmail, activeProjectId, "notes"), nextNotes);
     setNoteText("");
     addActivity("Note added", `${noteType}: ${text}`, "Notes");
+    if (activeProjectId) {
+      publishDataChange({ type: "project-metadata-saved", projectId: activeProjectId });
+    }
   }
 
   function toggleTag(tag: string) {

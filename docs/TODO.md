@@ -149,6 +149,10 @@ Last updated: June 20, 2026.
 - [x] Add safe draft invoice deletion and linked quote status updates.
 - [x] Propagate project reference changes into linked quotes and invoices.
 - [x] Propagate quote totals and references into linked draft invoices.
+- [x] Synchronize project notes between Map and Project Detail through the shared invalidation path.
+- [x] Clear stale AI suggestions whenever project measurements or source links change.
+- [x] Preserve legacy linked quote lines when edit history is unavailable instead of risking silent overwrite.
+- [x] Verify protected quote and invoice status directly from Supabase before destructive cascades.
 - [x] Verify source reconciliation and cascade protection with executable assertions and browser-rendered acceptance checks.
 
 ## Completed — First-Time Contractor Acceptance Test
