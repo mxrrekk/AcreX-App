@@ -4,7 +4,7 @@ Last reviewed: June 20, 2026.
 
 ## Current Status
 
-The app-wide space-management pass is complete. Core Map, drawing, project, quote, and Settings actions now use compact summaries and in-place subviews instead of tall scroll drawers or horizontally scrolling tab strips.
+The AI-first Quote Workspace pass is complete. The primary path is now project context → Generate AI Estimate → contractor review/edit → PDF / Send. Detailed accounting controls remain available under Advanced Options without overwhelming the default workflow.
 
 No important workflow was removed. Detailed editing remains available on demand, while the default view prioritizes the next contractor action.
 
@@ -21,6 +21,15 @@ No important workflow was removed. Detailed editing remains available on demand,
 - Safe-area regression: the public landing header now reserves the iPhone status-bar/Dynamic-Island inset
 - `npm run lint`: passing
 - `npm run build`: passing
+- `npx tsc --noEmit --incremental false`: passing after the AI-first Quote Workspace update
+- Quote workspace: AI Estimate, Quote, Scope, and PDF / Send are the only primary tabs
+- Quote quick context: project/customer identity, address, project selector, measurement count, and live total render above the workspace
+- AI primary action: Generate AI Estimate is visible in the main estimator card
+- AI review: aggregate Accept Estimate, Edit Quote, Regenerate, and Generate PDF actions are available without automatic application
+- AI change command: hidden before generation and displayed below generated suggestions as Update Estimate
+- Advanced quote controls: manual service creation, materials, labor/equipment, detailed quote metadata, discount, tax, deposit, and pricing breakdown remain available on demand
+- Confidence UX: stored confidence data remains intact, but the contractor UI now presents actionable AI notes instead of a percentage
+- Mobile Quote regression: all four tabs fit at 393×852, document width equals viewport width, and Advanced Options opens materials, labor/equipment, and pricing without horizontal overflow
 - `npm run test:quote-services`: passing
 - `npm run test:data-sync`: passing
 - Quote service catalog: one authoritative mapping now drives drawing types, quote categories, units, Settings templates, and AI service detection

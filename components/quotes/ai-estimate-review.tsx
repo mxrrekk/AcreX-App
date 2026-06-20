@@ -54,6 +54,10 @@ type AiEstimateReviewProps = {
   onApplyMaterial: (item: AiSuggestedMaterial, key: string) => void;
   onApplyCost: (item: AiSuggestedCost, key: string) => void;
   onApplyText: (field: "scope" | "exclusions" | "terms", value: string, key: string) => void;
+  onAcceptAll: () => void;
+  onEditQuote: () => void;
+  onRegenerate: () => void;
+  onGeneratePdf: () => void;
   onClear: () => void;
 };
 
@@ -74,6 +78,10 @@ export function AiEstimateReview({
   onApplyMaterial,
   onApplyCost,
   onApplyText,
+  onAcceptAll,
+  onEditQuote,
+  onRegenerate,
+  onGeneratePdf,
   onClear
 }: AiEstimateReviewProps) {
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -88,15 +96,28 @@ export function AiEstimateReview({
   }
 
   const exclusions = exclusionsToText(suggestion.suggestedExclusions);
+  const suggestedTotal =
+    suggestion.suggestedLineItems.reduce(
+      (total, item) => total + (item.total ?? item.quantity * (item.recommendedRate ?? 0)),
+      0
+    ) +
+    suggestion.suggestedLaborEquipment.reduce((total, item) => total + (item.amount ?? 0), 0);
 
   return (
     <div className="quote-ai-review" aria-live="polite">
       <div className="quote-ai-review-heading">
         <div>
-          <span>Recommendation Review</span>
-          <strong>Review every suggestion before it changes the quote</strong>
+          <span>AI Suggested Quote</span>
+          <strong>{formatMoney(suggestedTotal)}</strong>
+          <small>AI creates. You approve and edit before anything is saved.</small>
         </div>
         <button type="button" onClick={onClear}>Clear results</button>
+      </div>
+      <div className="quote-ai-review-primary-actions">
+        <button type="button" onClick={onAcceptAll}>Accept Estimate</button>
+        <button type="button" className="secondary" onClick={onEditQuote}>Edit Quote</button>
+        <button type="button" className="secondary" onClick={onRegenerate}>Regenerate</button>
+        <button type="button" className="secondary" onClick={onGeneratePdf}>Generate PDF</button>
       </div>
 
       {suggestion.projectVision ? (
@@ -104,8 +125,7 @@ export function AiEstimateReview({
           <summary className="quote-ai-review-section-heading">
             <strong>Project Vision</strong>
             <span>
-              {suggestion.serviceType ? `${suggestion.serviceType.replaceAll("_", " ")} · ` : ""}
-              {typeof suggestion.confidenceScore === "number" ? `${suggestion.confidenceScore}% confidence` : ""}
+              {suggestion.serviceType ? suggestion.serviceType.replaceAll("_", " ") : "Project summary"}
             </span>
           </summary>
           <textarea
@@ -213,7 +233,7 @@ export function AiEstimateReview({
                   </label>
                   <div className="quote-ai-suggestion-actions">
                     <button type="button" onClick={() => onApplyLineItem(item, key)}>
-                      Apply
+                      Accept Item
                     </button>
                     <button type="button" className="secondary" onClick={() => setEditingKey(isEditing ? null : key)}>
                       {isEditing ? "Done Editing" : "Edit"}
@@ -479,7 +499,7 @@ export function AiEstimateReview({
       {suggestion.pricingAssumptions.length > 0 || suggestion.warnings.length > 0 ? (
         <details className="quote-ai-review-section">
           <summary className="quote-ai-review-section-heading">
-            <strong>Assumptions / Warnings</strong>
+            <strong>AI Notes</strong>
             <span>{suggestion.pricingAssumptions.length + suggestion.warnings.length}</span>
           </summary>
           <div className="quote-ai-advisories">

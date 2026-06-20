@@ -2,6 +2,18 @@
 
 Last updated: June 20, 2026.
 
+## Completed — AI-First Quote Workspace
+
+- [x] Make Generate AI Estimate the primary Quote action and remove old Build Estimate wording.
+- [x] Reduce the primary workspace to AI Estimate, Quote, Scope, and PDF / Send.
+- [x] Add a compact project, customer, address, measurement count, and live total header.
+- [x] Show AI suggestions as a contractor approval workflow with Accept, Edit, Regenerate, and Generate PDF actions.
+- [x] Keep the AI change command hidden until an estimate exists and rename its action to Update Estimate.
+- [x] Replace visible confidence percentages with actionable AI notes.
+- [x] Keep editable line items in Quote while hiding materials, labor, equipment, pricing adjustments, and detailed quote metadata under Advanced Options.
+- [x] Keep Save, Preview/PDF, Email, and Invoice conversion available in the final PDF / Send step.
+- [x] Verify the four-tab workflow and zero horizontal overflow at a 393px mobile viewport.
+
 ## Completed — App-Wide Space Management
 
 - [x] Replace the mobile selected-drawing scroll drawer with Summary, More Actions, and Location subviews.

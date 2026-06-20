@@ -58,6 +58,165 @@
   white-space: normal;
 }
 
+/* AI-first quote workspace: one clear path, with manual controls available on demand. */
+.quotes-page .quote-workspace-grid {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.quotes-page .quote-workspace-main {
+  min-width: 0;
+}
+
+.quotes-page .quote-detail-tabs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.quote-quick-context {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.5fr) minmax(190px, 0.9fr) minmax(130px, 0.55fr) minmax(170px, 0.7fr);
+  align-items: stretch;
+  gap: 8px;
+  max-width: 1180px;
+  margin: 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 16px;
+  background: rgba(8, 15, 12, 0.86);
+  padding: 8px;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.22);
+}
+
+.quote-quick-context > div,
+.quote-quick-context > label {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  gap: 4px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 10px 12px;
+  color: #8f9c94;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.quote-quick-context strong {
+  overflow: hidden;
+  color: #edf5ef;
+  font-size: 0.9rem;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.quote-quick-context small {
+  overflow: hidden;
+  color: #8f9c94;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.quote-quick-context select {
+  min-width: 0;
+  min-height: 36px;
+}
+
+.quote-quick-context .quote-quick-total {
+  background: rgba(131, 216, 103, 0.095);
+}
+
+.quote-quick-context .quote-quick-total strong {
+  color: #caffb9;
+  font-size: 1.35rem;
+}
+
+.quote-ai-composer button {
+  min-height: 48px;
+  padding-inline: 22px;
+  font-size: 0.82rem;
+}
+
+.quote-ai-review-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.quote-ai-review-heading > div > strong {
+  color: #caffb9;
+  font-size: clamp(1.45rem, 3vw, 2.15rem);
+}
+
+.quote-ai-review-heading small {
+  color: #8f9c94;
+}
+
+.quote-ai-review-primary-actions,
+.quote-send-actions,
+.quote-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quote-ai-review-primary-actions > *,
+.quote-send-actions > * {
+  min-height: 40px;
+}
+
+.quote-send-actions {
+  align-items: center;
+  padding-top: 4px;
+}
+
+.quote-pricing-summary {
+  position: static;
+  width: 100%;
+  max-width: none;
+}
+
+@media (max-width: 767px), (max-width: 1024px) and (orientation: portrait) {
+  .quote-quick-context {
+    grid-template-columns: minmax(0, 1fr) minmax(110px, 0.48fr);
+    border-radius: 13px;
+    padding: 6px;
+  }
+
+  .quote-quick-identity,
+  .quote-quick-context > label {
+    grid-column: 1 / -1;
+  }
+
+  .quote-quick-context > div,
+  .quote-quick-context > label {
+    padding: 8px 9px;
+  }
+
+  .quote-quick-context .quote-quick-total strong {
+    font-size: 1.05rem;
+  }
+
+  .quote-mobile-primary-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quote-ai-review-primary-actions > *,
+  .quote-send-actions > * {
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  .quote-heading-actions {
+    width: 100%;
+  }
+}
+
 @media (max-width: 1024px) and (orientation: portrait), (max-width: 767px) {
   .quote-ai-workspace {
     gap: 10px;

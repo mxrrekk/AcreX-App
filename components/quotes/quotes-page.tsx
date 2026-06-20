@@ -57,7 +57,7 @@ type QuotesPageProps = {
 };
 
 type QuoteUiStatus = "Draft" | "Sent" | "Approved" | "Declined";
-type QuoteWorkspaceTab = "estimate" | "line-items" | "materials" | "labor" | "scope" | "review";
+type QuoteWorkspaceTab = "ai" | "quote" | "scope" | "send";
 type MobileQuotePanel = "menu" | "details" | "pricing" | null;
 
 type MeasurementRow = {
@@ -588,12 +588,10 @@ function normalizeCostCategory(value: string | undefined): CostLine["category"] 
 }
 
 const quoteWorkspaceTabs: Array<{ id: QuoteWorkspaceTab; label: string }> = [
-  { id: "estimate", label: "Estimate" },
-  { id: "line-items", label: "Line Items" },
-  { id: "materials", label: "Materials" },
-  { id: "labor", label: "Labor" },
+  { id: "ai", label: "AI Estimate" },
+  { id: "quote", label: "Quote" },
   { id: "scope", label: "Scope" },
-  { id: "review", label: "Review" }
+  { id: "send", label: "PDF / Send" }
 ];
 
 function detectProjectServices(
@@ -730,9 +728,10 @@ export function QuotesPage({
   const [aiEditCommand, setAiEditCommand] = useState("");
   const [aiEditState, setAiEditState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [aiEditMessage, setAiEditMessage] = useState("");
-  const [activeTab, setActiveTab] = useState<QuoteWorkspaceTab>("estimate");
+  const [activeTab, setActiveTab] = useState<QuoteWorkspaceTab>("ai");
   const [mobileQuotePanel, setMobileQuotePanel] = useState<MobileQuotePanel>(null);
   const [editingLineItemId, setEditingLineItemId] = useState<string | null>(null);
+  const [advancedOptionsOpen, setAdvancedOptionsOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [areMobileQuestionsOpen, setAreMobileQuestionsOpen] = useState(false);
   const [isDeletingQuote, setIsDeletingQuote] = useState(false);
@@ -743,12 +742,12 @@ export function QuotesPage({
         setSavedProfitInputs(loadSavedProfitInputs(userId));
         setAiSuggestion(null);
         setAiBuildState("idle");
-        setAiBuildMessage("Pricing defaults changed. Build Estimate again for current suggestions.");
+        setAiBuildMessage("Pricing defaults changed. Generate the AI estimate again for current suggestions.");
       }
       if (change.type === "client-saved" || change.type === "client-deleted") {
         setAiSuggestion(null);
         setAiBuildState("idle");
-        setAiBuildMessage("Customer context changed. Build Estimate again for current suggestions.");
+        setAiBuildMessage("Customer context changed. Generate the AI estimate again for current suggestions.");
       }
     },
     [userId]
@@ -872,7 +871,7 @@ export function QuotesPage({
     setSaveMessage("A source drawing changed. Review the linked quote line before saving.");
     setAiSuggestion(null);
     setAiBuildState("idle");
-    setAiBuildMessage("Project measurements changed. Build Estimate again for current suggestions.");
+    setAiBuildMessage("Project measurements changed. Generate the AI estimate again for current suggestions.");
   }, [availableMeasurements, lineItems, savedTemplates, templatesLoaded]);
 
   useEffect(() => {
@@ -1396,7 +1395,7 @@ export function QuotesPage({
       };
     });
     setAiBuildState("idle");
-    setAiBuildMessage("Context updated. Build Estimate again when you want refreshed recommendations.");
+    setAiBuildMessage("Context updated. Generate the AI estimate again when you want refreshed recommendations.");
   }
 
   async function buildEstimate() {
@@ -1518,8 +1517,8 @@ export function QuotesPage({
       }
     ]);
     removeAppliedSuggestion(key);
-    setActiveTab("line-items");
-    setAiBuildMessage("Line item applied. Review and edit it in Line Items.");
+    setActiveTab("quote");
+    setAiBuildMessage("Service applied. Review it in Quote.");
   }
 
   function applySuggestedMaterial(item: AiSuggestedMaterial, key: string) {
@@ -1535,8 +1534,9 @@ export function QuotesPage({
       }
     ]);
     removeAppliedSuggestion(key);
-    setActiveTab("materials");
-    setAiBuildMessage("Material applied. Review and edit it in Materials.");
+    setActiveTab("quote");
+    setAdvancedOptionsOpen(true);
+    setAiBuildMessage("Material applied under Advanced Options.");
   }
 
   function applySuggestedCost(item: AiSuggestedCost, key: string) {
@@ -1551,8 +1551,9 @@ export function QuotesPage({
       }
     ]);
     removeAppliedSuggestion(key);
-    setActiveTab("labor");
-    setAiBuildMessage("Cost applied. Review and edit it in Labor / Equipment.");
+    setActiveTab("quote");
+    setAdvancedOptionsOpen(true);
+    setAiBuildMessage("Cost applied under Advanced Options.");
   }
 
   function applySuggestedText(field: "scope" | "exclusions" | "terms", value: string, key: string) {
@@ -1564,6 +1565,58 @@ export function QuotesPage({
     removeAppliedSuggestion(key);
     setActiveTab("scope");
     setAiBuildMessage("Text applied. Review and edit it in Scope / Terms.");
+  }
+
+  function acceptAiEstimate() {
+    if (!aiSuggestion) return;
+
+    const acceptedLines = aiSuggestion.suggestedLineItems.map((item) => ({
+      id: createId("line"),
+      serviceName: item.serviceName,
+      description: item.description ?? item.explanation ?? "",
+      sourceMeasurement: item.sourceMeasurement ?? "AI suggestion",
+      sourceId: item.sourceMeasurementId ?? null,
+      zoneType: item.zoneType ?? "Custom",
+      quantity: String(item.quantity),
+      unit: item.unit,
+      rate: typeof item.recommendedRate === "number" ? String(item.recommendedRate) : "",
+      notes: item.notes ?? item.explanation ?? ""
+    }));
+    const acceptedMaterials = aiSuggestion.suggestedMaterials.map((item) => ({
+      id: createId("material"),
+      name: item.name,
+      quantity: typeof item.quantity === "number" ? String(item.quantity) : "",
+      unit: item.unit ?? "",
+      unitCost: "",
+      notes: item.notes ?? ""
+    }));
+    const acceptedCosts = aiSuggestion.suggestedLaborEquipment.map((item) => ({
+      id: createId("cost"),
+      category: normalizeCostCategory(item.category),
+      name: item.name,
+      amount: typeof item.amount === "number" ? String(item.amount) : "",
+      notes: item.notes ?? item.explanation ?? ""
+    }));
+
+    setLineItems((items) => [...items, ...acceptedLines]);
+    setMaterials((items) => [...items, ...acceptedMaterials]);
+    setCostLines((items) => [...items, ...acceptedCosts]);
+    setNotes((current) => ({
+      ...current,
+      scopeOfWork: appendText(current.scopeOfWork, aiSuggestion.suggestedScopeOfWork ?? ""),
+      exclusions: appendText(
+        current.exclusions,
+        Array.isArray(aiSuggestion.suggestedExclusions)
+          ? aiSuggestion.suggestedExclusions.join("\n")
+          : aiSuggestion.suggestedExclusions ?? ""
+      ),
+      paymentTerms: appendText(current.paymentTerms, aiSuggestion.suggestedTerms ?? "")
+    }));
+    setAiSuggestion(null);
+    setAiBuildState("idle");
+    setAiBuildMessage("AI estimate accepted. Review the editable quote before saving.");
+    setActiveTab("quote");
+    markQuoteUnsaved();
   }
 
   function addMeasurementToQuote(measurement: MeasurementRow) {
@@ -1823,9 +1876,9 @@ export function QuotesPage({
       <section className="quotes-workspace">
         <header className="projects-header quote-workspace-header">
           <div>
-            <span>Quote Workspace</span>
-            <h1>Build a contractor quote</h1>
-            <p>Pull project measurements into editable service, material, labor, equipment, and cost lines.</p>
+            <span>AI Quote Workspace</span>
+            <h1>What should I charge this customer?</h1>
+            <p>Select the project. AcreX turns its measurements and your pricing defaults into a professional quote.</p>
           </div>
           <div className="projects-user-chip">
             <strong>{userEmail.slice(0, 1).toUpperCase()}</strong>
@@ -1835,6 +1888,33 @@ export function QuotesPage({
 
         {errorMessage ? <p className="projects-error">{errorMessage}</p> : null}
         {saveMessage ? <p className={saveState === "error" ? "projects-error" : "projects-success"}>{saveMessage}</p> : null}
+
+        <section className="quote-quick-context" aria-label="Quick quote context">
+          <div className="quote-quick-identity">
+            <span>Quote for</span>
+            <strong>{selectedClient?.name || selectedProject?.customer_name || selectedProject?.project_name || "Select a project"}</strong>
+            <small>{selectedProject?.address || "Choose a saved project with measurements"}</small>
+          </div>
+          <label>
+            Project
+            <select
+              value={selectedProjectId}
+              onChange={(event) => {
+                setSelectedProjectId(event.target.value);
+                markQuoteUnsaved();
+              }}
+            >
+              <option value="">Select a project</option>
+              {projects.map((project) => (
+                <option value={project.id} key={project.id}>
+                  {project.project_name || project.address || "Untitled project"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div><span>Measurements</span><strong>{availableMeasurements.length} found</strong></div>
+          <div className="quote-quick-total"><span>Quote total</span><strong>{formatCurrency(grandTotal)}</strong></div>
+        </section>
 
         <section className="quote-mobile-toolbar" aria-label="Mobile quote workspace">
           <div>
@@ -1867,10 +1947,9 @@ export function QuotesPage({
             </header>
             <div>
               <button type="button" onClick={() => setMobileQuotePanel("details")}>Quote details <small>Project, customer, status</small></button>
-              <button type="button" onClick={() => { setActiveTab("materials"); setMobileQuotePanel(null); }}>Materials <small>{materials.length} added</small></button>
-              <button type="button" onClick={() => { setActiveTab("labor"); setMobileQuotePanel(null); }}>Labor & equipment <small>{costLines.length} added</small></button>
+              <button type="button" onClick={() => { setActiveTab("quote"); setAdvancedOptionsOpen(true); setMobileQuotePanel(null); }}>Advanced options <small>Materials, costs, pricing</small></button>
               <button type="button" onClick={() => { setActiveTab("scope"); setMobileQuotePanel(null); }}>Scope & terms <small>Notes and exclusions</small></button>
-              <button type="button" onClick={() => { setActiveTab("review"); setMobileQuotePanel(null); }}>Review quote <small>Final checks</small></button>
+              <button type="button" onClick={() => { setActiveTab("send"); setMobileQuotePanel(null); }}>PDF / Send <small>Preview and delivery</small></button>
               <button
                 type="button"
                 disabled={!hasQuoteContent}
@@ -1892,7 +1971,8 @@ export function QuotesPage({
 
         <section className="quote-workspace-grid">
           <div className="quote-workspace-main">
-            <section className="quote-builder-card quote-header-card" aria-label="Quote header">
+            {advancedOptionsOpen ? (
+            <section className="quote-builder-card quote-header-card quote-advanced-header" aria-label="Quote header">
               <div className="quote-mobile-panel-heading">
                 <div>
                   <span>Quote details</span>
@@ -1967,7 +2047,7 @@ export function QuotesPage({
                       setSelectedClientId(event.target.value);
                       setAiSuggestion(null);
                       setAiBuildState("idle");
-                      setAiBuildMessage("Customer context changed. Build Estimate again for current suggestions.");
+                      setAiBuildMessage("Customer context changed. Generate the AI estimate again for current suggestions.");
                       markQuoteUnsaved();
                     }}
                   >
@@ -1996,30 +2076,21 @@ export function QuotesPage({
               </div>
 
             </section>
+            ) : null}
 
             <nav className="quote-mobile-primary-tabs" aria-label="Primary quote tools">
-              <button
-                type="button"
-                className={activeTab === "estimate" ? "active" : ""}
-                onClick={() => setActiveTab("estimate")}
-              >
-                Estimate
-              </button>
-              <button
-                type="button"
-                className={activeTab === "line-items" ? "active" : ""}
-                onClick={() => setActiveTab("line-items")}
-              >
-                Line Items {lineItems.length > 0 ? <span>{lineItems.length}</span> : null}
-              </button>
+              {quoteWorkspaceTabs.map((tab) => (
+                <button
+                  type="button"
+                  key={`mobile-${tab.id}`}
+                  className={activeTab === tab.id ? "active" : ""}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {tab.label}
+                  {tab.id === "quote" && lineItems.length > 0 ? <span>{lineItems.length}</span> : null}
+                </button>
+              ))}
             </nav>
-
-            {!["estimate", "line-items"].includes(activeTab) ? (
-              <div className="quote-mobile-active-extra">
-                <span>{quoteWorkspaceTabs.find((tab) => tab.id === activeTab)?.label}</span>
-                <button type="button" onClick={() => setActiveTab("estimate")}>Done</button>
-              </div>
-            ) : null}
 
             <nav className="quote-detail-tabs" aria-label="Quote details">
               {quoteWorkspaceTabs.map((tab) => (
@@ -2031,15 +2102,13 @@ export function QuotesPage({
                   onClick={() => setActiveTab(tab.id)}
                 >
                   {tab.label}
-                  {tab.id === "line-items" && lineItems.length > 0 ? <span>{lineItems.length}</span> : null}
-                  {tab.id === "materials" && materials.length > 0 ? <span>{materials.length}</span> : null}
-                  {tab.id === "labor" && costLines.length > 0 ? <span>{costLines.length}</span> : null}
+                  {tab.id === "quote" && lineItems.length > 0 ? <span>{lineItems.length}</span> : null}
                 </button>
               ))}
             </nav>
 
             <div className="quote-tab-panel" role="tabpanel" aria-label={quoteWorkspaceTabs.find((tab) => tab.id === activeTab)?.label}>
-            {activeTab === "estimate" ? (
+            {activeTab === "ai" ? (
               <>
             <section className="quote-ai-workspace quote-ai-workspace-primary" aria-label="AI estimator">
               <div className="quote-ai-orbit" aria-hidden="true">
@@ -2073,9 +2142,9 @@ export function QuotesPage({
                   type="button"
                   onClick={buildEstimate}
                   disabled={!estimateContextReady || aiBuildState === "loading"}
-                  title={estimateContextReady ? "Build AI estimate suggestions" : "Select a project and add measured or manual work first"}
+                  title={estimateContextReady ? "Generate an AI estimate" : "Select a project and add measured or manual work first"}
                 >
-                  {aiBuildState === "loading" ? "Building Estimate..." : "Build Estimate"}
+                  {aiBuildState === "loading" ? "Generating Estimate…" : "Generate AI Estimate"}
                 </button>
               </div>
 
@@ -2110,10 +2179,10 @@ export function QuotesPage({
                   </strong>
                   <small className="quote-ai-context-detail">{estimateWarnings[0] || "Ready for review"}</small>
                 </span>
-                <span className={estimateConfidence >= 70 ? "ready" : ""}>
-                  <small>Confidence score</small>
-                  <strong>{estimateConfidence}%</strong>
-                  <small className="quote-ai-context-detail">Improves as job conditions are confirmed</small>
+                <span className={estimateWarnings.length === 0 ? "ready" : ""}>
+                  <small>AI notes</small>
+                  <strong>{estimateWarnings.length ? `${estimateWarnings.length} to review` : "Ready to price"}</strong>
+                  <small className="quote-ai-context-detail">{estimateWarnings[0] || "Measurements and pricing context are ready"}</small>
                 </span>
               </div>
 
@@ -2245,14 +2314,37 @@ export function QuotesPage({
                 </p>
               ) : null}
 
-              <div className="quote-ai-edit-command">
+              {aiEditMessage ? (
+                <p className={`quote-ai-build-message ${aiEditState}`} role={aiEditState === "error" ? "alert" : "status"}>
+                  {aiEditMessage}
+                </p>
+              ) : null}
+
+              <AiEstimateReview
+                suggestion={aiSuggestion}
+                onChange={updateAiSuggestion}
+                onApplyLineItem={applySuggestedLineItem}
+                onApplyMaterial={applySuggestedMaterial}
+                onApplyCost={applySuggestedCost}
+                onApplyText={applySuggestedText}
+                onAcceptAll={acceptAiEstimate}
+                onEditQuote={() => setActiveTab("quote")}
+                onRegenerate={() => void buildEstimate()}
+                onGeneratePdf={() => setIsPreviewOpen(true)}
+                onClear={() => {
+                  setAiSuggestion(null);
+                  markQuoteUnsaved();
+                }}
+              />
+
+              {aiSuggestion ? <div className="quote-ai-edit-command">
                 <label htmlFor="ai-edit-command">Tell AcreX what to change…</label>
                 <div>
                   <input
                     id="ai-edit-command"
                     value={aiEditCommand}
                     placeholder="Remove haul-off, make fence vinyl, add mobilization…"
-                    disabled={!aiSuggestion || aiEditState === "loading"}
+                    disabled={aiEditState === "loading"}
                     onChange={(event) => {
                       setAiEditCommand(event.target.value);
                       setAiEditState("idle");
@@ -2268,32 +2360,13 @@ export function QuotesPage({
                   <button
                     type="button"
                     onClick={proposeAiChanges}
-                    disabled={!aiSuggestion || !aiEditCommand.trim() || aiEditState === "loading"}
+                    disabled={!aiEditCommand.trim() || aiEditState === "loading"}
                   >
-                    {aiEditState === "loading" ? "Reviewing..." : "Propose Changes"}
+                    {aiEditState === "loading" ? "Updating…" : "Update Estimate"}
                   </button>
                 </div>
-                {!aiSuggestion ? <small>Build an estimate before requesting changes.</small> : null}
-              </div>
-
-              {aiEditMessage ? (
-                <p className={`quote-ai-build-message ${aiEditState}`} role={aiEditState === "error" ? "alert" : "status"}>
-                  {aiEditMessage}
-                </p>
-              ) : null}
-
-              <AiEstimateReview
-                suggestion={aiSuggestion}
-                onChange={updateAiSuggestion}
-                onApplyLineItem={applySuggestedLineItem}
-                onApplyMaterial={applySuggestedMaterial}
-                onApplyCost={applySuggestedCost}
-                onApplyText={applySuggestedText}
-                onClear={() => {
-                  setAiSuggestion(null);
-                  markQuoteUnsaved();
-                }}
-              />
+                <small>Examples: make it more competitive, add trimming, remove haul-off, or add mobilization.</small>
+              </div> : null}
             </section>
 
             <section className="quote-builder-card" aria-label="Available measurements">
@@ -2366,24 +2439,34 @@ export function QuotesPage({
               </>
             ) : null}
 
-            {activeTab === "line-items" ? (
+            {activeTab === "quote" ? (
             <section className="quote-items-card" aria-label="Quote line items">
               <div className="quote-card-heading">
                 <div>
                   <span>Quote Line Items</span>
                   <strong>Editable service lines</strong>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextItem = createBlankLineItem();
-                    setLineItems((items) => [...items, nextItem]);
-                    setEditingLineItemId(nextItem.id);
-                    setSaveState("idle");
-                  }}
-                >
-                  Add Service Line
-                </button>
+                <div className="quote-heading-actions">
+                  <button
+                    type="button"
+                    className="secondary"
+                    aria-expanded={advancedOptionsOpen}
+                    onClick={() => setAdvancedOptionsOpen((current) => !current)}
+                  >
+                    {advancedOptionsOpen ? "Hide Advanced Options" : "Advanced Options"}
+                  </button>
+                  {advancedOptionsOpen ? <button
+                    type="button"
+                    onClick={() => {
+                      const nextItem = createBlankLineItem();
+                      setLineItems((items) => [...items, nextItem]);
+                      setEditingLineItemId(nextItem.id);
+                      setSaveState("idle");
+                    }}
+                  >
+                    Add Service Line
+                  </button> : null}
+                </div>
                 {mismatchedLineIds.size > 0 ? (
                   <button
                     type="button"
@@ -2462,7 +2545,7 @@ export function QuotesPage({
             </section>
             ) : null}
 
-            {activeTab === "materials" ? (
+            {activeTab === "quote" && advancedOptionsOpen ? (
             <section className="quote-items-card" aria-label="Materials">
               <div className="quote-card-heading">
                 <div>
@@ -2527,7 +2610,7 @@ export function QuotesPage({
             </section>
             ) : null}
 
-            {activeTab === "labor" ? (
+            {activeTab === "quote" && advancedOptionsOpen ? (
             <section className="quote-items-card" aria-label="Labor equipment and other costs">
               <div className="quote-card-heading">
                 <div>
@@ -2632,7 +2715,7 @@ export function QuotesPage({
             </section>
             ) : null}
 
-            {activeTab === "review" ? (
+            {activeTab === "send" ? (
               <section className="quote-review-workspace" aria-label="Quote review">
                 <div className="quote-review-heading">
                   <div>
@@ -2661,9 +2744,9 @@ export function QuotesPage({
                     <small>{formatCurrency(laborEquipmentSubtotal + mobilization)}</small>
                   </article>
                   <article>
-                    <span>Estimate confidence</span>
-                    <strong>{estimateConfidence}%</strong>
-                    <small>{estimateWarnings.length} warnings</small>
+                    <span>AI notes</span>
+                    <strong>{estimateWarnings.length}</strong>
+                    <small>{estimateWarnings[0] || "Ready for customer review"}</small>
                   </article>
                 </div>
                 <div className="quote-review-sections">
@@ -2688,13 +2771,42 @@ export function QuotesPage({
                     </p>
                   </article>
                 </div>
+                <div className="quote-send-actions">
+                  <button
+                    type="button"
+                    onClick={saveQuote}
+                    disabled={saveState === "saving" || !selectedProject}
+                  >
+                    {saveState === "saving" ? "Saving…" : "Save Quote"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setIsPreviewOpen(true)}
+                    disabled={!hasQuoteContent}
+                  >
+                    Preview / Generate PDF
+                  </button>
+                  {quoteEmailHref ? (
+                    <a className="secondary" href={quoteEmailHref}>Email Customer</a>
+                  ) : (
+                    <span className="quote-action-status">Add a customer email before sending.</span>
+                  )}
+                  {savedQuoteId ? (
+                    <Link className="secondary" href={`/invoices?quote=${encodeURIComponent(savedQuoteId)}`}>
+                      Convert to Invoice
+                    </Link>
+                  ) : (
+                    <span className="quote-action-status">Save the quote before converting it to an invoice.</span>
+                  )}
+                </div>
               </section>
             ) : null}
             </div>
 
           </div>
 
-          <aside className="quote-summary-card quote-pricing-summary" aria-label="Pricing summary">
+          {advancedOptionsOpen ? <aside className="quote-summary-card quote-pricing-summary" aria-label="Advanced pricing options">
             <div className="quote-mobile-panel-heading">
               <div>
                 <span>Pricing</span>
@@ -2717,20 +2829,10 @@ export function QuotesPage({
 
             <div className="quote-confidence-preview">
               <div>
-                <span>Estimate Confidence</span>
-                <strong>{estimateConfidence}%</strong>
+                <span>AI notes</span>
+                <strong>{estimateWarnings.length ? `${estimateWarnings.length} to review` : "Ready"}</strong>
               </div>
-              <div
-                className="quote-confidence-meter"
-                role="progressbar"
-                aria-label="Estimate confidence"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={estimateConfidence}
-              >
-                <span style={{ width: `${estimateConfidence}%` }} />
-              </div>
-              <p>Confidence improves as measurements, pricing, materials, and job conditions are confirmed.</p>
+              <p>Review these job details before sending the quote.</p>
               {estimateWarnings.length > 0 ? (
                 <ul>
                   {estimateWarnings.map((warning) => <li key={warning}>{warning}</li>)}
@@ -2842,7 +2944,7 @@ export function QuotesPage({
                 )}
               </div>
             </div>
-          </aside>
+          </aside> : null}
         </section>
 
         <aside className="quote-mobile-summary-bar" aria-label="Mobile quote summary">
@@ -2850,7 +2952,7 @@ export function QuotesPage({
             <span>Grand total</span>
             <strong>{formatCurrency(grandTotal)}</strong>
           </button>
-          <button type="button" onClick={() => setActiveTab("review")}>Review</button>
+          <button type="button" onClick={() => setActiveTab("send")}>PDF</button>
           <button
             type="button"
             onClick={saveQuote}
