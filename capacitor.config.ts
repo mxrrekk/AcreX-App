@@ -4,7 +4,7 @@ const serverUrl = process.env.CAPACITOR_SERVER_URL?.trim() || "https://getacrex.
 
 const config: CapacitorConfig = {
   appId: "com.getacrex.app",
-  appName: "AcreX",
+  appName: "AcreX Edge",
   webDir: "capacitor-web",
   server: serverUrl
     ? {
