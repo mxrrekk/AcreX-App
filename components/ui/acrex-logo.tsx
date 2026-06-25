@@ -10,7 +10,7 @@ type AcrexLogoProps = {
 };
 
 export function AcrexLogo({ className = "", href = "/", priority = false, width = 154, height = 46 }: AcrexLogoProps) {
-  const logo = <Image src="/assets/acrex-logo.png" alt="Acrex" width={width} height={height} priority={priority} />;
+  const logo = <Image src="/assets/acrex-logo-transparent.png" alt="Acrex" width={width} height={height} priority={priority} />;
 
   if (!href) {
     return <span className={`acrex-logo ${className}`.trim()}>{logo}</span>;

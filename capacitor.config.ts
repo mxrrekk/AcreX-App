@@ -15,6 +15,15 @@ const config: CapacitorConfig = {
     : undefined,
   ios: {
     scheme: "AcreX"
+  },
+  plugins: {
+    SplashScreen: {
+      launchAutoHide: false,
+      backgroundColor: "#000000",
+      showSpinner: false,
+      splashFullScreen: true,
+      splashImmersive: true
+    }
   }
 };
 

@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
+import { SplashScreen } from "@capacitor/splash-screen";
 import { PageLoading } from "@/components/ui/page-loading";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -18,6 +20,12 @@ export default function NativeAppEntryPage() {
 
     const isNative = Capacitor.isNativePlatform();
     setIsNativeLaunch(isNative);
+
+    if (isNative) {
+      requestAnimationFrame(() => {
+        void SplashScreen.hide({ fadeOutDuration: 220 }).catch(() => undefined);
+      });
+    }
 
     async function openNativeWorkspace() {
       const supabase = createSupabaseBrowserClient();
@@ -66,9 +74,14 @@ export default function NativeAppEntryPage() {
   if (isNativeLaunch) {
     return (
       <main className={`native-launch-splash${isFading ? " is-fading" : ""}`} aria-busy="true" aria-label="Opening AcreX Edge">
-        <div className="native-launch-mark" aria-label="AcreX">
-          <span>ACRE</span><span>X</span>
-        </div>
+        <Image
+          className="native-launch-logo"
+          src="/assets/acrex-logo-transparent.png"
+          alt="AcreX"
+          width={360}
+          height={104}
+          priority
+        />
       </main>
     );
   }
