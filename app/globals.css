@@ -178,6 +178,52 @@ body {
     linear-gradient(180deg, #07100d, #060a09 100%);
 }
 
+.native-launch-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding:
+    max(24px, env(safe-area-inset-top))
+    max(24px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom))
+    max(24px, env(safe-area-inset-left));
+  background:
+    radial-gradient(circle at 50% 46%, rgba(110, 218, 72, 0.1), transparent 24%),
+    linear-gradient(180deg, #000 0%, #020907 100%);
+  opacity: 1;
+  transition: opacity 360ms ease;
+}
+
+.native-launch-splash.is-fading {
+  opacity: 0;
+}
+
+.native-launch-mark {
+  display: grid;
+  place-items: center;
+  width: min(70vw, 320px);
+  opacity: 0;
+  filter: drop-shadow(0 18px 38px rgba(110, 218, 72, 0.08));
+  transform: translateY(10px) scale(0.96);
+  animation: nativeLaunchMarkIn 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 80ms forwards;
+}
+
+.native-launch-mark img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+@keyframes nativeLaunchMarkIn {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .skeleton-sidebar {
   display: grid;
   align-content: start;
