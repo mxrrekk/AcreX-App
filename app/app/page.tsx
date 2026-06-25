@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -67,8 +66,8 @@ export default function NativeAppEntryPage() {
   if (isNativeLaunch) {
     return (
       <main className={`native-launch-splash${isFading ? " is-fading" : ""}`} aria-busy="true" aria-label="Opening AcreX Edge">
-        <div className="native-launch-mark">
-          <Image src="/assets/acrex-logo.png" alt="AcreX" width={280} height={84} priority />
+        <div className="native-launch-mark" aria-label="AcreX">
+          <span>ACRE</span><span>X</span>
         </div>
       </main>
     );
