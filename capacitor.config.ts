@@ -6,7 +6,7 @@ const serverUrlWithNativeEntry = configuredServerUrl
   ? new URL(nativeEntryPath, configuredServerUrl.endsWith("/") ? configuredServerUrl : `${configuredServerUrl}/`).toString()
   : undefined;
 const serverUrl =
-  serverUrlWithNativeEntry || (process.env.NODE_ENV === "production" ? undefined : "http://localhost:3001/app");
+  serverUrlWithNativeEntry || (process.env.NODE_ENV === "production" ? "https://getacrex.com/app" : "http://localhost:3001/app");
 
 const config: CapacitorConfig = {
   appId: "com.getacrex.app",
@@ -15,7 +15,8 @@ const config: CapacitorConfig = {
   server: serverUrl
     ? {
         url: serverUrl,
-        cleartext: serverUrl.startsWith("http://")
+        cleartext: serverUrl.startsWith("http://"),
+        allowNavigation: ["getacrex.com", "www.getacrex.com"]
       }
     : undefined,
   ios: {
