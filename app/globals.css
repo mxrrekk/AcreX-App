@@ -537,6 +537,10 @@ img {
   mix-blend-mode: screen;
 }
 
+.auth-logo img {
+  mix-blend-mode: normal;
+}
+
 .landing-wordmark img {
   height: 100%;
 }

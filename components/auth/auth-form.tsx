@@ -139,7 +139,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       ) : null}
 
       <section className="auth-card">
-        {!isSignup ? <AcrexLogo className="auth-logo" width={150} height={45} priority /> : null}
+        {!isSignup ? <AcrexLogo className="auth-logo" width={150} height={45} tone="dark" priority /> : null}
         <p className="section-kicker">{isSignup ? "Create workspace" : "Acrex account"}</p>
         <h1>{isSignup ? "Create your account" : "Welcome back"}</h1>
         <p className="auth-copy">
