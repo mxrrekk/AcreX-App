@@ -7,7 +7,7 @@ import type {
   SavedProjectMapData,
   SavedZoneProperties
 } from "@/lib/projects/types";
-import { deleteQuoteLines, insertQuoteLines } from "@/lib/data/quote-lines";
+import { deleteQuoteLines, insertQuoteLines, readQuoteLines } from "@/lib/data/quote-lines";
 import { recordProjectActivity } from "@/lib/data/activity";
 
 export const ACREX_FILES_BUCKET = "acrex-files";
@@ -92,6 +92,39 @@ export type AttachmentRecord = {
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+};
+
+export type ExportRecord = {
+  id: string;
+  user_id: string;
+  project_id: string | null;
+  quote_id: string | null;
+  invoice_id: string | null;
+  export_type: string;
+  status: string;
+  file_name: string;
+  storage_path: string | null;
+  mime_type: string | null;
+  file_size: number | null;
+  is_public: boolean;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExportRecordInput = {
+  userId: string;
+  exportType: string;
+  fileName: string;
+  projectId?: string | null;
+  quoteId?: string | null;
+  invoiceId?: string | null;
+  storagePath?: string | null;
+  mimeType?: string | null;
+  fileSize?: number | null;
+  isPublic?: boolean;
+  status?: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type FileUploadInput = {
@@ -378,6 +411,68 @@ export async function saveQuote(
   quote: Partial<QuoteRecord> & Pick<QuoteRecord, "user_id" | "quote_number">,
   lines: QuoteLineWrite[]
 ): Promise<DataResult<QuoteRecord>> {
+  const { data: previousQuote, error: previousQuoteError } = quote.id
+    ? await supabase
+        .from("quotes")
+        .select("*")
+        .eq("id", quote.id)
+        .eq("user_id", quote.user_id)
+        .maybeSingle()
+    : { data: null, error: null };
+  if (previousQuoteError) return resultError(previousQuoteError.message);
+  const { data: previousLines, error: previousLinesError } = quote.id
+    ? await readQuoteLines(supabase, quote.user_id, { quoteId: quote.id })
+    : { data: [], error: null };
+  if (previousLinesError) return resultError(previousLinesError.message);
+
+  async function restorePreviousQuote(quoteId: string) {
+    if (!previousQuote) {
+      await supabase.from("quotes").delete().eq("id", quoteId).eq("user_id", quote.user_id);
+      return;
+    }
+    await supabase
+      .from("quotes")
+      .update({
+        project_id: previousQuote.project_id,
+        client_id: previousQuote.client_id,
+        quote_number: previousQuote.quote_number,
+        status: previousQuote.status,
+        project_name: previousQuote.project_name,
+        client_name: previousQuote.client_name,
+        address: previousQuote.address,
+        subtotal: previousQuote.subtotal,
+        total: previousQuote.total,
+        notes: previousQuote.notes
+      })
+      .eq("id", previousQuote.id)
+      .eq("user_id", quote.user_id);
+  }
+
+  async function restorePreviousLines(quoteId: string) {
+    await deleteQuoteLines(supabase, quote.user_id, quoteId);
+    if (!previousLines?.length) return;
+    await insertQuoteLines(
+      supabase,
+      previousLines.map((item) => ({
+        quote_id: item.quote_id,
+        user_id: item.user_id,
+        project_id: (item as QuoteLineWrite & { project_id?: string | null }).project_id,
+        drawing_id: (item as QuoteLineWrite & { drawing_id?: string | null }).drawing_id,
+        service: item.service,
+        description: item.description,
+        quantity: item.quantity,
+        unit: item.unit,
+        unit_price: item.unit_price,
+        total: item.total,
+        zone_name: item.zone_name,
+        zone_type: item.zone_type,
+        notes: item.notes,
+        source_snapshot: (item as QuoteLineWrite & { source_snapshot?: Record<string, unknown> | null }).source_snapshot,
+        sort_order: item.sort_order
+      }))
+    );
+  }
+
   const query = quote.id
     ? supabase.from("quotes").update(quote).eq("id", quote.id).eq("user_id", quote.user_id)
     : supabase.from("quotes").insert(quote);
@@ -386,7 +481,10 @@ export async function saveQuote(
   const savedQuote = data as QuoteRecord;
 
   const { error: deleteError } = await deleteQuoteLines(supabase, savedQuote.user_id, savedQuote.id);
-  if (deleteError) return resultError(deleteError.message);
+  if (deleteError) {
+    await restorePreviousQuote(savedQuote.id);
+    return resultError(deleteError.message);
+  }
 
   if (lines.length > 0) {
     const { error: lineError } = await insertQuoteLines(
@@ -399,7 +497,11 @@ export async function saveQuote(
         sort_order: line.sort_order ?? index
       }))
     );
-    if (lineError) return resultError(lineError.message);
+    if (lineError) {
+      await restorePreviousLines(savedQuote.id);
+      await restorePreviousQuote(savedQuote.id);
+      return resultError(lineError.message);
+    }
   }
   if (savedQuote.project_id) {
     await recordProjectActivity(supabase, {
@@ -419,6 +521,78 @@ export async function saveInvoice(
   invoice: Partial<InvoiceRecord> & Pick<InvoiceRecord, "user_id" | "quote_id" | "invoice_number">,
   lines: InvoiceLineWrite[]
 ): Promise<DataResult<InvoiceRecord>> {
+  const { data: previousInvoice, error: previousInvoiceError } = invoice.id
+    ? await supabase
+        .from("invoices")
+        .select("*")
+        .eq("id", invoice.id)
+        .eq("user_id", invoice.user_id)
+        .maybeSingle()
+    : { data: null, error: null };
+  if (previousInvoiceError) return resultError(previousInvoiceError.message);
+
+  const { data: previousLines, error: previousLinesError } = invoice.id
+    ? await supabase
+        .from("invoice_line_items")
+        .select("*")
+        .eq("invoice_id", invoice.id)
+        .eq("user_id", invoice.user_id)
+        .order("sort_order", { ascending: true })
+    : { data: [], error: null };
+  if (previousLinesError && !missingFoundationTable(previousLinesError, "invoice_line_items")) {
+    return resultError(previousLinesError.message);
+  }
+
+  async function restorePreviousInvoice(invoiceId: string) {
+    if (!previousInvoice) {
+      await supabase.from("invoices").delete().eq("id", invoiceId).eq("user_id", invoice.user_id);
+      return;
+    }
+    await supabase
+      .from("invoices")
+      .update({
+        quote_id: previousInvoice.quote_id,
+        project_id: previousInvoice.project_id,
+        client_id: previousInvoice.client_id,
+        invoice_number: previousInvoice.invoice_number,
+        status: previousInvoice.status,
+        project_name: previousInvoice.project_name,
+        client_name: previousInvoice.client_name,
+        address: previousInvoice.address,
+        subtotal: previousInvoice.subtotal,
+        total: previousInvoice.total,
+        due_date: previousInvoice.due_date,
+        notes: previousInvoice.notes
+      })
+      .eq("id", previousInvoice.id)
+      .eq("user_id", invoice.user_id);
+  }
+
+  async function restorePreviousInvoiceLines(invoiceId: string) {
+    await supabase
+      .from("invoice_line_items")
+      .delete()
+      .eq("invoice_id", invoiceId)
+      .eq("user_id", invoice.user_id);
+    if (!previousLines?.length) return;
+    await supabase.from("invoice_line_items").insert(
+      previousLines.map((line) => ({
+        invoice_id: line.invoice_id,
+        quote_line_item_id: line.quote_line_item_id,
+        project_id: line.project_id,
+        user_id: line.user_id,
+        name: line.name,
+        description: line.description,
+        quantity: line.quantity,
+        unit: line.unit,
+        unit_price: line.unit_price,
+        total: line.total,
+        notes: line.notes,
+        sort_order: line.sort_order
+      }))
+    );
+  }
+
   const query = invoice.id
     ? supabase.from("invoices").update(invoice).eq("id", invoice.id).eq("user_id", invoice.user_id)
     : supabase.from("invoices").insert(invoice);
@@ -432,9 +606,11 @@ export async function saveInvoice(
     .eq("invoice_id", savedInvoice.id)
     .eq("user_id", savedInvoice.user_id);
   if (deleteError) {
-    return missingFoundationTable(deleteError, "invoice_line_items")
-      ? { data: savedInvoice, error: null }
-      : resultError(deleteError.message);
+    if (missingFoundationTable(deleteError, "invoice_line_items")) {
+      return { data: savedInvoice, error: null };
+    }
+    await restorePreviousInvoice(savedInvoice.id);
+    return resultError(deleteError.message);
   }
 
   if (lines.length > 0) {
@@ -447,7 +623,11 @@ export async function saveInvoice(
         sort_order: line.sort_order ?? index
       }))
     );
-    if (lineError) return resultError(lineError.message);
+    if (lineError) {
+      await restorePreviousInvoiceLines(savedInvoice.id);
+      await restorePreviousInvoice(savedInvoice.id);
+      return resultError(lineError.message);
+    }
   }
   if (savedInvoice.project_id) {
     await recordProjectActivity(supabase, {
@@ -460,6 +640,43 @@ export async function saveInvoice(
     });
   }
   return { data: savedInvoice, error: null };
+}
+
+export async function createExportRecord(
+  supabase: SupabaseClient,
+  input: ExportRecordInput
+): Promise<DataResult<ExportRecord>> {
+  const { data, error } = await supabase
+    .from("exports")
+    .insert({
+      user_id: input.userId,
+      project_id: input.projectId ?? null,
+      quote_id: input.quoteId ?? null,
+      invoice_id: input.invoiceId ?? null,
+      export_type: input.exportType,
+      status: input.status ?? "ready",
+      file_name: input.fileName,
+      storage_path: input.storagePath ?? null,
+      mime_type: input.mimeType ?? null,
+      file_size: input.fileSize ?? null,
+      is_public: input.isPublic ?? false,
+      metadata: input.metadata ?? {}
+    })
+    .select("*")
+    .single();
+  if (error || !data) return resultError(error?.message ?? "Export record could not be created.");
+  if (input.projectId) {
+    await recordProjectActivity(supabase, {
+      userId: input.userId,
+      projectId: input.projectId,
+      eventType: "export_generated",
+      entityType: "export",
+      entityId: data.id,
+      description: `${input.fileName} generated.`,
+      metadata: { exportType: input.exportType }
+    });
+  }
+  return { data: data as ExportRecord, error: null };
 }
 
 function safeFileName(fileName: string) {
@@ -538,6 +755,7 @@ async function uploadExportPdf(
       file_name: input.fileName,
       mime_type: input.file.type || "application/pdf",
       file_size: input.file.size,
+      is_public: input.isPublic ?? false,
       metadata: input.metadata ?? {}
     })
     .select("id")

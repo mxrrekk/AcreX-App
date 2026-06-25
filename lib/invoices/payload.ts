@@ -1,5 +1,6 @@
 import type { ClientRecord, InvoiceRecord, QuoteItemRecord, QuoteRecord } from "@/lib/projects/types";
 import type { AcrexUserSettings } from "@/lib/settings/user-settings";
+import { customerSafeText } from "@/lib/customer-facing-text";
 
 export type CustomerInvoiceLine = {
   id: string;
@@ -64,11 +65,7 @@ function numberValue(value: unknown) {
 }
 
 function cleanCustomerText(value: unknown) {
-  if (typeof value !== "string") return "";
-  return value
-    .replace(/\b(?:AI confidence|confidence score|pricing assumption|internal warning|debug)\b[^.\n]*/gi, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return customerSafeText(value);
 }
 
 export function parseQuoteCustomerPayload(quote: QuoteRecord): QuotePayload {
@@ -102,18 +99,39 @@ export function createInvoicePayloadFromQuote(input: {
     .map((line) => ({
       id: line.id,
       quoteLineItemId: line.id,
-      name: line.service || "Service",
+      name: cleanCustomerText(line.service) || "Service",
       description: cleanCustomerText(line.description || line.notes || ""),
       quantity: numberValue(line.quantity),
       unit: line.unit || "each",
       unitPrice: numberValue(line.unit_price),
       total: numberValue(line.total)
     }));
-  const subtotal = lineItems.reduce((sum, line) => sum + line.total, 0);
   const total = numberValue(quotePayload.totals?.grandTotal) || numberValue(input.quote.total);
   const discount = numberValue(quotePayload.discount);
   const tax = numberValue(quotePayload.totals?.tax);
   const amountPaid = 0;
+  const rawSubtotal = lineItems.reduce((sum, line) => sum + line.total, 0);
+  const visibleTotalBeforeAdjustment = rawSubtotal + tax - discount;
+  const adjustmentAmount = Number((total - visibleTotalBeforeAdjustment).toFixed(2));
+  const shouldShowAdjustment = Math.abs(adjustmentAmount) >= 0.01;
+  const invoiceLineItems = shouldShowAdjustment
+    ? [
+        ...lineItems,
+        {
+          id: "service-minimum-adjustment",
+          quoteLineItemId: null,
+          name: adjustmentAmount > 0 ? "Service Minimum Adjustment" : "Quote Adjustment",
+          description: adjustmentAmount > 0
+            ? "Professional service minimum applied to cover mobilization, setup, and minimum job requirements."
+            : "Customer-facing quote adjustment applied to the final invoice total.",
+          quantity: 1,
+          unit: "each",
+          unitPrice: adjustmentAmount,
+          total: adjustmentAmount
+        }
+      ]
+    : lineItems;
+  const subtotal = invoiceLineItems.reduce((sum, line) => sum + line.total, 0);
 
   return {
     version: 1,
@@ -127,7 +145,7 @@ export function createInvoicePayloadFromQuote(input: {
     company: { ...input.settings.company },
     projectName: input.quote.project_name || "Project",
     projectAddress: input.quote.address || "",
-    lineItems,
+    lineItems: invoiceLineItems,
     subtotal,
     discount,
     tax,

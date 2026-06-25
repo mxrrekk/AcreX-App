@@ -229,6 +229,12 @@ export function AuthForm({ mode }: AuthFormProps) {
           {isSignup ? "Already have an account?" : "Need an account?"}{" "}
           <Link href={isSignup ? "/login" : "/signup"}>{isSignup ? "Log in" : "Sign up"}</Link>
         </p>
+
+        <p className="auth-legal-links">
+          <Link href="/terms">Terms</Link>
+          <span aria-hidden="true">•</span>
+          <Link href="/privacy">Privacy</Link>
+        </p>
       </section>
     </main>
   );

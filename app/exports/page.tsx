@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { ExportsWorkspace } from "@/components/exports/exports-workspace";
 
 export default async function ExportsPage() {
   const supabase = createSupabaseServerClient();
@@ -31,25 +31,7 @@ export default async function ExportsPage() {
             <p>Generate customer-ready files from saved projects and quotes.</p>
           </div>
         </header>
-        <section className="exports-grid">
-          <article>
-            <span>Quote PDF</span>
-            <strong>Export from a saved quote</strong>
-            <p>Open a quote to prepare its customer-facing PDF when export is enabled.</p>
-            <Link href="/quotes">Open Quotes</Link>
-          </article>
-          <article>
-            <span>Project Backup</span>
-            <strong>Portable, restore-ready JSON</strong>
-            <p>Download projects with drawings, measurements, financial records, file metadata, settings, and integrity checks.</p>
-            {(projects ?? []).slice(0, 8).map((project) => (
-              <a key={project.id} href={`/api/projects/${project.id}/export`} download>
-                Export {project.project_name || project.address || "Project"}
-              </a>
-            ))}
-            {!projects?.length ? <div className="export-availability">Save a project before creating a backup.</div> : null}
-          </article>
-        </section>
+        <ExportsWorkspace projects={projects ?? []} />
       </section>
       <MobileAppNav active="exports" />
     </main>

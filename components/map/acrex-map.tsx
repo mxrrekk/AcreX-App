@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type MapboxDraw from "@mapbox/mapbox-gl-draw";
-import type { LngLatBoundsLike, Map as MapboxMap, Marker as MapboxMarker } from "mapbox-gl";
+import type { LngLatBoundsLike, Map as MapboxMap, Marker as MapboxMarker, Popup as MapboxPopup } from "mapbox-gl";
 import type { Feature, FeatureCollection, LineString, Point, Polygon } from "geojson";
 import {
   booleanPointInPolygon as turfBooleanPointInPolygon,
@@ -539,6 +539,8 @@ export function AcrexMap({
   const mapRef = useRef<MapboxMap | null>(null);
   const mapboxglRef = useRef<typeof import("mapbox-gl").default | null>(null);
   const userLocationMarkerRef = useRef<MapboxMarker | null>(null);
+  const addressMarkerRef = useRef<MapboxMarker | null>(null);
+  const addressPopupRef = useRef<MapboxPopup | null>(null);
   const onMeasurementsChangeRef = useRef(onMeasurementsChange);
   const onAddressChangeRef = useRef(onAddressChange);
   const onPolygonChangeRef = useRef(onPolygonChange);
@@ -1234,6 +1236,66 @@ export function AcrexMap({
     setMapViewMode(false, { announce: true, resetCenter: false });
   }
 
+  function removeAddressMarker() {
+    addressPopupRef.current?.remove();
+    addressMarkerRef.current?.remove();
+    addressPopupRef.current = null;
+    addressMarkerRef.current = null;
+  }
+
+  function showAddressMarker(details: AddressDetails) {
+    const map = mapRef.current;
+    const mapboxgl = mapboxglRef.current;
+    if (!map || !mapboxgl) return;
+
+    removeAddressMarker();
+
+    const markerElement = document.createElement("button");
+    markerElement.type = "button";
+    markerElement.className = "acrex-address-marker";
+    markerElement.setAttribute("aria-label", `Address pin: ${details.address}`);
+    markerElement.innerHTML = "<span aria-hidden=\"true\"></span>";
+
+    const popupElement = document.createElement("div");
+    popupElement.className = "acrex-address-marker-popup";
+    const addressText = document.createElement("strong");
+    addressText.textContent = details.address;
+    const metaText = document.createElement("small");
+    metaText.textContent = `Lat ${details.latitude.toFixed(5)}, Lng ${details.longitude.toFixed(5)}`;
+    const hideButton = document.createElement("button");
+    hideButton.type = "button";
+    hideButton.textContent = "Hide pin";
+    hideButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      removeAddressMarker();
+      onMobileNotice?.("Address pin hidden.");
+    });
+    popupElement.append(addressText, metaText, hideButton);
+
+    const popup = new mapboxgl.Popup({
+      closeButton: true,
+      closeOnClick: false,
+      offset: 20,
+      className: "acrex-address-popup"
+    }).setDOMContent(popupElement);
+
+    const marker = new mapboxgl.Marker({
+      element: markerElement,
+      anchor: "bottom"
+    })
+      .setLngLat([details.longitude, details.latitude])
+      .setPopup(popup)
+      .addTo(map);
+
+    addressPopupRef.current = popup;
+    addressMarkerRef.current = marker;
+  }
+
+  function removeUserLocationMarker() {
+    userLocationMarkerRef.current?.remove();
+    userLocationMarkerRef.current = null;
+  }
+
   function showUserLocation(longitude: number, latitude: number) {
     const map = mapRef.current;
     const mapboxgl = mapboxglRef.current;
@@ -1785,6 +1847,7 @@ export function AcrexMap({
           currentSearchRef.current = addressDetails;
           onAddressDetailsChangeRef.current?.(addressDetails);
           setRecentSearches(storeRecentSearch({ ...addressDetails, id: `${center[0]}:${center[1]}:${Date.now()}` }));
+          showAddressMarker(addressDetails);
           map.flyTo({ center, zoom: 16.4, duration: 950, essential: true });
           void lookupParcelBoundary(center);
         }
@@ -2171,6 +2234,10 @@ export function AcrexMap({
         finishMobileDrawingRef.current = () => undefined;
         userLocationMarkerRef.current?.remove();
         userLocationMarkerRef.current = null;
+        addressPopupRef.current?.remove();
+        addressMarkerRef.current?.remove();
+        addressPopupRef.current = null;
+        addressMarkerRef.current = null;
         refreshZonesRef.current = () => [];
         setMapReady(false);
         map.remove();
@@ -2789,6 +2856,11 @@ export function AcrexMap({
       return;
     }
     if (mobileCommand.action === "locate") {
+      if (userLocationMarkerRef.current) {
+        removeUserLocationMarker();
+        onMobileNotice?.("Location marker hidden.");
+        return;
+      }
       if (!navigator.geolocation || !mapRef.current) {
         onMobileNotice?.("Location is not available on this device.");
         return;
@@ -2926,6 +2998,8 @@ export function AcrexMap({
     const map = mapRef.current;
     onAddressChangeRef.current(search.address);
     onAddressDetailsChangeRef.current?.(search);
+    currentSearchRef.current = search;
+    showAddressMarker(search);
     map?.flyTo({
       center: [search.longitude, search.latitude],
       zoom: 16.4,
@@ -3197,37 +3271,9 @@ export function AcrexMap({
                         <dd>{selectedZone.visible === false ? "Hidden" : "Visible"}</dd>
                       </div>
                     </dl>
-                    <div className="project-explorer-actions">
-                      {activeProjectId ? (
-                        <a
-                          className="primary"
-                          href={selectedZoneIsQuoted
-                            ? `/quotes?project=${activeProjectId}`
-                            : `/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(selectedZone.id)}`}
-                        >
-                          {selectedZoneIsQuoted ? "Open Quote" : "Add to Quote"}
-                        </a>
-                      ) : null}
-                      {activeProjectId ? (
-                        <a href={`/projects/${activeProjectId}`}>Open Project</a>
-                      ) : (
-                        <button type="button" onClick={() => void onSaveProject?.()} disabled={!onSaveProject || isSavingProject}>
-                          {isSavingProject ? "Saving..." : "Save to Project"}
-                        </button>
-                      )}
-                      <button type="button" onClick={zoomToSelectedZone}>Zoom To</button>
-                      <button type="button" onClick={() => setInspectorView("more")}>More Actions</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="project-explorer-subview">
-                    <div className="project-explorer-subview-heading">
-                      <div><span>Drawing controls</span><strong>Edit drawing</strong></div>
-                      <button type="button" onClick={() => setInspectorView("summary")}>Back</button>
-                    </div>
-                    <div className="project-explorer-fields">
+                    <div className="project-explorer-fields is-quick-edit">
                       <label className="project-explorer-inline-field">
-                        <span>Drawing name</span>
+                        <span>Name</span>
                         <input
                           ref={selectedZoneNameInputRef}
                           value={selectedZone.name}
@@ -3235,7 +3281,7 @@ export function AcrexMap({
                         />
                       </label>
                       <label className="project-explorer-inline-field">
-                        <span>Service type</span>
+                        <span>Service</span>
                         <select
                           value={selectedZone.serviceTypeId ?? getServiceTypeByZoneType(selectedZone.type).id}
                           onChange={(event) => handleSelectedZoneServiceTypeChange(event.target.value)}
@@ -3261,6 +3307,38 @@ export function AcrexMap({
                         </span>
                       </label>
                     </div>
+                    <div className="project-explorer-actions">
+                      {activeProjectId ? (
+                        <a
+                          className="primary"
+                          href={selectedZoneIsQuoted
+                            ? `/quotes?project=${activeProjectId}`
+                            : `/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(selectedZone.id)}`}
+                        >
+                          {selectedZoneIsQuoted ? "Open Quote" : "Add to Quote"}
+                        </a>
+                      ) : null}
+                      {activeProjectId ? (
+                        <a href={`/projects/${activeProjectId}`}>Open Project</a>
+                      ) : (
+                        <button type="button" onClick={() => void onSaveProject?.()} disabled={!onSaveProject || isSavingProject}>
+                          {isSavingProject ? "Saving..." : "Save to Project"}
+                        </button>
+                      )}
+                      <button type="button" onClick={zoomToSelectedZone}>Zoom To</button>
+                      <button type="button" onClick={toggleSelectedZoneVisibility}>
+                        {selectedZone.visible === false ? "Show" : "Hide"}
+                      </button>
+                      <button className="danger" type="button" onClick={deleteSelectedZone}>Delete</button>
+                      <button type="button" onClick={() => setInspectorView("more")}>Location</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="project-explorer-subview">
+                    <div className="project-explorer-subview-heading">
+                      <div><span>Drawing location</span><strong>{selectedZone.name}</strong></div>
+                      <button type="button" onClick={() => setInspectorView("summary")}>Back</button>
+                    </div>
                     <dl className="zone-inspector-details is-location">
                       <div>
                         <dt>Location</dt>
@@ -3279,7 +3357,7 @@ export function AcrexMap({
                       <button type="button" onClick={toggleSelectedZoneVisibility}>
                         {selectedZone.visible === false ? "Show Drawing" : "Hide Drawing"}
                       </button>
-                      <button className="danger" type="button" onClick={deleteSelectedZone}>Delete Drawing</button>
+                      <button className="danger" type="button" onClick={deleteSelectedZone}>Delete</button>
                     </div>
                   </div>
                 )}

@@ -1584,12 +1584,21 @@ img {
 
 .auth-copy,
 .auth-switch,
+.auth-legal-links,
 .auth-message {
   margin: 0;
   color: #5f6a63;
 }
 
+.auth-legal-links {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
 .auth-switch a,
+.auth-legal-links a,
 .forgot-link {
   color: #337b20;
   font-weight: 850;
@@ -5169,6 +5178,252 @@ img {
 
 .settings-availability small {
   color: #758078;
+}
+
+.settings-availability a {
+  color: var(--green);
+  font-weight: 850;
+}
+
+.upgrade-panel {
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(127, 217, 87, 0.16);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(127, 217, 87, 0.12), transparent 34%),
+    rgba(6, 12, 10, 0.72);
+  padding: 16px;
+}
+
+.upgrade-panel .settings-section-heading h3 {
+  margin: 0;
+  color: #f5fbf6;
+  font-size: 1rem;
+}
+
+.upgrade-panel .settings-section-heading button,
+.upgrade-plan-card button {
+  min-height: 38px;
+  border: 1px solid rgba(127, 217, 87, 0.28);
+  border-radius: 11px;
+  color: #071007;
+  background: linear-gradient(180deg, var(--green), var(--green-2));
+  padding: 0 13px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.upgrade-panel button:disabled,
+.upgrade-plan-card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.usage-limit-grid,
+.upgrade-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.usage-limit-grid > div,
+.upgrade-plan-card {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 12px;
+}
+
+.usage-limit-grid span,
+.upgrade-plan-card span {
+  color: #8f9b93;
+  font-size: 0.67rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.usage-limit-grid strong {
+  color: #f5fbf6;
+  font-size: 1rem;
+}
+
+.usage-limit-grid small,
+.upgrade-plan-card small,
+.billing-status-message {
+  color: #8f9b93;
+}
+
+.upgrade-plan-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.upgrade-plan-card h4 {
+  margin: 0;
+  color: #f5fbf6;
+  font-size: 1.05rem;
+}
+
+.upgrade-plan-price {
+  color: var(--green);
+  font-size: 1.1rem;
+  font-weight: 950;
+}
+
+.upgrade-plan-card ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 18px;
+  color: #c9d4cd;
+  font-size: 0.82rem;
+}
+
+.billing-status-message {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.billing-status-message.is-success {
+  border-color: rgba(127, 217, 87, 0.24);
+  color: #dfffd6;
+  background: rgba(127, 217, 87, 0.08);
+}
+
+.billing-status-message.is-error {
+  border-color: rgba(255, 120, 91, 0.24);
+  color: #ffd6ce;
+  background: rgba(255, 120, 91, 0.08);
+}
+
+.upgrade-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.62);
+  padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  backdrop-filter: blur(14px);
+}
+
+.upgrade-modal {
+  display: grid;
+  gap: 14px;
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100dvh - 36px));
+  overflow-y: auto;
+  border: 1px solid rgba(127, 217, 87, 0.18);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(127, 217, 87, 0.14), transparent 34%),
+    rgba(8, 14, 12, 0.98);
+  box-shadow: 0 28px 100px rgba(0, 0, 0, 0.52);
+  padding: 18px;
+}
+
+.upgrade-modal header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.upgrade-modal header span,
+.upgrade-modal-grid article > span {
+  color: var(--green);
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.upgrade-modal h2,
+.upgrade-modal h3 {
+  margin: 0;
+  color: #f7fbf6;
+}
+
+.upgrade-modal header p {
+  margin: 6px 0 0;
+  color: #9ea9a2;
+}
+
+.upgrade-modal header > button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  color: #dfe8e2;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.upgrade-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.upgrade-modal-grid article {
+  display: grid;
+  gap: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 14px;
+}
+
+.upgrade-modal-grid article > strong {
+  color: var(--green);
+  font-size: 1.2rem;
+}
+
+.upgrade-modal-grid ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: #c8d3cc;
+  font-size: 0.86rem;
+}
+
+.upgrade-modal button:not([aria-label]) {
+  min-height: 42px;
+  border: 1px solid rgba(127, 217, 87, 0.28);
+  border-radius: 12px;
+  color: #071007;
+  background: var(--green);
+  padding: 0 14px;
+  font: inherit;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.upgrade-modal button.secondary {
+  color: #dfe8e2;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.upgrade-modal button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.upgrade-modal footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .settings-field-grid label {
@@ -12632,6 +12887,90 @@ img {
   transform: translate(-50%, -50%);
 }
 
+.acrex-address-marker {
+  position: relative;
+  width: 28px;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.35));
+}
+
+.acrex-address-marker::before {
+  position: absolute;
+  inset: 1px 4px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 50% 50% 50% 8px;
+  background: linear-gradient(145deg, var(--app-green), #f7fff4);
+  content: "";
+  transform: rotate(-45deg);
+}
+
+.acrex-address-marker > span {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border: 2px solid rgba(3, 22, 14, 0.92);
+  border-radius: 50%;
+  background: #fff;
+  transform: translateX(-50%);
+}
+
+.acrex-address-marker:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.acrex-address-popup .mapboxgl-popup-content {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  background: rgba(4, 18, 12, 0.94);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34);
+  color: #f6fff0;
+  padding: 0;
+}
+
+.acrex-address-popup .mapboxgl-popup-tip {
+  border-top-color: rgba(4, 18, 12, 0.94);
+  border-bottom-color: rgba(4, 18, 12, 0.94);
+}
+
+.acrex-address-marker-popup {
+  display: grid;
+  gap: 5px;
+  max-width: min(260px, 72vw);
+  padding: 12px;
+}
+
+.acrex-address-marker-popup strong {
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.acrex-address-marker-popup small {
+  color: rgba(246, 255, 240, 0.66);
+  font-size: 0.7rem;
+}
+
+.acrex-address-marker-popup button {
+  justify-self: start;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f6fff0;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+.acrex-address-marker-popup button:hover {
+  background: rgba(131, 216, 103, 0.18);
+}
+
 .quote-mobile-field {
   display: contents;
 }
@@ -13699,12 +14038,44 @@ img {
 
   .settings-field-grid,
   .account-detail-grid,
+  .usage-limit-grid,
+  .upgrade-plan-grid,
   .settings-color-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .settings-wide-field {
     grid-column: auto;
+  }
+
+  .upgrade-panel {
+    padding: 12px;
+  }
+
+  .upgrade-panel .settings-section-heading {
+    display: grid;
+    gap: 10px;
+  }
+
+  .upgrade-panel .settings-section-heading button,
+  .upgrade-plan-card button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .upgrade-modal {
+    max-height: calc(100dvh - 20px);
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .upgrade-modal-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .upgrade-modal footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .settings-field-grid input,

@@ -1,4 +1,4 @@
-export type AcrexPlan = "free" | "pro" | "business";
+import { billingPlans, normalizePlan, type AcrexPlan } from "@/lib/billing/plans";
 
 export type PlanCapability =
   | "basic_measurements"
@@ -21,20 +21,20 @@ type PlanRule = {
 
 export const planRules: Record<AcrexPlan, PlanRule> = {
   free: {
-    label: "Free",
-    projectLimit: 3,
+    label: billingPlans.free.name,
+    projectLimit: billingPlans.free.limits.projects,
     searchLimit: 10,
     capabilities: ["basic_measurements", "saved_projects"]
   },
   pro: {
-    label: "AcreX Pro",
-    projectLimit: null,
+    label: `AcreX ${billingPlans.pro.name}`,
+    projectLimit: billingPlans.pro.limits.projects,
     searchLimit: null,
     capabilities: ["basic_measurements", "advanced_drawing", "saved_projects", "unlimited_projects", "quote_builder", "clients", "pdf_exports"]
   },
   business: {
-    label: "AcreX Business",
-    projectLimit: null,
+    label: `AcreX ${billingPlans.business.name}`,
+    projectLimit: billingPlans.business.limits.projects,
     searchLimit: null,
     capabilities: [
       "basic_measurements",
@@ -51,11 +51,8 @@ export const planRules: Record<AcrexPlan, PlanRule> = {
   }
 };
 
-export function normalizePlan(plan: string | null | undefined): AcrexPlan {
-  if (plan === "pro" || plan === "business") return plan;
-  return "free";
-}
-
 export function hasPlanCapability(plan: string | null | undefined, capability: PlanCapability) {
   return planRules[normalizePlan(plan)].capabilities.includes(capability);
 }
+
+export type { AcrexPlan };

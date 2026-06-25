@@ -10,6 +10,8 @@ import { saveUserSettings as saveUserSettingsToDatabase } from "@/lib/data/stora
 import { type SaveStatus } from "@/lib/data/save-status";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import { serviceCatalog } from "@/lib/services/catalog";
+import { billingPlans, normalizePlan, usageRemaining, type AcrexPlan, type UsageCounts } from "@/lib/billing/plans";
+import { getBillingProvider, type BillingEntitlement } from "@/lib/billing/provider";
 import {
   defaultUserSettings,
   loadUserSettings,
@@ -27,8 +29,13 @@ type SettingsPageProps = {
     plan: string;
     subscriptionStatus: string;
     subscriptionSource: string;
+    appleOriginalTransactionId: string | null;
+    appleProductId: string | null;
+    appleExpiresAt: string | null;
+    lastEntitlementCheckAt: string | null;
     createdAt: string | null;
   };
+  usage: UsageCounts;
 };
 
 function formatDate(value: string | null) {
@@ -58,12 +65,18 @@ const servicePricingFields = serviceCatalog
     }`
   ] as const);
 
-export function SettingsPage({ account, storedSettings }: SettingsPageProps) {
+export function SettingsPage({ account, storedSettings, usage }: SettingsPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const billingProvider = getBillingProvider();
   const [settings, setSettings] = useState<AcrexUserSettings>(defaultUserSettings);
   const [saveState, setSaveState] = useState<SaveStatus>("idle");
   const [saveMessage, setSaveMessage] = useState("");
+  const [billingMessage, setBillingMessage] = useState("");
+  const [billingState, setBillingState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [currentPlan, setCurrentPlan] = useState<AcrexPlan>(normalizePlan(account.plan));
+  const [subscriptionStatus, setSubscriptionStatus] = useState(account.subscriptionStatus);
+  const [subscriptionSource, setSubscriptionSource] = useState(account.subscriptionSource);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [activeTab, setActiveTab] = useState<"account" | "company" | "pricing" | "quote" | "drawing" | "map">("company");
   const handleExternalSettingsChange = useCallback(
@@ -84,6 +97,12 @@ export function SettingsPage({ account, storedSettings }: SettingsPageProps) {
   useEffect(() => {
     if (searchParams.get("tab") === "account") setActiveTab("account");
   }, [searchParams]);
+
+  useEffect(() => {
+    setCurrentPlan(normalizePlan(account.plan));
+    setSubscriptionStatus(account.subscriptionStatus);
+    setSubscriptionSource(account.subscriptionSource);
+  }, [account.plan, account.subscriptionStatus, account.subscriptionSource]);
 
   type EditableSettingsSection = "company" | "quoteDefaults" | "pricing" | "drawing" | "map";
 
@@ -158,6 +177,85 @@ export function SettingsPage({ account, storedSettings }: SettingsPageProps) {
     router.refresh();
   }
 
+  const persistEntitlement = useCallback(async (entitlement: BillingEntitlement) => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) throw new Error("Subscription storage is not configured.");
+    const { error } = await supabase
+      .from("users")
+      .update({
+        plan: entitlement.plan,
+        subscription_status: entitlement.subscriptionStatus,
+        subscription_source: entitlement.subscriptionSource,
+        apple_original_transaction_id: entitlement.appleOriginalTransactionId ?? null,
+        apple_product_id: entitlement.appleProductId ?? null,
+        apple_expires_at: entitlement.appleExpiresAt ?? null,
+        last_entitlement_check_at: new Date().toISOString()
+      })
+      .eq("id", account.id);
+    if (error) throw new Error(error.message);
+    setCurrentPlan(entitlement.plan);
+    setSubscriptionStatus(entitlement.subscriptionStatus);
+    setSubscriptionSource(entitlement.subscriptionSource);
+    publishDataChange({ type: "settings-saved" });
+    router.refresh();
+  }, [account.id, router]);
+
+  async function handleUpgrade(plan: Exclude<AcrexPlan, "free">) {
+    const provider = getBillingProvider();
+    setBillingState("loading");
+    setBillingMessage(`Opening ${billingPlans[plan].name} App Store subscription…`);
+    const result = await provider.startCheckout(plan);
+    if (result.ok && result.entitlement) {
+      try {
+        await persistEntitlement(result.entitlement);
+        setBillingState("success");
+        setBillingMessage(result.message);
+      } catch (error) {
+        setBillingState("error");
+        setBillingMessage(error instanceof Error ? error.message : "Purchase completed, but subscription status could not be saved.");
+      }
+      return;
+    }
+    setBillingState("error");
+    setBillingMessage(result.message);
+  }
+
+  async function handleRestorePurchases() {
+    const provider = getBillingProvider();
+    setBillingState("loading");
+    setBillingMessage("Checking App Store purchases…");
+    const result = await provider.restorePurchases();
+    if (result.ok && result.entitlement) {
+      try {
+        await persistEntitlement(result.entitlement);
+        setBillingState("success");
+        setBillingMessage(result.message);
+      } catch (error) {
+        setBillingState("error");
+        setBillingMessage(error instanceof Error ? error.message : "Purchases restored, but subscription status could not be saved.");
+      }
+      return;
+    }
+    setBillingState("error");
+    setBillingMessage(result.message);
+  }
+
+  useEffect(() => {
+    if (activeTab !== "account") return;
+    const provider = getBillingProvider();
+    if (!provider.isAvailable) return;
+    let canceled = false;
+    void provider.syncSubscriptionStatus().then(async (result) => {
+      if (canceled || !result.entitlement) return;
+      if (result.entitlement.plan !== currentPlan || result.entitlement.subscriptionStatus !== subscriptionStatus) {
+        await persistEntitlement(result.entitlement).catch(() => undefined);
+      }
+    });
+    return () => {
+      canceled = true;
+    };
+  }, [activeTab, currentPlan, persistEntitlement, subscriptionStatus]);
+
   return (
     <main className="settings-page">
       <aside className="projects-sidebar">
@@ -224,19 +322,99 @@ export function SettingsPage({ account, storedSettings }: SettingsPageProps) {
             <div><span>Name</span><strong>{account.name || "Not provided"}</strong></div>
             <div><span>Email</span><strong>{account.email}</strong></div>
             <div><span>Account ID</span><strong className="account-id">{account.id}</strong></div>
-            <div><span>Current plan</span><strong>{account.plan}</strong></div>
-            <div><span>Subscription status</span><strong>{account.subscriptionStatus}</strong></div>
-            <div><span>Subscription source</span><strong>{account.subscriptionSource}</strong></div>
+            <div><span>Current plan</span><strong>{billingPlans[currentPlan].name}</strong></div>
+            <div><span>Subscription status</span><strong>{subscriptionStatus}</strong></div>
+            <div><span>Subscription source</span><strong>{subscriptionSource}</strong></div>
+            <div><span>Apple product</span><strong>{account.appleProductId ?? "Not active"}</strong></div>
+            <div><span>Renews / expires</span><strong>{formatDate(account.appleExpiresAt)}</strong></div>
+            <div><span>Last entitlement check</span><strong>{formatDate(account.lastEntitlementCheckAt)}</strong></div>
             <div><span>Account created</span><strong>{formatDate(account.createdAt)}</strong></div>
           </div>
+          <section className="upgrade-panel" aria-label="Upgrade AcreX">
+            <div className="settings-section-heading">
+              <div>
+                <span>iOS App Subscription</span>
+                <h3>Upgrade through Apple In-App Purchase</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleRestorePurchases()}
+                disabled={billingState === "loading" || !billingProvider.isAvailable}
+                title={!billingProvider.isAvailable ? "Subscriptions are available in the iOS app." : undefined}
+              >
+                {billingState === "loading" ? "Checking…" : "Restore Purchases"}
+              </button>
+            </div>
+
+            <div className="usage-limit-grid">
+              {([
+                ["projects", "Projects"],
+                ["quotes", "Quotes"],
+                ["aiEstimates", "AI estimates"],
+                ["exports", "Exports"],
+                ["invoices", "Invoices"]
+              ] as const).map(([metric, label]) => {
+                const remaining = usageRemaining(currentPlan, usage, metric);
+                return (
+                  <div key={metric}>
+                    <span>{label}</span>
+                    <strong>{remaining === null ? "Unlimited" : `${remaining} left`}</strong>
+                    <small>{usage[metric]} used</small>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="upgrade-plan-grid">
+              {(["pro", "business"] as const).map((plan) => {
+                const unavailable = !billingProvider.isAvailable;
+                return (
+                  <article className="upgrade-plan-card" key={plan}>
+                    <div>
+                      <span>{billingPlans[plan].label}</span>
+                      <h4>{billingPlans[plan].name}</h4>
+                      <strong className="upgrade-plan-price">{billingPlans[plan].priceLabel}</strong>
+                      <small>{billingPlans[plan].appleProductId}</small>
+                    </div>
+                    <ul>
+                      {billingPlans[plan].features.map((feature) => (
+                        <li key={feature}>{feature}</li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      onClick={() => void handleUpgrade(plan)}
+                      disabled={billingState === "loading" || unavailable}
+                      title={unavailable ? "Subscriptions are available in the iOS app." : undefined}
+                    >
+                      {currentPlan === plan ? "Current Plan" : `Upgrade to ${billingPlans[plan].name}`}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className={`billing-status-message is-${billingState}`} role="status">
+              {billingMessage || (billingProvider.isAvailable
+                ? "Purchases are handled by App Store subscriptions. Manage or cancel from your Apple account."
+                : "Subscriptions are available in the iOS app. Web billing is not enabled yet.")}
+            </div>
+          </section>
           <div className="settings-availability" role="status">
             <div>
-              <strong>Billing management</strong>
-              <small>Available after Stripe is connected.</small>
+              <strong>Manage subscription</strong>
+              <small>Use Apple account subscription settings after purchase.</small>
             </div>
             <div>
-              <strong>Plan upgrades</strong>
-              <small>Your current free plan remains active.</small>
+              <strong>Web billing</strong>
+              <small>Disabled for now. iOS app subscriptions use Apple In-App Purchase.</small>
+            </div>
+            <div>
+              <strong>Account support</strong>
+              <small>
+                <a href="mailto:support@getacrex.com?subject=AcreX%20account%20support">Contact support</a>
+                {" "}for account deletion, billing, or subscription help.
+              </small>
             </div>
           </div>
         </section>

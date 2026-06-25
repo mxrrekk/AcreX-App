@@ -9,6 +9,7 @@ import {
   type AiSuggestedLineItem,
   type AiSuggestedMaterial
 } from "@/components/quotes/ai-estimate-review";
+import { UpgradePlanPrompt } from "@/components/billing/upgrade-plan-prompt";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
 import {
@@ -40,11 +41,13 @@ import {
 } from "@/lib/settings/user-settings";
 import type { ClientRecord, ProjectRecord, QuoteRecord, QuoteStatus, SavedZoneProperties, ZoneType } from "@/lib/projects/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { checkUsageGate, type UsageGateResult } from "@/lib/billing/usage-gates";
+import type { AcrexPlan, UsageCounts, UsageMetric } from "@/lib/billing/plans";
 import { cascadeDeleteQuote } from "@/lib/data/cascades";
 import { publishDataChange } from "@/lib/data/sync";
-import { saveAiEstimateSnapshot } from "@/lib/data/storage";
+import { saveAiEstimateSnapshot, saveQuote as persistQuote } from "@/lib/data/storage";
+import { customerSafeText } from "@/lib/customer-facing-text";
 import { deleteQuoteLines, insertQuoteLines, readQuoteLines } from "@/lib/data/quote-lines";
-import { recordProjectActivity } from "@/lib/data/activity";
 import { saveStatusLabel, type SaveStatus } from "@/lib/data/save-status";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
 import { reconcileSourceLinkedLines, sourceSnapshot, type MeasurementSource } from "@/lib/quotes/source-sync";
@@ -158,6 +161,10 @@ type AiRouteResponse = {
   error?: string;
   code?: string;
   suggestion?: AiEstimateSuggestion;
+  upgradeRequired?: boolean;
+  metric?: UsageMetric;
+  usage?: UsageCounts;
+  plan?: AcrexPlan;
 };
 
 type EstimateContext = {
@@ -580,6 +587,10 @@ function appendText(current: string, suggestion: string) {
   return `${current.trim()}\n\n${cleanSuggestion}`;
 }
 
+function customerLineLabel(name: string | undefined, fallback = "Custom service") {
+  return customerSafeText(name) || fallback;
+}
+
 function normalizeCostCategory(value: string | undefined): CostLine["category"] {
   const category = value?.toLowerCase().trim();
   if (category === "labor") return "labor";
@@ -751,6 +762,7 @@ export function QuotesPage({
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [areMobileQuestionsOpen, setAreMobileQuestionsOpen] = useState(false);
   const [isDeletingQuote, setIsDeletingQuote] = useState(false);
+  const [upgradePrompt, setUpgradePrompt] = useState<UsageGateResult | null>(null);
   const filteredSavedQuotes = useMemo(() => {
     const term = savedQuoteSearch.trim().toLowerCase();
     const visibleQuotes = savedQuotes.filter((quote) => !deletedSavedQuoteIds.has(quote.id));
@@ -1025,7 +1037,7 @@ export function QuotesPage({
     costLines.length > 0 ||
     Boolean(notes.scopeOfWork.trim());
   const hasPreviewContent = hasQuoteContent || Boolean(aiSuggestion);
-  const displayedQuoteTotal = aiSuggestion ? aiSuggestedTotal : grandTotal;
+  const displayedQuoteTotal = aiSuggestion && !hasQuoteContent ? aiSuggestedTotal : grandTotal;
   const customerEmail = selectedClient?.email?.trim() ?? "";
   const quoteEmailHref = customerEmail
     ? `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(`Quote ${quoteNumber} from AcreX`)}&body=${encodeURIComponent(
@@ -1035,9 +1047,9 @@ export function QuotesPage({
           `Address: ${selectedProject?.address || "Address not provided"}`,
           `Total: ${formatCurrency(grandTotal)}`,
           "",
-          notes.scopeOfWork || "Please review the attached project estimate.",
+          customerSafeText(notes.scopeOfWork) || "Please review the attached project estimate.",
           "",
-          notes.paymentTerms || ""
+          customerSafeText(notes.paymentTerms) || ""
         ].filter(Boolean).join("\n")
       )}`
     : null;
@@ -1560,6 +1572,17 @@ export function QuotesPage({
       if (!response.ok || !data.suggestion) {
         setAiBuildState("error");
         setAiBuildMessage(data.error || "AI Estimator could not build suggestions. Your quote was not changed.");
+        if (data.upgradeRequired) {
+          setUpgradePrompt({
+            allowed: false,
+            plan: data.plan === "pro" || data.plan === "business" ? data.plan : "free",
+            usage: data.usage ?? { projects: 0, quotes: 0, aiEstimates: 0, exports: 0, invoices: 0 },
+            metric: data.metric === "projects" || data.metric === "quotes" || data.metric === "exports" || data.metric === "invoices"
+              ? data.metric
+              : "aiEstimates",
+            message: data.error || "Upgrade to keep using AI estimates."
+          });
+        }
         return;
       }
 
@@ -1861,6 +1884,16 @@ export function QuotesPage({
       return;
     }
 
+    if (!savedQuoteId) {
+      const usageGate = await checkUsageGate(supabase, userId, "quotes");
+      if (!usageGate.allowed) {
+        setSaveState("error");
+        setSaveMessage(usageGate.message ?? "Upgrade to create more quotes.");
+        setUpgradePrompt(usageGate);
+        return;
+      }
+    }
+
     setSaveState("saving");
     setSaveMessage("");
 
@@ -1973,51 +2006,34 @@ export function QuotesPage({
         }))
       );
     };
-    const quoteResult = savedQuoteId
-      ? await supabase.from("quotes").update(quotePayload).eq("id", savedQuoteId).eq("user_id", userId).select("*").single()
-      : await supabase.from("quotes").insert(quotePayload).select("*").single();
-    const quote = quoteResult.data;
-
-    if (quoteResult.error || !quote) {
-      setSaveState("error");
-      setSaveMessage(quoteResult.error?.message ?? "Quote could not be saved.");
-      return;
-    }
-
     const quoteItemPayload = lineItems.map((item, index) => ({
-      quote_id: quote.id,
-      user_id: userId,
       service: item.serviceName || "Custom",
       description: item.description,
       quantity: parseAmount(item.quantity),
       unit: item.unit,
       unit_price: parseAmount(item.rate),
       total: lineTotal(item),
+      drawing_id: item.sourceId ?? null,
       zone_name: item.sourceMeasurement,
       zone_type: item.zoneType,
       notes: item.notes,
+      source_snapshot: item.sourceSnapshot ?? null,
       sort_order: index
     }));
 
-    const { error: deleteItemsError } = await deleteQuoteLines(supabase, userId, quote.id);
+    const { data: quote, error: quoteError } = await persistQuote(
+      supabase,
+      {
+        ...(savedQuoteId ? { id: savedQuoteId } : {}),
+        ...quotePayload
+      },
+      quoteItemPayload
+    );
 
-    if (deleteItemsError) {
-      await restorePreviousQuote(quote.id);
+    if (quoteError || !quote) {
       setSaveState("error");
-      setSaveMessage("Quote line items could not be updated. The quote was not finalized.");
+      setSaveMessage(quoteError ?? "Quote could not be saved.");
       return;
-    }
-
-    if (quoteItemPayload.length > 0) {
-      const { error: itemsError } = await insertQuoteLines(supabase, quoteItemPayload);
-
-      if (itemsError) {
-        await restorePreviousItems(quote.id);
-        await restorePreviousQuote(quote.id);
-        setSaveState("error");
-        setSaveMessage("Quote line items could not be saved. Previous saved items were preserved when available.");
-        return;
-      }
     }
 
     const { error: invoiceUpdateError } = await supabase
@@ -2044,16 +2060,6 @@ export function QuotesPage({
     setSavedQuoteId(quote.id);
     setSaveState("saved");
     setSaveMessage(selectedProject ? "Quote saved to project." : "Quote saved.");
-    if (selectedProject?.id) {
-      await recordProjectActivity(supabase, {
-        userId,
-        projectId: selectedProject.id,
-        eventType: previousSavedQuote ? "quote_edited" : "quote_created",
-        entityType: "quote",
-        entityId: quote.id,
-        description: `Quote ${quote.quote_number} ${previousSavedQuote ? "edited" : "created"}.`
-      });
-    }
     publishDataChange({ type: "quote-saved", projectId: selectedProject?.id ?? null, quoteId: quote.id });
   }
 
@@ -3281,12 +3287,12 @@ export function QuotesPage({
               <section className="quote-preview-lines" aria-label="Quote line items">
                 {lineItems.length ? lineItems.map((item) => (
                   <div key={item.id}>
-                    <span>{item.serviceName || "Custom service"} · {item.quantity || "0"} {item.unit}</span>
+                    <span>{customerLineLabel(item.serviceName)} · {item.quantity || "0"} {item.unit}</span>
                     <strong>{formatCurrency(lineTotal(item))}</strong>
                   </div>
                 )) : aiSuggestion?.suggestedLineItems.length ? aiSuggestion.suggestedLineItems.map((item, index) => (
                   <div key={`ai-preview-${index}`}>
-                    <span>{item.serviceName || "Custom service"} · {item.quantity || 0} {item.unit}</span>
+                    <span>{customerLineLabel(item.serviceName)} · {item.quantity || 0} {item.unit}</span>
                     <strong>{formatCurrency(item.total ?? item.quantity * (item.recommendedRate ?? 0))}</strong>
                   </div>
                 )) : <p>No service line items added.</p>}
@@ -3316,30 +3322,36 @@ export function QuotesPage({
               </section>
               <section className="quote-preview-terms">
                 {notes.scopeOfWork || aiSuggestion?.suggestedScopeOfWork ? (
-                  <div><strong>Scope of work</strong><p>{notes.scopeOfWork || aiSuggestion?.suggestedScopeOfWork}</p></div>
+                  <div><strong>Scope of work</strong><p>{customerSafeText(notes.scopeOfWork || aiSuggestion?.suggestedScopeOfWork)}</p></div>
                 ) : null}
                 {notes.exclusions || aiSuggestion?.suggestedExclusions ? (
                   <div>
                     <strong>Exclusions</strong>
                     <p>
-                      {notes.exclusions ||
+                      {customerSafeText(notes.exclusions ||
                         (Array.isArray(aiSuggestion?.suggestedExclusions)
                           ? aiSuggestion?.suggestedExclusions.join("\n")
-                          : aiSuggestion?.suggestedExclusions)}
+                          : aiSuggestion?.suggestedExclusions))}
                     </p>
                   </div>
                 ) : null}
                 {notes.paymentTerms || aiSuggestion?.suggestedTerms ? (
-                  <div><strong>Payment terms</strong><p>{notes.paymentTerms || aiSuggestion?.suggestedTerms}</p></div>
+                  <div><strong>Payment terms</strong><p>{customerSafeText(notes.paymentTerms || aiSuggestion?.suggestedTerms)}</p></div>
                 ) : null}
-                {notes.estimatedTimeline ? <div><strong>Timeline</strong><p>{notes.estimatedTimeline}</p></div> : null}
-                {notes.customerNotes ? <div><strong>Notes</strong><p>{notes.customerNotes}</p></div> : null}
+                {notes.estimatedTimeline ? <div><strong>Timeline</strong><p>{customerSafeText(notes.estimatedTimeline)}</p></div> : null}
+                {notes.customerNotes ? <div><strong>Notes</strong><p>{customerSafeText(notes.customerNotes)}</p></div> : null}
               </section>
             </article>
           </section>
         </div>
       ) : null}
       <MobileAppNav active="quotes" />
+      <UpgradePlanPrompt
+        open={Boolean(upgradePrompt)}
+        metric={upgradePrompt?.metric ?? "quotes"}
+        message={upgradePrompt?.message ?? "Upgrade to keep creating quotes."}
+        onClose={() => setUpgradePrompt(null)}
+      />
     </main>
   );
 }

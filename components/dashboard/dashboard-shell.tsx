@@ -6,8 +6,10 @@ import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { AppSidebar, type AppSidebarKey } from "@/components/ui/app-sidebar";
+import { UpgradePlanPrompt } from "@/components/billing/upgrade-plan-prompt";
 import type { Feature, Polygon } from "geojson";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { checkUsageGate, type UsageGateResult } from "@/lib/billing/usage-gates";
 import { saveProject } from "@/lib/data/storage";
 import { readQuoteLines } from "@/lib/data/quote-lines";
 import { getProjectActivity, recordProjectActivity, type ProjectActivityType } from "@/lib/data/activity";
@@ -466,6 +468,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [isSavingProject, setIsSavingProject] = useState(false);
   const [projectMessage, setProjectMessage] = useState<string | null>(null);
+  const [upgradePrompt, setUpgradePrompt] = useState<UsageGateResult | null>(null);
   const [mapResetKey, setMapResetKey] = useState(0);
   const [explorerRequest, setExplorerRequest] = useState<{ id: number; type: ZoneType | null }>({ id: 0, type: null });
   const [activePanel, setActivePanel] = useState<DashboardPanelKey | null>(null);
@@ -1447,6 +1450,16 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
       return;
     }
 
+    if (!activeProjectId) {
+      const usageGate = await checkUsageGate(supabase, currentUserId, "projects");
+      if (!usageGate.allowed) {
+        setIsSavingProject(false);
+        setUpgradePrompt(usageGate);
+        setProjectMessage(usageGate.message ?? "Upgrade to create more projects.");
+        return;
+      }
+    }
+
     const projectAddress = getDrawingAddress(
       workZones,
       projectForm.address.trim() || address,
@@ -1937,12 +1950,12 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                       </span>
                     </div>
                     <p className="mobile-quote-sheet-note">
-                      Add measured work or open the full quote workspace. Estimate editing stays off the map.
+                      Use saved drawings or open the full quote workspace. Estimate editing stays off the map.
                     </p>
                     <div className="mobile-sheet-actions mobile-quote-sheet-actions">
                       {activeProjectId && firstAvailableQuoteZone ? (
                         <Link href={`/quotes?project=${activeProjectId}&measurement=${encodeURIComponent(firstAvailableQuoteZone.id)}`}>
-                          Add Measurements
+                          Use Measurements
                         </Link>
                       ) : (
                         <button type="button" disabled>
@@ -1957,7 +1970,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                         <button type="button" className="secondary" disabled>Build Estimate</button>
                       )}
                       <Link className="secondary mobile-quote-open-action" href={activeProjectId ? `/quotes?project=${activeProjectId}` : "/quotes"}>
-                        Open Quote
+                        Open Quote Workspace
                       </Link>
                     </div>
                   </>
@@ -2042,6 +2055,34 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                           <span>Measurement<strong>{formatZoneMeasurement(selectedMobileZone)}</strong></span>
                           <span>Project<strong>{activeProjectId ? "Saved" : "Not saved"}</strong></span>
                         </div>
+                        <div className="mobile-shape-fields mobile-shape-quick-fields">
+                          <label>
+                            Name
+                            <input
+                              value={selectedMobileZone.name}
+                              onChange={(event) => sendMobileMapCommand("rename-selected", event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            Service
+                            <select
+                              value={selectedMobileZone.serviceTypeId}
+                              onChange={(event) => sendMobileMapCommand("service-selected", event.target.value)}
+                            >
+                              {serviceTypes.filter((service) => service.id !== "property-boundary").map((service) => (
+                                <option value={service.id} key={service.id}>{service.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            Color
+                            <input
+                              type="color"
+                              value={selectedMobileZone.color ?? zoneColors[selectedMobileZone.type]}
+                              onChange={(event) => sendMobileMapCommand("color-selected", event.target.value)}
+                            />
+                          </label>
+                        </div>
                         <div className="mobile-sheet-actions mobile-shape-primary-actions">
                           {activeProjectId ? (
                             <Link href={quotedZoneNames.includes(selectedMobileZone.name)
@@ -2058,7 +2099,14 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                             <Link className="secondary" href={`/projects/${activeProjectId}`}>Open Project</Link>
                           ) : null}
                           <button type="button" className="secondary" onClick={() => sendMobileMapCommand("zoom-selected")}>Zoom To</button>
-                          <button type="button" className="secondary" onClick={() => setMobileShapeView("more")}>More Actions</button>
+                          <button type="button" className="secondary" onClick={() => sendMobileMapCommand("toggle-selected")}>
+                            {selectedMobileZone.visible === false ? "Show" : "Hide"}
+                          </button>
+                          <button type="button" className="danger" onClick={() => {
+                            sendMobileMapCommand("delete-selected");
+                            setMobileSheet(null);
+                          }}>Delete</button>
+                          <button type="button" className="secondary" onClick={() => setMobileShapeView("location")}>Location</button>
                         </div>
                       </div>
                     ) : mobileShapeView === "more" ? (
@@ -2104,7 +2152,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                           sendMobileMapCommand("delete-selected");
                           setMobileShapeView("summary");
                           setMobileSheet(null);
-                        }}>Delete Drawing</button>
+                        }}>Delete</button>
                       </div>
                       </div>
                     ) : (
@@ -2143,7 +2191,7 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
                 <div>
                   <span>
                     {effectivePanel === "measurements"
-                      ? "Drawing Inspector"
+                      ? "Measurement Tools"
                       : effectivePanel === "quote"
                           ? "Map Estimate Reference"
                           : effectivePanel === "search"
@@ -2564,6 +2612,12 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
           ) : null}
         </section>
       </section>
+      <UpgradePlanPrompt
+        open={Boolean(upgradePrompt)}
+        metric={upgradePrompt?.metric ?? "projects"}
+        message={upgradePrompt?.message ?? "Upgrade to keep creating projects."}
+        onClose={() => setUpgradePrompt(null)}
+      />
     </main>
   );
 }

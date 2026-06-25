@@ -1,6 +1,6 @@
 # AcreX Build Status
 
-Last reviewed: June 20, 2026.
+Last reviewed: June 25, 2026.
 
 ## Current Status
 
@@ -8,7 +8,7 @@ Projects, Quotes, and Invoices now open as action-first workspaces. Saved resour
 
 The invoice workflow now converts saved quotes into a structured customer-safe invoice, restores saved invoice content in the same preview/editor, and uses that preview as the source for printing and PDF export. The desktop workspace gives most of the screen to the live invoice, while mobile opens directly to the preview and keeps details in a bottom sheet. Gemini invoice polish is server-side, proposes wording changes for explicit approval, and cannot modify prices or quantities.
 
-The production Supabase project has not received the additive table migration yet. Public REST checks return `PGRST205` for drawings, measurements, normalized quote/invoice lines, exports, attachments, settings, and AI snapshots. The `acrex-files` bucket already responds successfully. Existing project, quote, invoice, and local-settings workflows retain compatibility until an authorized migration is applied.
+The production Supabase project has not received the additive table migration yet. Public REST checks return `PGRST205` for drawings, measurements, normalized quote/invoice lines, exports, attachments, settings, AI snapshots, and activity. The repo now includes `supabase/migrations/20260625160000_acrex_storage_foundation.sql`, `supabase/schema.sql`, and the guarded `npm run storage:migrate` runner; one migration path must be applied with an authorized Supabase session before live storage acceptance can pass. Existing project, quote, invoice, and local-settings workflows retain compatibility until the migration is applied.
 
 Measured projects now draft automatically when they have no saved quote content. AcreX does not overwrite accepted or edited quote data, and it restores the same in-session AI draft after navigation or reload.
 
@@ -47,8 +47,13 @@ Measured projects now draft automatically when they have no saved quote content.
 - Saved invoice browser: separated from New Invoice with search, status filter, open, duplicate, project, status, and protected delete controls
 - Invoice runtime regression: fresh server render produced no hydration warnings or browser console errors
 - Responsive resource regression: Projects, Quotes, and Invoices fit 393px without horizontal overflow
+- Storage migration artifact: `supabase/migrations/20260625160000_acrex_storage_foundation.sql` is present and covered by `npm run test:storage`
+- Storage migration runner: `npm run storage:migrate` validates `SUPABASE_DB_URL`, requires `psql`, and applies only the tracked storage migration without printing the database URL
+- Export metadata: project backup exports now use the centralized `createExportRecord()` helper and include public/private access state in the exports table definition
+- Quote persistence: the Quote page now routes quote header and quote-line persistence through the centralized `saveQuote()` helper while preserving linked draft-invoice rollback behavior
+- Remote storage verification: `npm run test:storage:remote` currently fails because production is missing drawings, measurements, quote_line_items, invoice_line_items, exports, attachments, user_settings, ai_estimate_snapshots, and project_activity
 - Live storage acceptance harness: validates project/drawing/measurement/quote/invoice/file persistence, refresh reads, private file download, five cross-user table checks, storage isolation, and cleanup
-- Live acceptance execution: pending dedicated User A/User B test credentials and the production table migration
+- Live acceptance execution: currently blocked by missing dedicated User A/User B test credentials and the unapplied production table migration
 - Project backup route: authenticated `/api/projects/[id]/export` returns a downloadable JSON document
 - Backup format: `acrex-project-backup` version 1 with explicit create-new-project restore strategy and preserved relationship IDs
 - Backup coverage: project, client, drawings, measurements, quotes, quote lines, invoices, invoice lines, files, exports, settings, AI snapshots, activity, and integrity findings
@@ -203,10 +208,29 @@ Measured projects now draft automatically when they have no saved quote content.
 - Project Detail regression: five tabs fit a 3×2 grid at 320px and a single fitted row on desktop.
 - Responsive space audit: document widths matched 320px, 393px, 834px, and 1440px viewports with `scrollX=0`.
 - Runtime space-management audit: no browser warnings or errors were recorded.
+- Final pre-launch app-only audit: dashboard/map/drawings/projects/quotes/invoices/settings/account code paths were scanned without touching the landing page.
+- Drawing inspector cleanup: the dashboard side drawer no longer duplicates the map Drawing Inspector label, and selected drawings expose name, service type, color, measurement, quote/project, zoom, hide/show, delete, and location from one inspector workflow.
+- Mobile quote clarity: the map Quote sheet now references using saved drawings and opening the full quote workspace instead of implying a manual long-form quote step.
+- Customer-facing pricing copy audit: no `AI generated`, `AI pricing`, or `AI adjustment` labels remain in app code paths for customer-facing quote/invoice surfaces.
+- Final pre-launch regression scripts: storage foundation, data sync/cascades, quote service scoping, and invoice workflow tests passed.
+- Final pre-launch build: `npx tsc --noEmit --incremental false` and `npm run build` passed.
+- Storage helper audit: invoice saves now compensate failed `invoice_line_items` writes by restoring the previous invoice header and line rows, matching the quote save rollback behavior.
+- Storage contract audit: regression checks now guard against malformed duplicate SQL policy clauses, duplicate generated storage fields, and missing invoice rollback helpers.
+- Remote storage audit: `npm run test:storage:remote` still reports the production Supabase project is missing `drawings`, `measurements`, `quote_line_items`, `invoice_line_items`, `exports`, `attachments`, `user_settings`, `ai_estimate_snapshots`, and `project_activity`.
+- Migration audit: `npm run storage:migrate` is ready but could not run locally because `SUPABASE_DB_URL` is not configured.
+- Live isolation audit: `npm run test:storage:live` is ready but could not run locally because `ACREX_TEST_USER_A_*` and `ACREX_TEST_USER_B_*` credentials are not configured.
+- Apple IAP foundation: native `/app` entry bypasses the marketing page, `cordova-plugin-purchase` is installed, product IDs are centralized, Account/Settings includes native-only upgrade/restore UI, and web billing remains an iOS-only placeholder.
+- Subscription data foundation: Supabase user profile fields now include Apple transaction/product/expiration and entitlement-check timestamps.
+- Usage limits: configurable free limits are in code, Account shows remaining usage, and AI estimate generation is server-gated after the free limit.
+- IAP docs: App Store Connect product IDs, subscription group, plugin choice, and remaining sandbox/Xcode steps are documented in `docs/APPLE_IAP.md`.
+- Subscription plan update: Pro is `$15/month`, Business is `$35/month`, and plan-card copy now comes from the centralized billing plan config.
+- Usage gate update: project creation, quote creation, AI estimates, and project backup exports now use central usage checks and show Upgrade Plan prompts where the action is client-visible.
+- Expired/canceled subscription handling: central usage gates fall back to Free limits unless the paid subscription is active or trialing; saved data remains viewable.
 
 ## Remaining Release Work
 
-- Apply `supabase/schema.sql` in the production Supabase SQL Editor or through an authenticated migration session.
+- Apply `supabase/migrations/20260625160000_acrex_storage_foundation.sql` or `supabase/schema.sql` in the production Supabase SQL Editor or through an authenticated migration session.
+- Rerun `npm run test:storage:remote` after migration.
 - Verify authenticated save/reload behavior and two-user RLS isolation against the migrated production database.
 - Upload and remove a private test file from `acrex-files`, then verify its attachment metadata.
 - Confirm final App Store Connect name, subtitle, description, keywords, support URL, privacy URL, category, age rating, screenshots, and review notes.

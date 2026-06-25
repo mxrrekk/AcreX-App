@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { enforceServiceScope } from "@/lib/ai/service-scope";
+import { checkUsageGate } from "@/lib/billing/usage-gates";
 
 type JsonRecord = Record<string, unknown>;
 const geminiModels = ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3.5-flash"] as const;
@@ -610,6 +611,21 @@ export async function POST(request: Request) {
   if (!user) {
     logDevelopmentError("AI quote request was not authenticated.");
     return NextResponse.json({ error: "Log in again to use the AI Estimator." }, { status: 401 });
+  }
+
+  const usageGate = await checkUsageGate(supabase, user.id, "aiEstimates");
+  if (!usageGate.allowed) {
+    return NextResponse.json(
+      {
+        error: usageGate.message,
+        code: "usage_limit_reached",
+        upgradeRequired: true,
+        metric: usageGate.metric,
+        usage: usageGate.usage,
+        plan: usageGate.plan
+      },
+      { status: 402 }
+    );
   }
 
   const apiKey = process.env.GEMINI_API_KEY;

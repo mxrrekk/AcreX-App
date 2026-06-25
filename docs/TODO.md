@@ -1,6 +1,6 @@
 # AcreX Prioritized TODO
 
-Last updated: June 20, 2026.
+Last updated: June 25, 2026.
 
 ## Completed — Customer-Ready Invoice Workflow
 
@@ -50,8 +50,14 @@ Last updated: June 20, 2026.
 - [x] Preserve legacy quote-item compatibility until the production migration is applied.
 - [x] Persist project drawings and measurements separately while retaining project GeoJSON compatibility.
 - [x] Copy quote lines into invoice line items during invoice creation.
-- [ ] Apply `supabase/schema.sql` to the production Supabase project using an authorized database session.
+- [x] Add migration artifact `supabase/migrations/20260625160000_acrex_storage_foundation.sql` for the durable storage foundation.
+- [x] Add `SUPABASE_DB_URL` migration runner command `npm run storage:migrate` for authorized local deployment.
+- [x] Centralize project backup export metadata through `createExportRecord()`.
+- [x] Route Quote page header and line-item persistence through the centralized `saveQuote()` helper.
+- [x] Store public/private access state on export records as well as attachment records.
+- [ ] Apply `supabase/migrations/20260625160000_acrex_storage_foundation.sql` or `supabase/schema.sql` to the production Supabase project using an authorized database session.
 - [x] Add a self-cleaning authenticated live test for project, drawing, measurement, quote, invoice, private file, refresh reads, and two-user isolation.
+- [ ] Rerun `npm run test:storage:remote`; current production check is missing drawings, measurements, normalized quote/invoice lines, exports, attachments, settings, AI snapshots, and activity tables.
 - [ ] Supply two dedicated test accounts and run `npm run test:storage:live` after the migration is applied.
 
 ## Completed — AI-First Quote Workspace
@@ -301,3 +307,49 @@ Last updated: June 20, 2026.
 - [x] Rename ambiguous project and quote navigation labels.
 - [x] Verify quote editing, totals, preview/PDF workflow, Settings persistence, and AI suggestion application.
 - [x] Run lint, TypeScript validation, and a production build.
+
+## Completed — Final Pre-Launch Logged-In App Audit
+
+- [x] Preserve the public landing page while auditing only logged-in app surfaces.
+- [x] Remove the duplicate `Drawing Inspector` label from the dashboard side drawer.
+- [x] Put rename, service type, and color editing directly in the selected drawing inspector workflow.
+- [x] Keep Add to Quote, Save/Open Project, Zoom To, Hide/Show, Delete, and Location available from the same selected drawing workflow.
+- [x] Clarify the mobile Quote sheet around using saved drawings and opening the quote workspace.
+- [x] Recheck AI service scoping so quote generation remains limited to the selected service/measurements.
+- [x] Recheck invoice conversion/customer-facing text so internal AI/pricing labels stay off quotes and invoices.
+- [x] Run final TypeScript, storage, data-sync, quote-service, invoice, and production build checks.
+- [x] Add compensated invoice-save rollback for failed invoice line-item persistence.
+- [x] Add storage contract checks for SQL policy integrity and invoice rollback helpers.
+
+## Remaining — Production Storage Activation
+
+- [ ] Add `SUPABASE_DB_URL` locally or apply `supabase/migrations/20260625160000_acrex_storage_foundation.sql` in Supabase SQL Editor.
+- [ ] Rerun `npm run test:storage:remote` until all AcreX storage tables and the `acrex-files` bucket are available.
+- [ ] Add two isolated test user credentials locally and run `npm run test:storage:live`.
+- [ ] Verify save/reload/isolation for projects, drawings, quotes, invoices, attachments, exports, settings, and AI snapshots against production Supabase.
+
+## Completed — Apple IAP Foundation
+
+- [x] Add `/app` native entry route so the wrapped app bypasses the marketing page.
+- [x] Add centralized Apple product IDs for Pro and Business monthly subscriptions.
+- [x] Install and sync the Capacitor-compatible `cordova-plugin-purchase` StoreKit bridge.
+- [x] Add a billing provider abstraction with `startCheckout`, `restorePurchases`, `getCurrentEntitlement`, and `syncSubscriptionStatus`.
+- [x] Keep browser billing as an iOS-only placeholder with no Stripe checkout.
+- [x] Add Account/Settings Upgrade section with usage remaining, Pro/Business cards, and Restore Purchases.
+- [x] Add Supabase profile fields for Apple subscription status and entitlement timestamps.
+- [x] Add configurable free usage limits for projects, quotes, AI estimates, and exports.
+- [x] Gate AI estimate generation after the free AI estimate limit.
+- [x] Add native entitlement sync on app launch.
+- [x] Document App Store Connect setup in `docs/APPLE_IAP.md`.
+- [x] Set exact Pro and Business pricing copy to `$15/month` and `$35/month`.
+- [x] Add explicit centralized helpers: `canCreateProject`, `canCreateQuote`, `canUseAI`, `canExport`, and `canCreateInvoice`.
+- [x] Add Upgrade Plan popup with Pro/Business options, Restore Purchases, and Not Now.
+- [x] Gate new project creation, new quote creation, AI estimate usage, and project backup exports through central usage checks.
+- [x] Keep expired/canceled paid users on free creation limits while preserving saved data visibility.
+
+## Remaining — Apple IAP Production Setup
+
+- [ ] Create `com.getacrex.pro.monthly` and `com.getacrex.business.monthly` in App Store Connect.
+- [ ] Confirm the `AcreX Subscriptions` subscription group.
+- [ ] Test purchase and restore flows with an Apple sandbox tester.
+- [ ] Verify production Supabase has the new Apple subscription profile columns.

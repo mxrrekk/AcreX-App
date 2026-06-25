@@ -4,9 +4,17 @@ Supabase is the durable source of truth for AcreX user data. Browser storage rem
 
 ## Apply the schema
 
-Run the complete [`supabase/schema.sql`](../supabase/schema.sql) file in the Supabase SQL Editor for the AcreX project.
+Run the storage migration [`supabase/migrations/20260625160000_acrex_storage_foundation.sql`](../supabase/migrations/20260625160000_acrex_storage_foundation.sql) in the Supabase SQL Editor for the AcreX project.
 
-The repository is linked by [`supabase/config.toml`](../supabase/config.toml) to project reference `ccjxsxumtzsrfeydyulx`. An authenticated Supabase CLI session can also deploy the schema through the project migration workflow.
+If you have the production Postgres connection string and local `psql` installed, you can also run:
+
+```bash
+SUPABASE_DB_URL='postgresql://postgres...sslmode=require' npm run storage:migrate
+```
+
+Do not commit `SUPABASE_DB_URL`. It belongs only in `.env.local` or in the temporary shell environment used for the migration.
+
+The complete [`supabase/schema.sql`](../supabase/schema.sql) file remains the full bootstrap schema for a new AcreX database. The repository is linked by [`supabase/config.toml`](../supabase/config.toml) to project reference `ccjxsxumtzsrfeydyulx`. An authenticated Supabase CLI session can also deploy migrations through the project migration workflow.
 
 The schema is additive and keeps the legacy `quote_items` table available while AcreX moves to `quote_line_items`. Existing quote items are copied into the normalized table when the schema is applied.
 
@@ -18,7 +26,7 @@ The schema is additive and keeps the legacy `quote_items` table available while 
 - `quotes` and `quote_line_items` store quote headers and editable services.
 - `invoices` and `invoice_line_items` store invoice headers and the copied financial lines.
 - `clients` stores customer records.
-- `exports` records generated deliverables.
+- `exports` records generated deliverables, storage metadata, and public/private access state.
 - `attachments` records project, quote, invoice, and export files.
 - `user_settings` stores company, quote, pricing, drawing, and map defaults.
 - `ai_estimate_snapshots` stores the structured context and result used for an AI estimate.
@@ -57,6 +65,7 @@ Available operations include:
 - `uploadProjectFile()`
 - `uploadQuotePdf()`
 - `uploadInvoicePdf()`
+- `createExportRecord()`
 - `getProjectFiles()`
 - `deleteProjectFile()`
 - `saveUserSettings()`
@@ -80,7 +89,7 @@ npm run test:data-sync
 npm run build
 ```
 
-`test:storage:remote` checks that every required REST table and the private bucket exist. The public anon key cannot apply database migrations. Applying `supabase/schema.sql` requires Supabase SQL Editor access, a database connection, or an authenticated Supabase CLI session.
+`test:storage:remote` checks that every required REST table and the private bucket exist. The public anon key cannot apply database migrations. Applying the storage migration requires Supabase SQL Editor access, `SUPABASE_DB_URL` plus `psql`, or an authenticated Supabase CLI session.
 
 `test:storage:live` requires two dedicated, confirmed Supabase test accounts:
 

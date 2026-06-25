@@ -9,6 +9,7 @@ import { deleteDraftInvoice } from "@/lib/data/cascades";
 import { saveInvoice } from "@/lib/data/storage";
 import { publishDataChange } from "@/lib/data/sync";
 import { useAcrexDataRefresh } from "@/lib/data/use-data-refresh";
+import { customerSafeText } from "@/lib/customer-facing-text";
 import {
   createInvoicePayloadFromQuote,
   parseSavedInvoicePayload,
@@ -549,7 +550,7 @@ export function InvoicesPage({
               <summary>Customer-facing wording</summary>
               <div className="invoice-wording-editor">
                 {invoicePayload.lineItems.map((line, index) => (
-                  <label key={line.id}>{line.name} description<textarea value={line.description} onChange={(event) => setInvoicePayload({
+                  <label key={line.id}>{customerSafeText(line.name) || "Service"} description<textarea value={line.description} onChange={(event) => setInvoicePayload({
                     ...invoicePayload,
                     lineItems: invoicePayload.lineItems.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item)
                   })} /></label>
@@ -605,12 +606,12 @@ export function InvoicesPage({
           <div><span>Invoice Date</span><strong>{formatDate(invoicePayload.invoiceDate)}</strong></div>
           <div><span>Due Date</span><strong>{formatDate(formState.dueDate)}</strong></div>
         </section>
-        {invoicePayload.scopeSummary ? <p className="invoice-scope-summary">{invoicePayload.scopeSummary}</p> : null}
+        {invoicePayload.scopeSummary ? <p className="invoice-scope-summary">{customerSafeText(invoicePayload.scopeSummary)}</p> : null}
         <section className="invoice-line-table">
           <header><span>Description</span><span>Qty</span><span>Unit</span><span>Rate</span><span>Amount</span></header>
           {invoicePayload.lineItems.map((line) => (
             <div key={line.id}>
-              <span><strong>{line.name}</strong><small>{line.description}</small></span>
+              <span><strong>{customerSafeText(line.name) || "Service"}</strong><small>{customerSafeText(line.description)}</small></span>
               <span data-label="Qty">{line.quantity}</span>
               <span data-label="Unit">{line.unit}</span>
               <span data-label="Rate">{formatCurrency(line.unitPrice)}</span>
@@ -626,9 +627,9 @@ export function InvoicesPage({
           <div className="balance"><span>Balance Due</span><strong>{formatCurrency(invoicePayload.balanceDue)}</strong></div>
         </section>
         <section className="invoice-customer-copy">
-          {invoicePayload.paymentTerms ? <div><strong>Payment Instructions</strong><p>{invoicePayload.paymentTerms}</p></div> : null}
-          {invoicePayload.customerNotes ? <div><strong>Notes</strong><p>{invoicePayload.customerNotes}</p></div> : null}
-          <p className="invoice-thank-you">{invoicePayload.thankYouMessage}</p>
+          {invoicePayload.paymentTerms ? <div><strong>Payment Instructions</strong><p>{customerSafeText(invoicePayload.paymentTerms)}</p></div> : null}
+          {invoicePayload.customerNotes ? <div><strong>Notes</strong><p>{customerSafeText(invoicePayload.customerNotes)}</p></div> : null}
+          <p className="invoice-thank-you">{customerSafeText(invoicePayload.thankYouMessage)}</p>
         </section>
         <footer>Generated with AcreX™</footer>
       </article>

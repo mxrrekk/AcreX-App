@@ -48,7 +48,8 @@ if (missing.length || !bucketResponse.ok) {
     [
       missing.length ? `Missing tables: ${missing.join(", ")}` : "",
       !bucketResponse.ok ? "Missing or inaccessible storage bucket: acrex-files" : "",
-      "Apply supabase/schema.sql with an authorized Supabase session, then rerun this command."
+      "Apply supabase/migrations/20260625160000_acrex_storage_foundation.sql with an authorized Supabase session, then rerun this command.",
+      "If SUPABASE_DB_URL and psql are available locally, run: npm run storage:migrate"
     ].filter(Boolean).join("\n")
   );
   process.exit(1);

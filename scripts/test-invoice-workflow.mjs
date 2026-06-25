@@ -6,14 +6,32 @@ import vm from "node:vm";
 import ts from "typescript";
 
 const nativeRequire = createRequire(import.meta.url);
+const moduleCache = new Map();
+
+function resolveLocalModule(specifier) {
+  if (!specifier.startsWith("@/")) return null;
+  const base = path.resolve(specifier.replace("@/", ""));
+  for (const candidate of [`${base}.ts`, `${base}.tsx`, path.join(base, "index.ts")]) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  throw new Error(`Unable to resolve ${specifier}`);
+}
+
 function load(filePath) {
-  const source = fs.readFileSync(path.resolve(filePath), "utf8");
+  const absolutePath = path.resolve(filePath);
+  if (moduleCache.has(absolutePath)) return moduleCache.get(absolutePath).exports;
+  const source = fs.readFileSync(absolutePath, "utf8");
   const output = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
   }).outputText;
   const module = { exports: {} };
+  moduleCache.set(absolutePath, module);
+  const localRequire = (specifier) => {
+    const localPath = resolveLocalModule(specifier);
+    return localPath ? load(localPath) : nativeRequire(specifier);
+  };
   vm.runInNewContext(`(function(require,module,exports){${output}\n})(require,module,module.exports)`, {
-    require: nativeRequire,
+    require: localRequire,
     module,
     console
   });
@@ -68,5 +86,37 @@ const saved = { ...quote, notes: serializeInvoicePayload({ ...payload, customerN
 const restored = parseSavedInvoicePayload(saved, payload);
 assert.equal(restored.customerNotes, "Saved customer note");
 assert.equal(restored.lineItems[0].unitPrice, 125);
+
+const minimumQuote = {
+  ...quote,
+  id: "q2",
+  total: 62.9,
+  notes: JSON.stringify({
+    scopeOfWork: "AI generated mowing scope.",
+    customerNotes: "AI pricing adjusted this job.",
+    paymentTerms: "Due on receipt.",
+    totals: { tax: 0, grandTotal: 62.9 }
+  })
+};
+const minimumLines = [
+  {
+    id: "l3",
+    quote_id: "q2",
+    service: "Mowing - Grass Area 1",
+    description: "AI adjustment based on measured acreage.",
+    quantity: 0.087,
+    unit: "acres",
+    unit_price: 120,
+    total: 10.44,
+    zone_name: "Grass Area 1"
+  }
+];
+const minimumPayload = createInvoicePayloadFromQuote({ quote: minimumQuote, quoteLines: minimumLines, client, settings });
+assert.equal(minimumPayload.lineItems.length, 2);
+assert.equal(minimumPayload.lineItems[1].name, "Service Minimum Adjustment");
+assert.equal(minimumPayload.lineItems[1].total, 52.46);
+assert.equal(minimumPayload.subtotal, 62.9);
+assert.equal(minimumPayload.balanceDue, 62.9);
+assert.doesNotMatch(JSON.stringify(minimumPayload), /AI generated|AI pricing|AI adjustment/i);
 
 console.log("Customer-safe quote conversion, deleted-source filtering, totals, and saved invoice restoration passed.");
