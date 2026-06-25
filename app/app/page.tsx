@@ -1,25 +1,37 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { PageLoading } from "@/components/ui/page-loading";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-export const dynamic = "force-dynamic";
+export default function NativeAppEntryPage() {
+  const router = useRouter();
 
-export default async function NativeAppEntryPage() {
-  const supabase = createSupabaseServerClient();
+  useEffect(() => {
+    let canceled = false;
 
-  if (!supabase) {
-    redirect("/login?setup=supabase");
-  }
+    async function openNativeWorkspace() {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) {
+        router.replace("/login?setup=supabase");
+        return;
+      }
 
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
 
-  if (user) {
-    redirect("/dashboard");
-  }
+      if (canceled) return;
+      router.replace(user ? "/dashboard" : "/login");
+    }
 
-  redirect("/login");
+    void openNativeWorkspace();
+
+    return () => {
+      canceled = true;
+    };
+  }, [router]);
 
   return <PageLoading label="Opening AcreX" />;
 }
