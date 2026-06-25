@@ -1,12 +1,6 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
-const configuredServerUrl = process.env.CAPACITOR_SERVER_URL?.trim();
-const nativeEntryPath = process.env.CAPACITOR_NATIVE_ENTRY_PATH?.trim() || "/app";
-const serverUrlWithNativeEntry = configuredServerUrl
-  ? new URL(nativeEntryPath, configuredServerUrl.endsWith("/") ? configuredServerUrl : `${configuredServerUrl}/`).toString()
-  : undefined;
-const serverUrl =
-  serverUrlWithNativeEntry || (process.env.NODE_ENV === "production" ? "https://getacrex.com/app" : "http://localhost:3001/app");
+const serverUrl = process.env.CAPACITOR_SERVER_URL?.trim() || "https://getacrex.com/app";
 
 const config: CapacitorConfig = {
   appId: "com.getacrex.app",
