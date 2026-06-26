@@ -5099,6 +5099,44 @@ img {
   line-height: 1.5;
 }
 
+.settings-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.settings-autosave-chip {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  color: #9eaaa2;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 0 13px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.settings-autosave-chip.is-saving {
+  border-color: rgba(127, 217, 87, 0.22);
+  color: #dfffd6;
+  background: rgba(127, 217, 87, 0.08);
+}
+
+.settings-autosave-chip.is-saved {
+  color: #c9f4bd;
+}
+
+.settings-autosave-chip.is-error {
+  border-color: rgba(255, 120, 91, 0.24);
+  color: #ffd6ce;
+  background: rgba(255, 120, 91, 0.08);
+}
+
 .settings-card {
   display: grid;
   gap: 18px;
@@ -5136,8 +5174,7 @@ img {
   font-size: 1.08rem;
 }
 
-.settings-sign-out,
-.settings-save-bar button {
+.settings-sign-out {
   min-height: 42px;
   border: 0;
   border-radius: 11px;
@@ -5242,6 +5279,21 @@ img {
   font-size: 1rem;
 }
 
+.upgrade-panel .settings-section-heading p {
+  max-width: 560px;
+  margin: 6px 0 0;
+  color: #8f9b93;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.subscription-management-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
 .upgrade-panel .settings-section-heading button,
 .upgrade-plan-card button {
   min-height: 38px;
@@ -5254,6 +5306,11 @@ img {
   font-size: 0.78rem;
   font-weight: 950;
   cursor: pointer;
+}
+
+.upgrade-panel .settings-section-heading button.secondary-subscription-action {
+  color: #efffe9;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .upgrade-panel button:disabled,
@@ -11156,29 +11213,21 @@ img {
     text-decoration: none;
   }
 
-  .mobile-map-action-bar :where(button, a) i {
-    width: 18px;
-    height: 18px;
-    border: 2px solid currentColor;
-    border-radius: 6px;
-    opacity: 0.8;
+  .mobile-map-action-bar .mobile-action-icon {
+    width: 23px;
+    height: 23px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.85;
+    opacity: 0.88;
+    filter: drop-shadow(0 7px 13px rgba(0, 0, 0, 0.26));
   }
 
-  .mobile-map-action-bar :where(button, a):nth-child(2) i {
-    border-radius: 4px;
-    transform: rotate(45deg) scale(0.75);
-  }
-
-  .mobile-map-action-bar :where(button, a):nth-child(3) i {
-    border-radius: 50%;
-  }
-
-  .mobile-map-action-bar :where(button, a):nth-child(4) i {
-    height: 5px;
-    border: 0;
-    border-radius: 999px;
-    background: currentColor;
-    box-shadow: 0 -7px currentColor, 0 7px currentColor;
+  .mobile-map-action-bar .mobile-action-icon circle {
+    fill: currentColor;
+    stroke: none;
   }
 
   .mobile-map-action-bar :where(button, a).active {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 import { MobileAppNav } from "@/components/ui/mobile-app-nav";
@@ -79,6 +79,8 @@ export function SettingsPage({ account, storedSettings, usage }: SettingsPagePro
   const [subscriptionSource, setSubscriptionSource] = useState(account.subscriptionSource);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [activeTab, setActiveTab] = useState<"account" | "company" | "pricing" | "quote" | "drawing" | "map">("company");
+  const [subscriptionManagerOpen, setSubscriptionManagerOpen] = useState(false);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleExternalSettingsChange = useCallback(
     (change: { type: string }) => {
       if (change.type === "settings-saved") {
@@ -95,6 +97,12 @@ export function SettingsPage({ account, storedSettings, usage }: SettingsPagePro
   }, [account.id, storedSettings]);
 
   useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     if (searchParams.get("tab") === "account") setActiveTab("account");
   }, [searchParams]);
 
@@ -106,56 +114,67 @@ export function SettingsPage({ account, storedSettings, usage }: SettingsPagePro
 
   type EditableSettingsSection = "company" | "quoteDefaults" | "pricing" | "drawing" | "map";
 
-  function updateSection<K extends EditableSettingsSection>(
-    section: K,
-    field: keyof AcrexUserSettings[K],
-    value: string | number | boolean
-  ) {
-    setSettings((current) => ({
-      ...current,
-      [section]: {
-        ...(current[section] as object),
-        [field]: value
-      }
-    }));
-    setSaveState("idle");
-    setSaveMessage("");
-  }
-
-  async function handleSave() {
+  const persistSettings = useCallback(async (settingsToSave: AcrexUserSettings) => {
     setSaveState("saving");
     setSaveMessage("Saving…");
     try {
-      await Promise.resolve();
       const next = normalizeUserSettings({
-        ...settings,
+        ...settingsToSave,
         updatedAt: new Date().toISOString()
       });
       const supabase = createSupabaseBrowserClient();
-      if (!supabase) throw new Error("Settings storage is not configured.");
-      const databaseResult = await saveUserSettingsToDatabase(supabase, account.id, {
-        company_profile: next.company,
-        quote_defaults: next.quoteDefaults,
-        pricing_defaults: next.pricing,
-        drawing_defaults: next.drawing,
-        map_defaults: next.map
-      });
-      if (
-        databaseResult.error &&
-        !databaseResult.error.includes("user_settings") &&
-        !databaseResult.error.includes("schema cache")
-      ) {
-        throw new Error(databaseResult.error);
+      if (supabase) {
+        const databaseResult = await saveUserSettingsToDatabase(supabase, account.id, {
+          company_profile: next.company,
+          quote_defaults: next.quoteDefaults,
+          pricing_defaults: next.pricing,
+          drawing_defaults: next.drawing,
+          map_defaults: next.map
+        });
+        if (
+          databaseResult.error &&
+          !databaseResult.error.includes("user_settings") &&
+          !databaseResult.error.includes("schema cache")
+        ) {
+          throw new Error(databaseResult.error);
+        }
       }
       saveUserSettings(account.id, next);
       setSettings(next);
       setSaveState("saved");
-      setSaveMessage("Saved");
+      setSaveMessage(supabase ? "Saved" : "Saved on device");
       publishDataChange({ type: "settings-saved" });
     } catch {
       setSaveState("error");
       setSaveMessage("Save failed");
     }
+  }, [account.id]);
+
+  const scheduleAutosave = useCallback((next: AcrexUserSettings) => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    setSaveState("saving");
+    setSaveMessage("Saving…");
+    autosaveTimerRef.current = setTimeout(() => {
+      void persistSettings(next);
+    }, 650);
+  }, [persistSettings]);
+
+  function updateSection<K extends EditableSettingsSection>(
+    section: K,
+    field: keyof AcrexUserSettings[K],
+    value: string | number | boolean
+  ) {
+    setSettings((current) => {
+      const next = normalizeUserSettings({
+        ...current,
+        [section]: {
+          ...(current[section] as object),
+          [field]: value
+        }
+      });
+      scheduleAutosave(next);
+      return next;
+    });
   }
 
   async function handleSignOut() {
@@ -269,9 +288,14 @@ export function SettingsPage({ account, storedSettings, usage }: SettingsPagePro
             <h1>Settings</h1>
             <p>Manage account details, company information, quoting defaults, pricing, drawings, and Map preferences.</p>
           </div>
-          <div className="projects-user-chip">
+          <div className="settings-header-actions">
+            <div className={`settings-autosave-chip is-${saveState}`} role="status" aria-live="polite">
+              {saveState === "saving" ? "Saving…" : saveMessage || (settings.updatedAt ? "Saved" : "Autosaves")}
+            </div>
+            <div className="projects-user-chip">
             <strong>{(account.name || account.email || "A").slice(0, 1).toUpperCase()}</strong>
             <span>{account.email}</span>
+            </div>
           </div>
         </header>
 
@@ -296,16 +320,6 @@ export function SettingsPage({ account, storedSettings, usage }: SettingsPagePro
           ))}
         </nav>
 
-        <footer className="settings-save-bar">
-          <div>
-            <strong>{saveMessage || "Settings sync to this account across devices."}</strong>
-            <span>{settings.updatedAt ? `Last saved ${formatDate(settings.updatedAt)}` : "Not saved yet"}</span>
-          </div>
-          <button className={saveState === "saving" ? "is-processing" : ""} type="button" onClick={handleSave} disabled={saveState === "saving"}>
-            {saveState === "saving" ? "Saving…" : "Save Settings"}
-          </button>
-        </footer>
-
         <div className="settings-tab-panel" role="tabpanel">
         {activeTab === "account" ? (
         <section className="settings-card account-settings-card" aria-labelledby="account-heading">
@@ -325,7 +339,6 @@ export function SettingsPage({ account, storedSettings, usage }: SettingsPagePro
             <div><span>Current plan</span><strong>{billingPlans[currentPlan].name}</strong></div>
             <div><span>Subscription status</span><strong>{subscriptionStatus}</strong></div>
             <div><span>Subscription source</span><strong>{subscriptionSource}</strong></div>
-            <div><span>Apple product</span><strong>{account.appleProductId ?? "Not active"}</strong></div>
             <div><span>Renews / expires</span><strong>{formatDate(account.appleExpiresAt)}</strong></div>
             <div><span>Last entitlement check</span><strong>{formatDate(account.lastEntitlementCheckAt)}</strong></div>
             <div><span>Account created</span><strong>{formatDate(account.createdAt)}</strong></div>
@@ -333,66 +346,86 @@ export function SettingsPage({ account, storedSettings, usage }: SettingsPagePro
           <section className="upgrade-panel" aria-label="Upgrade AcreX">
             <div className="settings-section-heading">
               <div>
-                <span>iOS App Subscription</span>
-                <h3>Upgrade through Apple In-App Purchase</h3>
+                <span>Subscription</span>
+                <h3>Manage Subscriptions</h3>
+                <p>
+                  Current plan: {billingPlans[currentPlan].name}.{" "}
+                  {billingProvider.isAvailable
+                    ? "Plans and restore options are handled through Apple In-App Purchase."
+                    : "Subscriptions are available in the iOS app."}
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => void handleRestorePurchases()}
-                disabled={billingState === "loading" || !billingProvider.isAvailable}
-                title={!billingProvider.isAvailable ? "Subscriptions are available in the iOS app." : undefined}
-              >
-                {billingState === "loading" ? "Checking…" : "Restore Purchases"}
-              </button>
+              <div className="subscription-management-actions">
+                <button
+                  type="button"
+                  className="secondary-subscription-action"
+                  onClick={() => setSubscriptionManagerOpen((current) => !current)}
+                  aria-expanded={subscriptionManagerOpen}
+                >
+                  {subscriptionManagerOpen ? "Hide Plans" : "Manage Subscriptions"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleRestorePurchases()}
+                  disabled={billingState === "loading" || !billingProvider.isAvailable}
+                  title={!billingProvider.isAvailable ? "Subscriptions are available in the iOS app." : undefined}
+                >
+                  {billingState === "loading" ? "Checking…" : "Restore Purchases"}
+                </button>
+              </div>
             </div>
 
-            <div className="usage-limit-grid">
-              {([
-                ["projects", "Projects"],
-                ["quotes", "Quotes"],
-                ["aiEstimates", "AI estimates"],
-                ["exports", "Exports"],
-                ["invoices", "Invoices"]
-              ] as const).map(([metric, label]) => {
-                const remaining = usageRemaining(currentPlan, usage, metric);
-                return (
-                  <div key={metric}>
-                    <span>{label}</span>
-                    <strong>{remaining === null ? "Unlimited" : `${remaining} left`}</strong>
-                    <small>{usage[metric]} used</small>
-                  </div>
-                );
-              })}
-            </div>
+            {subscriptionManagerOpen ? (
+              <>
+                <div className="usage-limit-grid">
+                  {([
+                    ["projects", "Projects"],
+                    ["quotes", "Quotes"],
+                    ["aiEstimates", "AI estimates"],
+                    ["exports", "Exports"],
+                    ["invoices", "Invoices"]
+                  ] as const).map(([metric, label]) => {
+                    const remaining = usageRemaining(currentPlan, usage, metric);
+                    return (
+                      <div key={metric}>
+                        <span>{label}</span>
+                        <strong>{remaining === null ? "Unlimited" : `${remaining} left`}</strong>
+                        <small>{usage[metric]} used</small>
+                      </div>
+                    );
+                  })}
+                </div>
 
-            <div className="upgrade-plan-grid">
-              {(["pro", "business"] as const).map((plan) => {
-                const unavailable = !billingProvider.isAvailable;
-                return (
-                  <article className="upgrade-plan-card" key={plan}>
-                    <div>
-                      <span>{billingPlans[plan].label}</span>
-                      <h4>{billingPlans[plan].name}</h4>
-                      <strong className="upgrade-plan-price">{billingPlans[plan].priceLabel}</strong>
-                      <small>{billingPlans[plan].appleProductId}</small>
-                    </div>
-                    <ul>
-                      {billingPlans[plan].features.map((feature) => (
-                        <li key={feature}>{feature}</li>
-                      ))}
-                    </ul>
-                    <button
-                      type="button"
-                      onClick={() => void handleUpgrade(plan)}
-                      disabled={billingState === "loading" || unavailable}
-                      title={unavailable ? "Subscriptions are available in the iOS app." : undefined}
-                    >
-                      {currentPlan === plan ? "Current Plan" : `Upgrade to ${billingPlans[plan].name}`}
-                    </button>
-                  </article>
-                );
-              })}
-            </div>
+                <div className="upgrade-plan-grid">
+                  {(["pro", "business"] as const).map((plan) => {
+                    const unavailable = !billingProvider.isAvailable;
+                    return (
+                      <article className="upgrade-plan-card" key={plan}>
+                        <div>
+                          <span>{billingPlans[plan].label}</span>
+                          <h4>{billingPlans[plan].name}</h4>
+                          <strong className="upgrade-plan-price">{billingPlans[plan].priceLabel}</strong>
+                          <small>Billed monthly through the App Store</small>
+                        </div>
+                        <ul>
+                          {billingPlans[plan].features.map((feature) => (
+                            <li key={feature}>{feature}</li>
+                          ))}
+                        </ul>
+                        <button
+                          type="button"
+                          onClick={() => void handleUpgrade(plan)}
+                          disabled={billingState === "loading" || unavailable || currentPlan === plan}
+                          title={unavailable ? "Subscriptions are available in the iOS app." : undefined}
+                        >
+                          {currentPlan === plan ? "Current Plan" : `Upgrade to ${billingPlans[plan].name}`}
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              </>
+            ) : null}
 
             <div className={`billing-status-message is-${billingState}`} role="status">
               {billingMessage || (billingProvider.isAvailable

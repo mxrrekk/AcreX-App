@@ -6,6 +6,32 @@ export type CascadeResult = {
   message: string;
 };
 
+function isMissingOptionalRelation(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("does not exist") ||
+    normalized.includes("schema cache") ||
+    normalized.includes("could not find the table") ||
+    normalized.includes("relation") && normalized.includes("not found")
+  );
+}
+
+async function deleteProjectScopedRows(
+  supabase: SupabaseClient,
+  table: string,
+  userId: string,
+  projectId: string
+): Promise<CascadeResult> {
+  const { error } = await supabase
+    .from(table)
+    .delete()
+    .eq("project_id", projectId)
+    .eq("user_id", userId);
+
+  if (!error || isMissingOptionalRelation(error.message)) return { ok: true, message: "Deleted" };
+  return { ok: false, message: error.message };
+}
+
 export async function cascadeDeleteProject({
   supabase,
   userId,
@@ -43,38 +69,25 @@ export async function cascadeDeleteProject({
       message: quoteReadError?.message ?? invoiceReadError?.message ?? "Related records could not be verified."
     };
   }
-  const projectQuotes = (quoteRows ?? []) as Pick<QuoteRecord, "id" | "project_id" | "quote_number" | "status">[];
-  const projectInvoices = (invoiceRows ?? []) as Pick<InvoiceRecord, "id" | "project_id" | "invoice_number" | "status">[];
-  const protectedQuote = projectQuotes.find((quote) => quote.status !== "Draft");
-  const protectedInvoice = projectInvoices.find((invoice) => invoice.status !== "Draft");
-
-  if (protectedInvoice) {
-    return {
-      ok: false,
-      message: `Project cannot be deleted while invoice ${protectedInvoice.invoice_number} is ${protectedInvoice.status.toLowerCase()}.`
-    };
-  }
-  if (protectedQuote) {
-    return {
-      ok: false,
-      message: `Project cannot be deleted while quote ${protectedQuote.quote_number} is ${protectedQuote.status.toLowerCase()}.`
-    };
+  const dependentDeletes = [
+    "invoice_line_items",
+    "quote_line_items",
+    "attachments",
+    "exports",
+    "ai_estimate_snapshots",
+    "measurements",
+    "project_activity",
+    "drawings"
+  ];
+  for (const table of dependentDeletes) {
+    const result = await deleteProjectScopedRows(supabase, table, userId, projectId);
+    if (!result.ok) return result;
   }
 
-  const { error: invoiceError } = await supabase
-    .from("invoices")
-    .delete()
-    .eq("project_id", projectId)
-    .eq("user_id", userId)
-    .eq("status", "Draft");
+  const { error: invoiceError } = await supabase.from("invoices").delete().eq("project_id", projectId).eq("user_id", userId);
   if (invoiceError) return { ok: false, message: invoiceError.message };
 
-  const { error: quoteError } = await supabase
-    .from("quotes")
-    .delete()
-    .eq("project_id", projectId)
-    .eq("user_id", userId)
-    .eq("status", "Draft");
+  const { error: quoteError } = await supabase.from("quotes").delete().eq("project_id", projectId).eq("user_id", userId);
   if (quoteError) return { ok: false, message: quoteError.message };
 
   const { error: projectError } = await supabase

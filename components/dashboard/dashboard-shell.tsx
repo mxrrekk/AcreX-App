@@ -1789,7 +1789,10 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
               className={mobileSheet === "draw" ? "active" : ""}
               onClick={() => openMobileSheet("draw")}
             >
-              <i aria-hidden="true" />
+              <svg className="mobile-action-icon" aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M4.5 18.2 5.8 13l8.9-8.9a2.1 2.1 0 0 1 3 0l2.2 2.2a2.1 2.1 0 0 1 0 3L11 18.2 5.8 19.5a1.1 1.1 0 0 1-1.3-1.3Z" />
+                <path d="m13.2 5.6 5.2 5.2M5.8 13l5.2 5.2" />
+              </svg>
               <span>Draw</span>
             </button>
             <button
@@ -1797,7 +1800,11 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
               className={mobileSheet === "project" ? "active" : ""}
               onClick={() => openMobileSheet("project")}
             >
-              <i aria-hidden="true" />
+              <svg className="mobile-action-icon" aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M3.8 18.7V7.2A2.2 2.2 0 0 1 6 5h3.9l2 2.1H18a2.2 2.2 0 0 1 2.2 2.2v9.4A2.2 2.2 0 0 1 18 21H6a2.2 2.2 0 0 1-2.2-2.3Z" />
+                <path d="M8.1 14.1c0-2.4 1.8-4.1 3.9-4.1s3.9 1.7 3.9 4.1c0 2.9-3.9 5.2-3.9 5.2s-3.9-2.3-3.9-5.2Z" />
+                <circle cx="12" cy="14" r="1.2" />
+              </svg>
               <span>Project</span>
             </button>
             <button
@@ -1805,7 +1812,11 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
               className={mobileSheet === "quote" ? "active" : ""}
               onClick={() => openMobileSheet("quote")}
             >
-              <i aria-hidden="true" />
+              <svg className="mobile-action-icon" aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M6.2 3.5h8.2l3.4 3.5v13.5H6.2v-17Z" />
+                <path d="M14.2 3.8V7h3.2M8.8 10.6h6.4M8.8 14h6.4" />
+                <path d="M12 18.1v-3.8M10.5 15.2c.3-.6.9-.9 1.7-.9.9 0 1.5.4 1.5 1.1 0 1.5-3.1.6-3.1 2 0 .7.7 1.1 1.6 1.1.8 0 1.4-.3 1.8-.9" />
+              </svg>
               <span>Quote</span>
             </button>
             <button
@@ -1813,7 +1824,12 @@ export function DashboardShell({ userId, userEmail }: DashboardShellProps) {
               className={mobileSheet === "more" ? "active" : ""}
               onClick={() => openMobileSheet("more")}
             >
-              <i aria-hidden="true" />
+              <svg className="mobile-action-icon" aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M5 7h14M5 12h14M5 17h14" />
+                <circle cx="18.5" cy="7" r="1.2" />
+                <circle cx="12" cy="12" r="1.2" />
+                <circle cx="7.5" cy="17" r="1.2" />
+              </svg>
               <span>More</span>
             </button>
           </nav>

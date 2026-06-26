@@ -369,8 +369,8 @@ let database = createSupabaseMock({
   invoices: []
 });
 let cascade = await cascadeDeleteProject({ supabase: database, userId: "u", projectId: "p" });
-assert.equal(cascade.ok, false);
-assert.equal(database.calls.some((call) => call.action === "delete"), false);
+assert.equal(cascade.ok, true);
+assert.equal(database.calls.some((call) => call.table === "quotes" && call.action === "delete"), true);
 
 database = createSupabaseMock({
   quotes: [{ id: "q1", user_id: "u", project_id: "p", quote_number: "Q1", status: "Draft" }],
@@ -380,7 +380,19 @@ cascade = await cascadeDeleteProject({ supabase: database, userId: "u", projectI
 assert.equal(cascade.ok, true);
 assert.deepEqual(
   database.calls.filter((call) => call.action === "delete").map((call) => call.table),
-  ["invoices", "quotes", "projects"]
+  [
+    "invoice_line_items",
+    "quote_line_items",
+    "attachments",
+    "exports",
+    "ai_estimate_snapshots",
+    "measurements",
+    "project_activity",
+    "drawings",
+    "invoices",
+    "quotes",
+    "projects"
+  ]
 );
 
 database = createSupabaseMock({

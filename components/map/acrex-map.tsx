@@ -3574,7 +3574,6 @@ export function AcrexMap({
           </section>
         </>
       ) : null}
-      <div className="parcel-note">Parcel lines require a parcel data provider.</div>
     </>
   );
 }

@@ -305,8 +305,8 @@ export function ProjectsPage({ userId, userEmail, projects, clients, quotes, inv
             <span className="modal-icon">!</span>
             <h2 id="delete-project-title">Delete project?</h2>
             <p>
-              This permanently removes <strong>{pendingDeleteProject.project_name}</strong>, its drawings, draft quotes,
-              quote items, and draft invoices. Sent, accepted, or paid financial records must be resolved first.
+              This permanently removes <strong>{pendingDeleteProject.project_name}</strong>, its drawings, quotes,
+              quote items, invoices, exports, attachments, and project activity.
             </p>
             <div className="modal-actions">
               <button type="button" onClick={() => setPendingDeleteProject(null)} disabled={deletingProjectId === pendingDeleteProject.id}>
